@@ -32,10 +32,16 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    const auto config_selection = cli::select_config_file(argc, argv);
-    if (config_selection.explicit_requested && !config_selection.path.has_value())
+    if (cli::has_list_devices_argument(argc, argv))
     {
-        std::cerr << "Config file not found\n";
+        cli::print_device_list();
+        return 0;
+    }
+
+    const auto config_selection = cli::select_config_file(argc, argv);
+    if (!config_selection.path.has_value())
+    {
+        std::cerr << "No config file found on the command line or in $HOME/.config/cockscreen/config.ini\n";
         return 2;
     }
 
@@ -46,37 +52,11 @@ int main(int argc, char *argv[])
     }
 
     auto command_line = cli::parse_arguments(argc, argv, std::move(initial_settings));
-    if (command_line.settings.audio_device.empty())
-    {
-        if (const auto default_audio = cli::detect_default_audio_device(); default_audio.has_value())
-        {
-            command_line.settings.audio_device = *default_audio;
-        }
-    }
-
-    if (command_line.settings.midi_input.empty())
-    {
-        if (const auto default_midi = cli::detect_default_midi_device(); default_midi.has_value())
-        {
-            command_line.settings.midi_input = *default_midi;
-        }
-    }
-
     command_line.settings.executable_directory = executable_directory.string();
 
     if (command_line.settings.shader_directory.empty())
     {
-        if (command_line.shader_directory_override.has_value())
-        {
-            const std::filesystem::path requested{*command_line.shader_directory_override};
-            const auto resolved_override = cli::resolve_relative_path(requested);
-            command_line.settings.shader_directory = resolved_override.has_value() ? resolved_override->string()
-                                                                                   : *command_line.shader_directory_override;
-        }
-        else
-        {
-            command_line.settings.shader_directory = command_line.settings.executable_directory;
-        }
+        command_line.settings.shader_directory = command_line.settings.executable_directory;
     }
 
     cli::enable_shader_render_path_if_requested(&command_line.settings);
@@ -89,7 +69,7 @@ int main(int argc, char *argv[])
 
     if (command_line.list_devices_requested)
     {
-        cli::print_device_list(command_line.settings);
+        cli::print_device_list();
     }
 
     if (command_line.list_capture_modes_requested)

@@ -2,6 +2,10 @@
 
 #include "cockscreen/runtime/V4l2Capture.hpp"
 
+#include <QAudioDevice>
+#include <QCameraDevice>
+#include <QMediaDevices>
+
 #include <iostream>
 
 namespace cockscreen::app
@@ -37,6 +41,20 @@ bool has_help_argument(int argc, char *argv[])
     return false;
 }
 
+bool has_list_devices_argument(int argc, char *argv[])
+{
+    for (int index = 1; index < argc; ++index)
+    {
+        const std::string_view argument{argv[index]};
+        if (argument == "--list-devices")
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings settings)
 {
     CommandLine result;
@@ -62,53 +80,9 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         {
             result.settings.window_title = std::string(next_value(index, argc, argv));
         }
-        else if (argument == "--video-device")
-        {
-            result.settings.video_device = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--audio-device")
-        {
-            result.settings.audio_device = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--osc-endpoint")
-        {
-            result.settings.osc_endpoint = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--midi-input")
-        {
-            result.settings.midi_input = std::string(next_value(index, argc, argv));
-        }
         else if (argument == "--scene-file")
         {
             result.settings.scene_file = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--shader-directory")
-        {
-            result.shader_directory_override = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--shader-file")
-        {
-            result.settings.shader_file = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--screen-shader-file")
-        {
-            result.settings.screen_shader_file = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--top-layer-opacity")
-        {
-            const auto opacity = next_value(index, argc, argv);
-            if (opacity.empty() || !apply_top_layer_opacity(opacity, &result.settings))
-            {
-                result.help_requested = true;
-            }
-        }
-        else if (argument == "--top-layer")
-        {
-            const auto layer = next_value(index, argc, argv);
-            if (layer.empty() || !apply_top_layer(layer, &result.settings))
-            {
-                result.help_requested = true;
-            }
         }
         else if (argument == "--config-file")
         {
@@ -133,14 +107,6 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         {
             result.settings.frame_rate = std::stoi(std::string(next_value(index, argc, argv)));
         }
-        else if (argument == "--capture-mode")
-        {
-            const auto mode = next_value(index, argc, argv);
-            if (mode.empty() || !apply_capture_mode(mode, &result.settings))
-            {
-                result.help_requested = true;
-            }
-        }
         else
         {
             std::cerr << "Unknown argument: " << argument << '\n';
@@ -154,22 +120,12 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
 void print_help()
 {
     std::cout << "Usage: cockscreen [options]\n"
+              << "  --config-file PATH\n"
               << "  --list-devices\n"
               << "  --list-capture-modes\n"
               << "  --window-title TEXT\n"
-              << "  --video-device PATH\n"
-              << "  --audio-device NAME\n"
-              << "  --osc-endpoint HOST:PORT\n"
-              << "  --midi-input NAME\n"
               << "  --scene-file FILE\n"
-              << "  --shader-directory PATH\n"
-              << "  --shader-file FILE\n"
-              << "  --screen-shader-file FILE\n"
-              << "  --top-layer-opacity 0.0-1.0\n"
-              << "  --top-layer video|screen\n"
-              << "  --config-file PATH\n"
               << "  --render-path qt|qt-shader|v4l2-dmabuf-egl\n"
-              << "  --capture-mode qvga|vga|svga|xga|720p|1080p|WIDTHxHEIGHT\n"
               << "  --width N\n"
               << "  --height N\n"
               << "  --frame-rate N\n";
@@ -200,29 +156,59 @@ void print_capture_modes(const runtime::ApplicationSettings &settings)
     std::cout << "  - 1080p (1920x1080)\n";
 }
 
-void print_device_list(const runtime::ApplicationSettings &settings)
+void print_device_list()
 {
+    const auto audio_inputs = QMediaDevices::audioInputs();
+    const auto video_inputs = QMediaDevices::videoInputs();
     const auto midi_devices = detect_midi_devices();
-    std::cout << "Required devices and connections\n";
-    std::cout << "  Video Capture: " << settings.video_device << "\n";
-    std::cout << "  Audio: " << (settings.audio_device.empty() ? "<not set>" : settings.audio_device) << "\n";
-    std::cout << "  MIDI: " << (settings.midi_input.empty() ? "<not set>" : settings.midi_input) << "\n";
-    if (midi_devices.empty())
+    std::cout << "Available audio input devices\n";
+    if (audio_inputs.isEmpty())
     {
-        std::cout << "  MIDI devices detected: <none>\n";
+        std::cout << "  <none>\n";
     }
     else
     {
-        std::cout << "  MIDI devices detected: " << midi_devices.size() << "\n";
-        for (const auto &device : midi_devices)
+        for (const auto &device : audio_inputs)
         {
-            std::cout << "    - " << device << "\n";
+            std::cout << "  - " << device.description().toStdString();
+            if (!device.id().isEmpty())
+            {
+                std::cout << " (id=" << device.id().toHex().toStdString() << ")";
+            }
+            std::cout << "\n";
         }
     }
-    std::cout << "  Network: OSC over UDP, endpoint " << settings.osc_endpoint << "\n";
-    std::cout << "  Network protocol: OSC/UDP (IP:port)\n";
-    std::cout << "  Render path: " << settings.render_path << "\n";
-    std::cout << "  Window: " << settings.width << "x" << settings.height << "\n";
+
+    std::cout << "Available video input devices\n";
+    if (video_inputs.isEmpty())
+    {
+        std::cout << "  <none>\n";
+    }
+    else
+    {
+        for (const auto &device : video_inputs)
+        {
+            std::cout << "  - " << device.description().toStdString();
+            if (!device.id().isEmpty())
+            {
+                std::cout << " (id=" << device.id().toHex().toStdString() << ")";
+            }
+            std::cout << "\n";
+        }
+    }
+
+    std::cout << "Available MIDI devices\n";
+    if (midi_devices.empty())
+    {
+        std::cout << "  <none>\n";
+    }
+    else
+    {
+        for (const auto &device : midi_devices)
+        {
+            std::cout << "  - " << device << "\n";
+        }
+    }
 }
 
 } // namespace cockscreen::app

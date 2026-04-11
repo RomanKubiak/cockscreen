@@ -5,6 +5,7 @@
 #include <QSettings>
 
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 
@@ -128,7 +129,18 @@ ConfigFileSelection select_config_file(int argc, char *argv[])
     }
 
     ConfigFileSelection selection;
-    selection.path = resolve_relative_path(std::filesystem::path{"config/default.ini"});
+
+    if (const char *home = std::getenv("HOME"); home != nullptr && *home != '\0')
+    {
+        const std::filesystem::path fallback_directory = std::filesystem::path{home} / ".config" / "cockscreen";
+        const std::filesystem::path fallback_file = fallback_directory / "config.ini";
+        if (std::filesystem::exists(fallback_directory) && std::filesystem::is_directory(fallback_directory) &&
+            std::filesystem::exists(fallback_file) && std::filesystem::is_regular_file(fallback_file))
+        {
+            selection.path = fallback_file;
+        }
+    }
+
     return selection;
 }
 
@@ -149,10 +161,6 @@ bool load_config_file(const std::filesystem::path &path, runtime::ApplicationSet
     const auto base_dir = path.parent_path();
     config.beginGroup(QStringLiteral("runtime"));
 
-    apply_string_setting(config, "video_device", &settings->video_device);
-    apply_string_setting(config, "audio_device", &settings->audio_device);
-    apply_string_setting(config, "osc_endpoint", &settings->osc_endpoint);
-    apply_string_setting(config, "midi_input", &settings->midi_input);
     if (config.contains("scene_file"))
     {
         const auto scene_file = config.value("scene_file").toString().toStdString();
@@ -166,38 +174,13 @@ bool load_config_file(const std::filesystem::path &path, runtime::ApplicationSet
         settings->scene_file = resolved_scene_file->string();
     }
 
-    if (config.contains("shader_directory"))
-    {
-        const auto shader_directory = config.value("shader_directory").toString().toStdString();
-        const auto resolved_shader_directory =
-            resolve_relative_path_from_base(base_dir, std::filesystem::path{shader_directory});
-        if (!resolved_shader_directory.has_value())
-        {
-            std::cerr << "Shader directory not found: " << shader_directory << '\n';
-            return false;
-        }
-
-        settings->shader_directory = resolved_shader_directory->string();
-    }
-
-    apply_string_setting(config, "shader_file", &settings->shader_file);
-    apply_string_setting(config, "screen_shader_file", &settings->screen_shader_file);
     apply_string_setting(config, "render_path", &settings->render_path);
     apply_string_setting(config, "window_title", &settings->window_title);
 
     if (!apply_int_setting(config, "width", &settings->width) || !apply_int_setting(config, "height", &settings->height) ||
-        !apply_int_setting(config, "frame_rate", &settings->frame_rate) ||
-        !apply_double_setting(config, "top_layer_opacity", &settings->top_layer_opacity))
+        !apply_int_setting(config, "frame_rate", &settings->frame_rate))
     {
         return false;
-    }
-
-    if (config.contains("top_layer"))
-    {
-        if (!apply_top_layer(config.value("top_layer").toString().toStdString(), settings))
-        {
-            return false;
-        }
     }
 
     return true;

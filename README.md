@@ -24,9 +24,10 @@ Local x86_64 builds default to a 1024x600 windowed Qt6 UI. The Pi Zero 2 W build
 
 ## Configuration
 
-Runtime defaults can be stored in [config/default.ini](config/default.ini), which uses the Qt `QSettings` INI format. Most values in the file are loaded first and can be overridden by command-line arguments.
+Runtime defaults can be stored in [config/x86_64-linux.ini](config/x86_64-linux.ini) for desktop Linux or [config/pi-zero2w.ini](config/pi-zero2w.ini) for the Pi, both of which use the Qt `QSettings` INI format. Most values in the file are loaded first and can be overridden by command-line arguments.
 
-The `runtime` group supports the same options as the CLI, including `video_device`, `audio_device`, `osc_endpoint`, `midi_input`, `shader_directory`, `shader_file`, `screen_shader_file`, `top_layer`, `top_layer_opacity`, `render_path`, `window_title`, `width`, `height`, and `frame_rate`.
+Run the app with `--config-file config/x86_64-linux.ini` or `--config-file config/pi-zero2w.ini`. If no config file is passed, the app will look for `$HOME/.config/cockscreen/config.ini` and use it when present. Otherwise it refuses to start.
+The `runtime` group now only carries the remaining startup options: `scene_file`, `render_path`, `window_title`, `width`, `height`, and `frame_rate`.
 
 Scene-specific rendering can be loaded from a separate JSON file via `scene_file`. A scene defines inputs, video and screen shader chains, a background color, a background image, a shader directory, a resources directory, an optional note-font resource, and MIDI CC mappings for shader uniforms. The video input block can also request a capture format and control on-screen scale and position.
 
