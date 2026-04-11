@@ -22,6 +22,24 @@
 			"group": "test"
 		},
 		{
+			"label": "Local: Cross Build Debug",
+			"type": "shell",
+			"command": "cmake --preset cross-pi-zero2w-debug && cmake --build --preset cross-pi-zero2w-debug",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build"
+		},
+		{
+			"label": "Local: Cross Build Release",
+			"type": "shell",
+			"command": "cmake --preset cross-pi-zero2w-release && cmake --build --preset cross-pi-zero2w-release",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build"
+		},
+		{
 			"label": "Remote Pi: Sync Workspace",
 			"type": "shell",
 			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen\" && rsync -az --delete --exclude .git --exclude out --exclude build --exclude .cache --exclude .vscode/ipch ${workspaceFolder}/ atom@192.168.41.181:/home/atom/cockscreen/",
@@ -39,6 +57,54 @@
 			},
 			"dependsOn": "Remote Pi: Sync Workspace",
 			"group": "build"
+		},
+		{
+			"label": "Remote Pi: Upload Cross Debug",
+			"type": "shell",
+			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen/out/build/cross-pi-zero2w-debug\" && rsync -az ${workspaceFolder}/out/build/cross-pi-zero2w-debug/ atom@192.168.41.181:/home/atom/cockscreen/out/build/cross-pi-zero2w-debug/",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": [
+				"Remote Pi: Sync Workspace",
+				"Local: Cross Build Debug"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Remote Pi: Upload Cross Release",
+			"type": "shell",
+			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen/out/build/cross-pi-zero2w-release\" && rsync -az ${workspaceFolder}/out/build/cross-pi-zero2w-release/ atom@192.168.41.181:/home/atom/cockscreen/out/build/cross-pi-zero2w-release/",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": [
+				"Remote Pi: Sync Workspace",
+				"Local: Cross Build Release"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Remote Pi: Run Cross Debug",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Upload Cross Debug",
+			"isBackground": true,
+			"group": "test"
+		},
+		{
+			"label": "Remote Pi: Run Cross Release",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-release/cockscreen\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Upload Cross Release",
+			"isBackground": true,
+			"group": "test"
 		},
 		{
 			"label": "Remote Pi: Run Debug",
