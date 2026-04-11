@@ -13,6 +13,8 @@ uniform float u_midi_channels[8];
 uniform sampler2D u_texture;
 uniform sampler2D u_note_label_atlas;
 uniform vec2 u_note_label_grid;
+uniform sampler2D u_font_preview_atlas;
+uniform vec2 u_font_preview_grid;
 
 float hash11(float p)
 {
@@ -88,5 +90,17 @@ void main()
     }
 
     vec3 color = clamp(base.rgb + dots, 0.0, 1.0);
+
+    vec2 screen_px = v_texcoord * u_viewport_size;
+    vec2 preview_origin = vec2(8.0, 8.0);
+    vec2 preview_size = vec2(min(256.0, u_viewport_size.x * 0.25), min(128.0, u_viewport_size.y * 0.25));
+    vec2 preview_uv = (screen_px - preview_origin) / max(preview_size, vec2(1.0));
+    if (preview_uv.x >= 0.0 && preview_uv.x <= 1.0 && preview_uv.y >= 0.0 && preview_uv.y <= 1.0)
+    {
+        vec4 preview = texture2D(u_font_preview_atlas, preview_uv);
+        color = mix(color, vec3(1.0), preview.a);
+        alpha = max(alpha, preview.a);
+    }
+
     gl_FragColor = vec4(color, max(base.a, alpha));
 }

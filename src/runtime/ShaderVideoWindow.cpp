@@ -250,6 +250,9 @@ struct DirectUploadFormat
 constexpr int kNoteAtlasColumns{16};
 constexpr int kNoteAtlasRows{8};
 constexpr int kNoteAtlasCellSize{96};
+constexpr int kGlyphPreviewColumns{16};
+constexpr int kGlyphPreviewRows{8};
+constexpr int kGlyphPreviewCellSize{40};
 
 QString note_label_for_midi_note(int note_number)
 {
@@ -258,6 +261,11 @@ QString note_label_for_midi_note(int note_number)
     const int pitch_class = normalized % 12;
     const int octave = normalized / 12 - 1;
     return QStringLiteral("%1%2").arg(QString::fromUtf8(kPitchClasses[pitch_class])).arg(octave);
+}
+
+QString glyph_for_codepoint(int codepoint)
+{
+    return QString(QChar(static_cast<ushort>(std::clamp(codepoint, 0, 127))));
 }
 
 std::optional<std::filesystem::path> resolve_scene_resource_path(const std::filesystem::path &resources_directory,
@@ -382,6 +390,38 @@ QImage build_note_label_atlas_image(const QString &font_family)
         const int row = note / kNoteAtlasColumns;
         const QRect cell{column * kNoteAtlasCellSize, row * kNoteAtlasCellSize, kNoteAtlasCellSize, kNoteAtlasCellSize};
         painter.drawText(cell, Qt::AlignCenter, note_label_for_midi_note(note));
+    }
+
+    return atlas;
+}
+
+QImage build_glyph_preview_atlas_image(const QString &font_family)
+{
+    QImage atlas{kGlyphPreviewColumns * kGlyphPreviewCellSize, kGlyphPreviewRows * kGlyphPreviewCellSize,
+                 QImage::Format_RGBA8888};
+    atlas.fill(Qt::transparent);
+
+    QPainter painter{&atlas};
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    QFont font{font_family};
+    font.setFixedPitch(true);
+    font.setBold(false);
+    font.setWeight(QFont::Normal);
+    font.setStyleHint(QFont::Monospace, QFont::PreferMatch);
+    font.setHintingPreference(QFont::PreferFullHinting);
+    font.setPixelSize(static_cast<int>(kGlyphPreviewCellSize * 0.60F));
+    painter.setFont(font);
+    painter.setPen(Qt::white);
+
+    for (int codepoint = 0; codepoint < 128; ++codepoint)
+    {
+        const int column = codepoint % kGlyphPreviewColumns;
+        const int row = codepoint / kGlyphPreviewColumns;
+        const QRect cell{column * kGlyphPreviewCellSize, row * kGlyphPreviewCellSize, kGlyphPreviewCellSize,
+                         kGlyphPreviewCellSize};
+        painter.drawText(cell, Qt::AlignCenter, glyph_for_codepoint(codepoint));
     }
 
     return atlas;
@@ -531,6 +571,11 @@ ShaderVideoWindow::~ShaderVideoWindow()
         glDeleteTextures(1, &note_label_atlas_texture_id_);
         note_label_atlas_texture_id_ = 0;
     }
+    if (glyph_preview_atlas_texture_id_ != 0)
+    {
+        glDeleteTextures(1, &glyph_preview_atlas_texture_id_);
+        glyph_preview_atlas_texture_id_ = 0;
+    }
     doneCurrent();
 }
 
@@ -564,7 +609,10 @@ void ShaderVideoWindow::initializeGL()
 
     ensure_blank_texture();
     ensure_background_texture();
+    note_label_atlas_texture_dirty_ = true;
+    glyph_preview_atlas_texture_dirty_ = true;
     ensure_note_label_atlas_texture();
+    ensure_glyph_preview_atlas_texture();
     scene_fbo_dirty_ = true;
 }
 
@@ -848,6 +896,37 @@ void ShaderVideoWindow::ensure_note_label_atlas_texture()
     note_label_atlas_texture_dirty_ = false;
 }
 
+void ShaderVideoWindow::ensure_glyph_preview_atlas_texture()
+{
+    if (glyph_preview_atlas_texture_id_ == 0)
+    {
+        glGenTextures(1, &glyph_preview_atlas_texture_id_);
+        glBindTexture(GL_TEXTURE_2D, glyph_preview_atlas_texture_id_);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    if (!glyph_preview_atlas_texture_dirty_)
+    {
+        return;
+    }
+
+    const QString font_family = note_font_family_for_scene(scene_);
+    const QImage atlas = build_glyph_preview_atlas_image(font_family);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, glyph_preview_atlas_texture_id_);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlas.width(), atlas.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 atlas.constBits());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glyph_preview_atlas_texture_width_ = atlas.width();
+    glyph_preview_atlas_texture_height_ = atlas.height();
+    glyph_preview_atlas_texture_dirty_ = false;
+}
+
 void ShaderVideoWindow::ensure_blank_texture()
 {
     if (blank_texture_id_ != 0)
@@ -916,6 +995,12 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
         program->setUniformValue("u_note_label_atlas", 1);
         program->setUniformValue("u_note_label_grid", QVector2D{static_cast<float>(kNoteAtlasColumns),
                                                                 static_cast<float>(kNoteAtlasRows)});
+    }
+    if (glyph_preview_atlas_texture_id_ != 0)
+    {
+        program->setUniformValue("u_font_preview_atlas", 2);
+        program->setUniformValue("u_font_preview_grid", QVector2D{static_cast<float>(kGlyphPreviewColumns),
+                                                                  static_cast<float>(kGlyphPreviewRows)});
     }
     set_midi_uniforms(program, frame_);
 }
@@ -1041,6 +1126,12 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         glBindTexture(GL_TEXTURE_2D, note_label_atlas_texture_id_);
         glActiveTexture(GL_TEXTURE0);
     }
+    if (glyph_preview_atlas_texture_id_ != 0)
+    {
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, glyph_preview_atlas_texture_id_);
+        glActiveTexture(GL_TEXTURE0);
+    }
 
     stage->program->enableAttributeArray("a_position");
     stage->program->enableAttributeArray("a_texcoord");
@@ -1053,6 +1144,12 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     if (note_label_atlas_texture_id_ != 0)
     {
         glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0);
+    }
+    if (glyph_preview_atlas_texture_id_ != 0)
+    {
+        glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
     }
