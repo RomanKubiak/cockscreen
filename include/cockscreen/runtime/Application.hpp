@@ -1,0 +1,42 @@
+#pragma once
+
+#include <string>
+
+#include "../core/ModulationBus.hpp"
+
+namespace cockscreen::runtime
+{
+
+struct ApplicationSettings
+{
+    std::string video_device{"/dev/video0"};
+    std::string audio_device{};
+    std::string osc_endpoint{"0.0.0.0:9000"};
+    std::string midi_input{};
+    std::string scene_file{};
+    std::string shader_directory{};
+    std::string executable_directory{};
+    std::string shader_file{};
+    std::string screen_shader_file{};
+    std::string top_layer{"screen"};
+    double top_layer_opacity{0.75};
+    std::string render_path{"qt"};
+    std::string window_title{"cockscreen"};
+    int width{1024};
+    int height{600};
+    int frame_rate{30};
+};
+
+class Application
+{
+  public:
+    explicit Application(ApplicationSettings settings);
+
+    [[nodiscard]] int run(int argc, char *argv[]);
+
+  private:
+    ApplicationSettings settings_;
+    core::ModulationBus modulation_bus_;
+};
+
+} // namespace cockscreen::runtime

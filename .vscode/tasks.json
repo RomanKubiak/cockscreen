@@ -1,0 +1,76 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Local: Build Debug",
+			"type": "shell",
+			"command": "cmake --preset local-x86_64-debug && cmake --build --preset local-x86_64-debug",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build"
+		},
+		{
+			"label": "Local: Run Debug",
+			"type": "shell",
+			"command": "${workspaceFolder}/out/build/local-x86_64-debug/cockscreen",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Local: Build Debug",
+			"isBackground": true,
+			"group": "test"
+		},
+		{
+			"label": "Remote Pi: Sync Workspace",
+			"type": "shell",
+			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen\" && rsync -az --delete --exclude .git --exclude out --exclude build --exclude .cache --exclude .vscode/ipch ${workspaceFolder}/ atom@192.168.41.181:/home/atom/cockscreen/",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build"
+		},
+		{
+			"label": "Remote Pi: Build Debug",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && cmake --preset pi-zero2w-debug && cmake --build --preset pi-zero2w-debug --parallel 1\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Sync Workspace",
+			"group": "build"
+		},
+		{
+			"label": "Remote Pi: Run Debug",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Build Debug",
+			"isBackground": true,
+			"group": "test"
+		},
+		{
+			"label": "Remote Pi: Build Release",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && cmake --preset pi-zero2w-release && cmake --build --preset pi-zero2w-release --parallel 1\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Sync Workspace",
+			"group": "build"
+		},
+		{
+			"label": "Remote Pi: Run Release",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-release/cockscreen\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Build Release",
+			"isBackground": true,
+			"group": "test"
+		}
+	]
+}

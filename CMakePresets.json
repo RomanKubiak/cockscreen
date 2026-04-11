@@ -1,0 +1,66 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "local-x86_64-debug",
+      "displayName": "Local x86_64 Debug",
+      "inherits": "linux-base",
+      "description": "Debug build for local x86_64 Linux testing before deploying to the Pi",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "COCKSCREEN_TARGET_PLATFORM": "x86_64-linux"
+      }
+    },
+    {
+      "name": "pi-zero2w-debug",
+      "displayName": "Pi Zero 2 W Debug",
+      "inherits": "linux-base",
+      "description": "Debug build on the Raspberry Pi Zero 2 W over Remote SSH",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "COCKSCREEN_TARGET_PLATFORM": "raspberry-pi-zero-2w"
+      }
+    },
+    {
+      "name": "pi-zero2w-release",
+      "displayName": "Pi Zero 2 W Release",
+      "inherits": "linux-base",
+      "description": "Release build on the Raspberry Pi Zero 2 W over Remote SSH",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "COCKSCREEN_TARGET_PLATFORM": "raspberry-pi-zero-2w",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2 -DNDEBUG -ffunction-sections -fdata-sections",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-Wl,--gc-sections -Wl,-O1",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "local-x86_64-debug",
+      "configurePreset": "local-x86_64-debug"
+    },
+    {
+      "name": "pi-zero2w-debug",
+      "configurePreset": "pi-zero2w-debug",
+      "jobs": 1
+    },
+    {
+      "name": "pi-zero2w-release",
+      "configurePreset": "pi-zero2w-release",
+      "jobs": 1
+    }
+  ]
+}

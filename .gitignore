@@ -1,0 +1,8 @@
+/build/
+/out/
+/.cache/
+*.user
+*.swp
+*.swo
+compile_commands.json
+.vscode/ipch/

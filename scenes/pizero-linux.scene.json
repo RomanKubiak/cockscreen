@@ -1,0 +1,57 @@
+{
+    "resources_directory": "../resources",
+    "note_font_file": "fonts/fa-solid-900.otf",
+    "shader_directory": "../shaders",
+    "inputs": {
+        "video": {
+            "enabled": true,
+            "device": "/dev/video7",
+            "format": "qvga",
+            "scale": 0.28,
+            "on_top": true,
+            "position": {
+                "x": 0.68,
+                "y": 0.64
+            }
+        },
+        "background_color": {
+            "r": 0.0,
+            "g": 0.0,
+            "b": 0.0,
+            "a": 1.0
+        },
+        "audio": {
+            "enabled": true,
+            "device": "@default_output_monitor@"
+        },
+        "midi": {
+            "enabled": true,
+            "device": "through"
+        }
+    },
+    "video": {
+        "enabled": true,
+        "shaders": [
+            "pink_key.glsl"
+        ]
+    },
+    "screen": {
+        "enabled": true,
+        "shaders": [
+            "wireframe_sphere.glsl",
+            "midi_dots.glsl"
+        ]
+    },
+    "midi_cc_mappings": [
+        {
+            "layer": "screen",
+            "shader": "wireframe_sphere.glsl",
+            "uniform": "u_wire_density",
+            "channel": 0,
+            "cc": 95,
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        }
+    ]
+}
