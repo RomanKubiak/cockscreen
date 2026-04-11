@@ -30,6 +30,7 @@ const char *passthrough_fragment_shader_source();
 
 QString shader_source_for_current_context(QString source);
 void set_midi_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &frame);
+void set_audio_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &frame);
 QString read_text_file_qstring(const std::filesystem::path &path);
 std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem::path &relative_path);
 QColor scene_clear_color(const SceneColor &color);

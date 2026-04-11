@@ -123,6 +123,7 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
     }
 
     std::array<double, 2> sum_squares{0.0, 0.0};
+    float chunk_peak = 0.0F;
     int samples_per_channel = 0;
 
     const auto *bytes = reinterpret_cast<const unsigned char *>(data.constData());
@@ -166,6 +167,7 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
             }
 
             sum_squares[channel] += value * value;
+            chunk_peak = std::max(chunk_peak, static_cast<float>(std::abs(value)));
             mono_value_sum += value;
             ++mono_value_count;
         }
@@ -191,6 +193,13 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
     }
 
     overall_level_db_ = std::max(channel_levels_db_[0], channel_levels_db_[1]);
+
+    const double left_rms = samples_per_channel > 0 ? std::sqrt(sum_squares[0] / samples_per_channel) : 0.0;
+    const double right_rms = samples_per_channel > 0 ? std::sqrt(sum_squares[1] / samples_per_channel) : left_rms;
+    const float combined_rms = static_cast<float>(std::clamp(std::max(left_rms, right_rms), 0.0, 1.0));
+    rms_level_ = rms_level_ * 0.85F + combined_rms * 0.15F;
+    peak_level_ = std::max(chunk_peak, peak_level_ * 0.92F);
+    refresh_waveform_samples();
 }
 
 void AudioAnalysisWindow::update_fft_analysis(float mono_sample)
@@ -273,6 +282,27 @@ int AudioAnalysisWindow::bytes_per_sample(const QAudioFormat &format)
         return 4;
     default:
         return 0;
+    }
+}
+
+void AudioAnalysisWindow::refresh_waveform_samples()
+{
+    waveform_samples_.fill(0.0F);
+
+    const std::size_t available_samples = std::min(fft_sample_count_, fft_sample_buffer_.size());
+    if (available_samples == 0)
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < waveform_samples_.size(); ++index)
+    {
+        const float ratio = waveform_samples_.size() > 1
+                                ? static_cast<float>(index) / static_cast<float>(waveform_samples_.size() - 1)
+                                : 0.0F;
+        const std::size_t source_index = std::min(static_cast<std::size_t>(ratio * static_cast<float>(available_samples - 1)),
+                                                  available_samples - 1);
+        waveform_samples_[index] = std::clamp(fft_sample_buffer_[source_index], -1.0F, 1.0F);
     }
 }
 

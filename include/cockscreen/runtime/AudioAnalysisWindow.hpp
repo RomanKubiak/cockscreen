@@ -27,7 +27,10 @@ class AudioAnalysisWindow final : public QWidget
     [[nodiscard]] float left_level_db() const;
     [[nodiscard]] float right_level_db() const;
     [[nodiscard]] float overall_level_db() const;
+    [[nodiscard]] float rms_level() const;
+    [[nodiscard]] float peak_level() const;
     [[nodiscard]] const std::array<float, core::kAudioFftBandCount> &fft_bands() const;
+    [[nodiscard]] const std::array<float, core::kAudioWaveformSampleCount> &waveform_samples() const;
     [[nodiscard]] QString status_message() const;
 
     void place_on_screen(QScreen *screen);
@@ -45,6 +48,7 @@ class AudioAnalysisWindow final : public QWidget
     void process_audio_chunk();
     void update_levels(const QByteArray &data);
     void update_fft_analysis(float mono_sample);
+    void refresh_waveform_samples();
     void set_status_message(QString message);
     void start_monitor_capture();
     static float rms_to_db(double rms);
@@ -61,7 +65,10 @@ class AudioAnalysisWindow final : public QWidget
     bool using_external_capture_{false};
     std::array<float, 2> channel_levels_db_{kSilenceDb, kSilenceDb};
     float overall_level_db_{kSilenceDb};
+    float rms_level_{0.0F};
+    float peak_level_{0.0F};
     std::array<float, core::kAudioFftBandCount> fft_band_levels_{};
+    std::array<float, core::kAudioWaveformSampleCount> waveform_samples_{};
     std::array<float, kFftSize> fft_sample_buffer_{};
     std::array<float, kFftSize> fft_window_{};
     std::size_t fft_sample_count_{0};

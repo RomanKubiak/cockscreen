@@ -270,11 +270,34 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
 
             if (!mapping.layer.empty() && !mapping.uniform.empty())
             {
-                if (!mapping.shader.empty())
-                {
-                    mapping.shader = resolve_shader_path(base_dir, mapping.shader).string();
-                }
                 scene.midi_cc_mappings.push_back(std::move(mapping));
+            }
+        }
+    }
+
+    if (const auto mappings = root.value(QStringLiteral("midi_note_mappings")); mappings.isArray())
+    {
+        for (const auto &mapping_value : mappings.toArray())
+        {
+            if (!mapping_value.isObject())
+            {
+                continue;
+            }
+
+            const auto mapping_object = mapping_value.toObject();
+            MidiNoteMapping mapping;
+            mapping.layer = json_string(mapping_object, "layer");
+            mapping.shader = json_string(mapping_object, "shader");
+            mapping.uniform = json_string(mapping_object, "uniform");
+            mapping.channel = json_int(mapping_object, "channel", -1);
+            mapping.note = json_int(mapping_object, "note", -1);
+            mapping.minimum = json_float(mapping_object, "min", 0.0F);
+            mapping.maximum = json_float(mapping_object, "max", 1.0F);
+            mapping.exponent = std::max(0.01F, json_float(mapping_object, "exponent", 1.0F));
+
+            if (!mapping.layer.empty() && !mapping.uniform.empty())
+            {
+                scene.midi_note_mappings.push_back(std::move(mapping));
             }
         }
     }

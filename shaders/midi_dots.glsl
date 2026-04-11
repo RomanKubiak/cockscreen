@@ -13,8 +13,6 @@ uniform float u_midi_channels[8];
 uniform sampler2D u_texture;
 uniform sampler2D u_note_label_atlas;
 uniform vec2 u_note_label_grid;
-uniform sampler2D u_font_preview_atlas;
-uniform vec2 u_font_preview_grid;
 
 float hash11(float p)
 {
@@ -54,6 +52,20 @@ float note_label_mask(float note_number, vec2 local_uv)
     return texture2D(u_note_label_atlas, atlas_uv).a;
 }
 
+float note_label_edge_mask(float note_number, vec2 local_uv)
+{
+    if (local_uv.x < 0.0 || local_uv.x > 1.0 || local_uv.y < 0.0 || local_uv.y > 1.0)
+    {
+        return 0.0;
+    }
+
+    float note_index = clamp(floor(note_number + 0.5), 0.0, 127.0);
+    float column = mod(note_index, u_note_label_grid.x);
+    float row = floor(note_index / u_note_label_grid.x);
+    vec2 atlas_uv = (vec2(column, row) + local_uv) / u_note_label_grid;
+    return texture2D(u_note_label_atlas, atlas_uv).a;
+}
+
 void main()
 {
     vec4 base = texture2D(u_texture, v_texcoord);
@@ -79,28 +91,21 @@ void main()
         vec2 center = hash21(seed) * 1.6 - 0.8;
         float base_radius = mix(0.035, 0.14, velocity);
         float animated_radius = base_radius * note_size_modulation(note) * (0.65 + 0.35 * life);
+        animated_radius *= 1.25;
         float dot_shape = circle_mask(p, center, animated_radius);
         vec2 label_uv = ((p - center) / max(animated_radius * 0.72, 0.0001)) * 0.5 + 0.5;
         float label_mask = note_label_mask(note, label_uv);
+        float label_edge = note_label_edge_mask(note, label_uv * 1.05 - 0.025);
         vec3 dot_color = vec3(mix(0.35, 1.0, velocity), 0.0, 0.0);
-        vec3 label_color = vec3(mix(0.70, 1.0, velocity), 0.15, 0.15);
+        vec3 label_color = vec3(1.0, 1.0, 1.0);
+        vec3 label_shadow = vec3(0.0, 0.0, 0.0);
         dots += dot_color * dot_shape;
+        dots += label_shadow * label_edge * dot_shape * 0.9;
         dots += label_color * label_mask * dot_shape;
         alpha = max(alpha, step(0.001, dot_shape));
     }
 
     vec3 color = clamp(base.rgb + dots, 0.0, 1.0);
-
-    vec2 screen_px = v_texcoord * u_viewport_size;
-    vec2 preview_origin = vec2(8.0, 8.0);
-    vec2 preview_size = vec2(min(256.0, u_viewport_size.x * 0.25), min(128.0, u_viewport_size.y * 0.25));
-    vec2 preview_uv = (screen_px - preview_origin) / max(preview_size, vec2(1.0));
-    if (preview_uv.x >= 0.0 && preview_uv.x <= 1.0 && preview_uv.y >= 0.0 && preview_uv.y <= 1.0)
-    {
-        vec4 preview = texture2D(u_font_preview_atlas, preview_uv);
-        color = mix(color, vec3(1.0), preview.a);
-        alpha = max(alpha, preview.a);
-    }
 
     gl_FragColor = vec4(color, max(base.a, alpha));
 }

@@ -7,6 +7,7 @@ namespace cockscreen::core
 {
 
 inline constexpr std::size_t kAudioFftBandCount{16};
+inline constexpr std::size_t kAudioWaveformSampleCount{64};
 inline constexpr std::size_t kMidiEventCount{8};
 inline constexpr std::size_t kMidiChannelCount{16};
 inline constexpr std::size_t kMidiCcCount{128};
@@ -14,7 +15,10 @@ inline constexpr std::size_t kMidiCcCount{128};
 struct ControlFrame
 {
     float audio_level{0.0F};
+    float audio_rms{0.0F};
+    float audio_peak{0.0F};
     std::array<float, kAudioFftBandCount> audio_fft_bands{};
+    std::array<float, kAudioWaveformSampleCount> audio_waveform{};
     float bass{0.0F};
     float mid{0.0F};
     float treble{0.0F};

@@ -54,9 +54,24 @@ float AudioAnalysisWindow::overall_level_db() const
     return overall_level_db_;
 }
 
+float AudioAnalysisWindow::rms_level() const
+{
+    return rms_level_;
+}
+
+float AudioAnalysisWindow::peak_level() const
+{
+    return peak_level_;
+}
+
 const std::array<float, core::kAudioFftBandCount> &AudioAnalysisWindow::fft_bands() const
 {
     return fft_band_levels_;
+}
+
+const std::array<float, core::kAudioWaveformSampleCount> &AudioAnalysisWindow::waveform_samples() const
+{
+    return waveform_samples_;
 }
 
 QString AudioAnalysisWindow::status_message() const

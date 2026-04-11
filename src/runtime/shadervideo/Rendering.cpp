@@ -20,6 +20,60 @@ namespace cockscreen::runtime
 
 namespace helper = shader_window;
 
+namespace
+{
+
+bool shader_mapping_matches(const std::string &mapping_shader, const std::string &stage_shader)
+{
+    if (mapping_shader.empty())
+    {
+        return true;
+    }
+
+    if (mapping_shader == stage_shader)
+    {
+        return true;
+    }
+
+    return std::filesystem::path{mapping_shader}.filename() == std::filesystem::path{stage_shader}.filename();
+}
+
+float mapped_note_value(const core::ControlFrame &frame, const MidiNoteMapping &mapping)
+{
+    float value = 0.0F;
+    for (std::size_t index = 0; index < frame.midi_notes.size(); ++index)
+    {
+        if (index >= frame.midi_velocities.size() || index >= frame.midi_ages.size() || index >= frame.midi_channels.size())
+        {
+            break;
+        }
+
+        if (frame.midi_ages[index] < 0.0F)
+        {
+            continue;
+        }
+
+        const int event_channel = static_cast<int>(std::lround(frame.midi_channels[index]));
+        if (mapping.channel >= 0 && event_channel != mapping.channel)
+        {
+            continue;
+        }
+
+        const int event_note = static_cast<int>(std::lround(frame.midi_notes[index]));
+        if (mapping.note >= 0 && event_note != mapping.note)
+        {
+            continue;
+        }
+
+        value = std::max(value, std::clamp(frame.midi_velocities[index], 0.0F, 1.0F));
+    }
+
+    value = std::pow(value, mapping.exponent);
+    return mapping.minimum + (mapping.maximum - mapping.minimum) * value;
+}
+
+} // namespace
+
 void ShaderVideoWindow::paintGL()
 {
     QElapsedTimer render_timer;
@@ -237,9 +291,7 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
 
     Q_UNUSED(stage);
     program->setUniformValue("u_time", elapsed_seconds);
-    program->setUniformValue("u_audio_level", frame_.audio_level);
-    program->setUniformValueArray("u_audio_fft", frame_.audio_fft_bands.data(),
-                                  static_cast<int>(frame_.audio_fft_bands.size()), 1);
+    helper::set_audio_uniforms(program, frame_);
     if (note_label_atlas_texture_id_ != 0)
     {
         program->setUniformValue("u_note_label_atlas", 1);
@@ -264,7 +316,7 @@ void ShaderVideoWindow::apply_scene_midi_mappings(QOpenGLShaderProgram *program,
             continue;
         }
 
-        if (!mapping.shader.empty() && mapping.shader != stage.shader_path)
+        if (!shader_mapping_matches(mapping.shader, stage.shader_path))
         {
             continue;
         }
@@ -290,6 +342,21 @@ void ShaderVideoWindow::apply_scene_midi_mappings(QOpenGLShaderProgram *program,
         value = std::pow(value, mapping.exponent);
         value = mapping.minimum + (mapping.maximum - mapping.minimum) * value;
         program->setUniformValue(mapping.uniform.c_str(), value);
+    }
+
+    for (const auto &mapping : scene_.midi_note_mappings)
+    {
+        if (mapping.layer != stage.layer_name.toStdString())
+        {
+            continue;
+        }
+
+        if (!shader_mapping_matches(mapping.shader, stage.shader_path))
+        {
+            continue;
+        }
+
+        program->setUniformValue(mapping.uniform.c_str(), mapped_note_value(frame_, mapping));
     }
 }
 
