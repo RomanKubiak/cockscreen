@@ -6,7 +6,7 @@
 #include <cstring>
 #include <string>
 
-#include <drm/drm_fourcc.h>
+#include <libdrm/drm_fourcc.h>
 
 namespace cockscreen::runtime::direct_video
 {

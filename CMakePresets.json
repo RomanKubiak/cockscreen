@@ -6,6 +6,11 @@
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "environment": {
+        "TMPDIR": "${sourceDir}/tmp",
+        "TMP": "${sourceDir}/tmp",
+        "TEMP": "${sourceDir}/tmp"
+      },
       "cacheVariables": {
         "CMAKE_CXX_STANDARD": "20",
         "CMAKE_CXX_STANDARD_REQUIRED": "ON",
@@ -45,22 +50,77 @@
         "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-Wl,--gc-sections -Wl,-O1",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE": "OFF"
       }
+    },
+    {
+      "name": "cross-pi-zero2w-base",
+      "hidden": true,
+      "inherits": "linux-base",
+      "description": "Cross-compile for the Raspberry Pi Zero 2 W using cached toolchain assets under /work/pizero",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/pi-zero2w-aarch64.cmake",
+      "cacheVariables": {
+        "COCKSCREEN_TARGET_PLATFORM": "raspberry-pi-zero-2w",
+        "COCKSCREEN_PI_ZERO2W_ROOT": "/work/pizero",
+        "QT_HOST_PATH": "/usr"
+      }
+    },
+    {
+      "name": "cross-pi-zero2w-debug",
+      "displayName": "Cross Pi Zero 2 W Debug",
+      "inherits": "cross-pi-zero2w-base",
+      "description": "Cross-compiled debug build for Raspberry Pi Zero 2 W on the local x86_64 host",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "cross-pi-zero2w-release",
+      "displayName": "Cross Pi Zero 2 W Release",
+      "inherits": "cross-pi-zero2w-base",
+      "description": "Cross-compiled release build for Raspberry Pi Zero 2 W on the local x86_64 host",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2 -DNDEBUG -ffunction-sections -fdata-sections",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-Wl,--gc-sections -Wl,-O1",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE": "OFF"
+      }
     }
   ],
   "buildPresets": [
     {
+      "name": "build-base",
+      "hidden": true,
+      "environment": {
+        "TMPDIR": "${sourceDir}/tmp",
+        "TMP": "${sourceDir}/tmp",
+        "TEMP": "${sourceDir}/tmp"
+      }
+    },
+    {
       "name": "local-x86_64-debug",
+      "inherits": "build-base",
       "configurePreset": "local-x86_64-debug"
     },
     {
       "name": "pi-zero2w-debug",
+      "inherits": "build-base",
       "configurePreset": "pi-zero2w-debug",
       "jobs": 1
     },
     {
       "name": "pi-zero2w-release",
+      "inherits": "build-base",
       "configurePreset": "pi-zero2w-release",
       "jobs": 1
+    },
+    {
+      "name": "cross-pi-zero2w-debug",
+      "inherits": "build-base",
+      "configurePreset": "cross-pi-zero2w-debug"
+    },
+    {
+      "name": "cross-pi-zero2w-release",
+      "inherits": "build-base",
+      "configurePreset": "cross-pi-zero2w-release"
     }
   ]
 }

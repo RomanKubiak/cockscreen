@@ -1,6 +1,8 @@
 /build/
 /out/
 /.cache/
+/tmp/*
+!/tmp/.gitignore
 *.user
 *.swp
 *.swo

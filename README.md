@@ -18,7 +18,7 @@ Open the repository on the Pi Zero 2 W via Remote - SSH using:
 ssh://atom@192.168.41.190
 ```
 
-The repository supports both local x86_64 Linux testing and native builds on the Pi. The code is not cross-compilation specific yet.
+The repository supports local x86_64 Linux testing, native builds on the Pi, and a cached cross-compilation flow from x86_64 Linux to the Pi Zero 2 W.
 
 Local x86_64 builds default to a 1024x600 windowed Qt6 UI. The Pi Zero 2 W build uses Qt's `eglfs` platform plugin so it can run directly on DRM/KMS without a compositor.
 
@@ -67,6 +67,27 @@ Pi Zero 2 W remote session:
 cmake --preset pi-zero2w-debug
 cmake --build --preset pi-zero2w-debug
 ```
+
+Pi Zero 2 W cross-compilation from the local x86_64 host:
+
+```bash
+./scripts/bootstrap-pizero-cross.sh
+cmake --preset cross-pi-zero2w-debug
+cmake --build --preset cross-pi-zero2w-debug
+```
+
+The bootstrap script downloads the current Arm GNU/Linux AArch64 toolchain, creates an arm64 Debian Trixie sysroot with the Qt6, ALSA, EGL, and OpenGL development packages required by this project, and stores everything under `/work/pizero` for reuse across later builds.
+
+Bootstrap, configure, and build temp files are redirected into [tmp](tmp) inside the workspace rather than `/tmp`.
+
+The default cross sysroot targets Debian 13 Trixie so it matches the Pi's current glibc and Qt 6.8.2 baseline more closely. If the Pi diverges from that baseline later, use a Pi-sourced sysroot overlay or a fully synced Pi sysroot before relying on exact Qt ABI and feature parity.
+
+The generated cross toolchain assets are split like this:
+
+- `/work/pizero/toolchains/current` active Arm GNU toolchain symlink
+- `/work/pizero/sysroot` extracted arm64 target sysroot used by CMake
+- `/work/pizero/cache/debootstrap` cached `.deb` downloads reused by debootstrap
+- `/work/pizero/stage` staging prefix for install-time output if needed
 
 Optimized Pi Zero 2 W release build:
 

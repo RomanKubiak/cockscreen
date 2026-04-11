@@ -131,6 +131,22 @@ void set_midi_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &
                                   static_cast<int>(frame.midi_channels.size()), 1);
 }
 
+void set_audio_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &frame)
+{
+    if (program == nullptr)
+    {
+        return;
+    }
+
+    program->setUniformValue("u_audio_level", frame.audio_level);
+    program->setUniformValue("u_audio_rms", frame.audio_rms);
+    program->setUniformValue("u_audio_peak", frame.audio_peak);
+    program->setUniformValueArray("u_audio_fft", frame.audio_fft_bands.data(),
+                                  static_cast<int>(frame.audio_fft_bands.size()), 1);
+    program->setUniformValueArray("u_audio_waveform", frame.audio_waveform.data(),
+                                  static_cast<int>(frame.audio_waveform.size()), 1);
+}
+
 QString read_text_file_qstring(const std::filesystem::path &path)
 {
     const auto text = read_text_file(path);
@@ -323,7 +339,7 @@ QImage build_note_label_atlas_image(const QString &font_family)
 
 QImage vertically_flipped_image(const QImage &image)
 {
-    return image.flipped(Qt::Vertical);
+    return image.mirrored(false, true);
 }
 
 } // namespace cockscreen::runtime::shader_window

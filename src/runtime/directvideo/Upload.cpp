@@ -7,7 +7,7 @@
 
 #include <cstring>
 
-#include <drm/drm_fourcc.h>
+#include <libdrm/drm_fourcc.h>
 
 namespace cockscreen::runtime
 {
