@@ -353,9 +353,26 @@ QImage build_note_label_atlas_image(const QString &font_family)
     painter.setRenderHint(QPainter::TextAntialiasing, true);
 
     QFont font{font_family};
-    font.setBold(true);
-    font.setHintingPreference(QFont::PreferNoHinting);
-    font.setPixelSize(static_cast<int>(kNoteAtlasCellSize * 0.46));
+    font.setFixedPitch(true);
+    font.setBold(false);
+    font.setWeight(QFont::Normal);
+    font.setStyleHint(QFont::Monospace, QFont::PreferMatch);
+    font.setHintingPreference(QFont::PreferFullHinting);
+
+    const QString longest_label = QStringLiteral("C#-1");
+    const float target_width = static_cast<float>(kNoteAtlasCellSize) * 0.70F;
+    const float target_height = static_cast<float>(kNoteAtlasCellSize) * 0.45F;
+    int pixel_size = static_cast<int>(kNoteAtlasCellSize * 0.36F);
+    for (; pixel_size >= 8; --pixel_size)
+    {
+        font.setPixelSize(pixel_size);
+        const QFontMetricsF metrics{font};
+        if (metrics.horizontalAdvance(longest_label) <= target_width && metrics.height() <= target_height)
+        {
+            break;
+        }
+    }
+    font.setPixelSize(std::max(pixel_size, 8));
     painter.setFont(font);
     painter.setPen(Qt::white);
 
