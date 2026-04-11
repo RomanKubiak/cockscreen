@@ -59,13 +59,8 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "wireframe_sphere.glsl",
             "midi_dots.glsl",
-            "rorschach_inkblot.glsl",
-            "audio_waveform.glsl",
-            "kaleidoscope.glsl",
-            "pixelize_viewport.glsl",
-            "crt_noise.glsl"
+            "rorschach_inkblot.glsl"
         ]
     },
     "midi_cc_mappings": [
