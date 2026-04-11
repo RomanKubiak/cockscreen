@@ -5,6 +5,7 @@
 #include "../../include/cockscreen/runtime/Scene.hpp"
 #include "../../include/cockscreen/runtime/ShaderVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/RuntimeHelpers.hpp"
+#include "../../include/cockscreen/runtime/application/Support.hpp"
 #include "../../include/cockscreen/runtime/VideoWindow.hpp"
 
 #include <QApplication>
@@ -18,108 +19,7 @@
 namespace cockscreen::runtime
 {
 
-namespace
-{
-
-std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem::path &path)
-{
-    if (path.is_absolute())
-    {
-        return std::filesystem::exists(path) ? std::optional{path} : std::nullopt;
-    }
-
-    auto current = std::filesystem::current_path();
-    while (true)
-    {
-        const auto candidate = current / path;
-        if (std::filesystem::exists(candidate))
-        {
-            return candidate;
-        }
-
-        if (!current.has_parent_path() || current == current.parent_path())
-        {
-            break;
-        }
-
-        current = current.parent_path();
-    }
-
-    return std::nullopt;
-}
-
-SceneDefinition default_scene_for_settings(const ApplicationSettings &settings)
-{
-    SceneDefinition scene;
-    scene.video_input.enabled = true;
-    scene.video_input.device = settings.video_device;
-    scene.video_input.on_top = settings.top_layer == "video";
-    scene.shader_directory = settings.shader_directory;
-    scene.resources_directory = settings.executable_directory.empty() ? std::filesystem::current_path()
-                                                                       : std::filesystem::path{settings.executable_directory};
-    scene.playback_input.enabled = false;
-    scene.audio_input.enabled = true;
-    scene.audio_input.device = settings.audio_device;
-    scene.midi_input.enabled = true;
-    scene.midi_input.device = settings.midi_input;
-    scene.video_layer.enabled = true;
-    if (!settings.shader_file.empty())
-    {
-        scene.video_layer.shaders.push_back(settings.shader_file);
-    }
-    scene.playback_layer.enabled = false;
-    scene.screen_layer.enabled = true;
-    if (!settings.screen_shader_file.empty())
-    {
-        scene.screen_layer.shaders.push_back(settings.screen_shader_file);
-    }
-    return scene;
-}
-
-void apply_scene_to_settings(const SceneDefinition &scene, ApplicationSettings *settings)
-{
-    if (settings == nullptr)
-    {
-        return;
-    }
-
-    settings->video_device = scene.video_input.enabled ? scene.video_input.device : "@disabled@";
-    settings->audio_device = scene.audio_input.enabled ? scene.audio_input.device : "@disabled@";
-    settings->midi_input = scene.midi_input.enabled ? scene.midi_input.device : "@disabled@";
-    settings->shader_file = scene.video_layer.enabled && !scene.video_layer.shaders.empty()
-                                ? scene.video_layer.shaders.front()
-                                : std::string{};
-    settings->screen_shader_file = scene.screen_layer.enabled && !scene.screen_layer.shaders.empty()
-                                       ? scene.screen_layer.shaders.front()
-                                       : std::string{};
-}
-
-std::string effective_shader_directory(const SceneDefinition &scene, const ApplicationSettings &settings)
-{
-    if (!scene.shader_directory.empty())
-    {
-        return scene.shader_directory;
-    }
-
-    if (!settings.shader_directory.empty())
-    {
-        return settings.shader_directory;
-    }
-
-    return settings.executable_directory;
-}
-
-std::pair<int, int> requested_video_dimensions(const SceneDefinition &scene, const ApplicationSettings &settings)
-{
-    if (const auto requested = parse_capture_mode_dimensions(scene.video_input.format); requested.has_value())
-    {
-        return *requested;
-    }
-
-    return {settings.width, settings.height};
-}
-
-} // namespace
+namespace support = application_support;
 
 Application::Application(ApplicationSettings settings) : settings_{std::move(settings)} {}
 
@@ -147,10 +47,10 @@ int Application::run(int argc, char *argv[])
     QApplication application{argc, argv};
     application.setApplicationName(QString::fromStdString(settings_.window_title));
 
-    SceneDefinition scene = default_scene_for_settings(settings_);
+    SceneDefinition scene = support::default_scene_for_settings(settings_);
     if (!settings_.scene_file.empty())
     {
-        const auto scene_path = resolve_relative_path(std::filesystem::path{settings_.scene_file});
+        const auto scene_path = support::resolve_relative_path(std::filesystem::path{settings_.scene_file});
         if (!scene_path.has_value())
         {
             std::cerr << "Scene file not found: " << settings_.scene_file << '\n';
@@ -169,8 +69,8 @@ int Application::run(int argc, char *argv[])
         settings_.scene_file = scene.source_path.string();
     }
 
-    apply_scene_to_settings(scene, &settings_);
-    settings_.shader_directory = effective_shader_directory(scene, settings_);
+    support::apply_scene_to_settings(scene, &settings_);
+    settings_.shader_directory = support::effective_shader_directory(scene, settings_);
 
     QString audio_label;
     select_audio_input(settings_, &audio_label);
@@ -262,7 +162,7 @@ int Application::run(int argc, char *argv[])
     {
         QString selected_video_label;
         const auto video_device = select_video_input(settings_, &selected_video_label);
-        const auto [requested_width, requested_height] = requested_video_dimensions(scene, settings_);
+        const auto [requested_width, requested_height] = support::requested_video_dimensions(scene, settings_);
         const auto selected_format = video_device.has_value()
                                          ? select_camera_format(*video_device, requested_width, requested_height)
                                          : std::nullopt;

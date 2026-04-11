@@ -13,15 +13,18 @@
 #include <QMediaCaptureSession>
 #include <QMediaPlayer>
 #include <QOpenGLFramebufferObject>
+#include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLWidget>
+#include <QStringList>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
 
+#include "../core/ControlFrame.hpp"
 #include "Application.hpp"
 #include "Scene.hpp"
 #include "RuntimeHelpers.hpp"
@@ -65,7 +68,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_texture();
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
-    void ensure_glyph_preview_atlas_texture();
     void ensure_background_image_texture();
     void ensure_scene_fbos();
     void ensure_blank_texture();
@@ -101,6 +103,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QOpenGLShaderProgram video_program_;
     QOpenGLShaderProgram screen_program_;
     QOpenGLShaderProgram blit_program_;
+    QOpenGLBuffer quad_vertex_buffer_{QOpenGLBuffer::VertexBuffer};
     GLuint texture_id_{0};
     int texture_width_{0};
     int texture_height_{0};
@@ -113,10 +116,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     int note_label_atlas_texture_width_{0};
     int note_label_atlas_texture_height_{0};
     bool note_label_atlas_texture_dirty_{false};
-    GLuint glyph_preview_atlas_texture_id_{0};
-    int glyph_preview_atlas_texture_width_{0};
-    int glyph_preview_atlas_texture_height_{0};
-    bool glyph_preview_atlas_texture_dirty_{false};
     StatusOverlay *status_overlay_{nullptr};
     QOpenGLFramebufferObject *video_scene_fbo_{nullptr};
     QOpenGLFramebufferObject *video_scene_fbo_alt_{nullptr};

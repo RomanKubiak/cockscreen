@@ -38,27 +38,48 @@ add_library(cockscreen::core ALIAS cockscreen_core)
 
 target_sources(cockscreen_core
     PRIVATE
-        src/runtime/AudioAnalysisWindow.cpp
+        src/app/Arguments.cpp
+        src/app/Config.cpp
+        src/app/DeviceDiscovery.cpp
+        src/runtime/audioanalysis/Processing.cpp
+        src/runtime/audioanalysis/UI.cpp
         src/core/ModulationBus.cpp
         src/runtime/Application.cpp
-        src/runtime/DirectVideoWindow.cpp
-        src/runtime/MidiInputMonitor.cpp
-        src/runtime/RuntimeHelpers.cpp
+        src/runtime/application/Support.cpp
+        src/runtime/directvideo/Lifecycle.cpp
+        src/runtime/directvideo/Rendering.cpp
+        src/runtime/directvideo/Support.cpp
+        src/runtime/directvideo/Upload.cpp
+        src/runtime/helpers/Media.cpp
+        src/runtime/helpers/Shader.cpp
+        src/runtime/helpers/System.cpp
+        src/runtime/midi/Monitor.cpp
+        src/runtime/midi/PortDiscovery.cpp
         src/runtime/Scene.cpp
-        src/runtime/ShaderVideoWindow.cpp
+        src/runtime/scene/Parse.cpp
+        src/runtime/shadervideo/Assets.cpp
+        src/runtime/shadervideo/Lifecycle.cpp
+        src/runtime/shadervideo/Rendering.cpp
+        src/runtime/shadervideo/Support.cpp
+        src/runtime/StatusOverlay.cpp
         src/runtime/VideoWindow.cpp
-        src/runtime/V4l2Capture.cpp
+        src/runtime/v4l2/Buffers.cpp
+        src/runtime/v4l2/Capture.cpp
+        src/runtime/v4l2/Formats.cpp
 )
 
 set_source_files_properties(
     src/runtime/Application.cpp
-    src/runtime/ShaderVideoWindow.cpp
+    src/runtime/directvideo/Lifecycle.cpp
+    src/runtime/directvideo/Rendering.cpp
+    src/runtime/shadervideo/Lifecycle.cpp
+    src/runtime/shadervideo/Rendering.cpp
     PROPERTIES
     COMPILE_OPTIONS "$<$<CONFIG:Debug>:-g1>"
 )
 
     set_source_files_properties(
-        src/runtime/DirectVideoWindow.cpp
+        src/runtime/directvideo/Lifecycle.cpp
         PROPERTIES
         COMPILE_OPTIONS "$<$<CONFIG:Release>:-fno-lto>"
     )
