@@ -28,6 +28,20 @@ struct SceneColor
     float alpha{1.0F};
 };
 
+enum class BackgroundImagePlacement
+{
+    Center,
+    Stretched,
+    ProportionalStretch,
+    Tiled,
+};
+
+struct SceneBackgroundImage
+{
+    std::string file;
+    BackgroundImagePlacement placement{BackgroundImagePlacement::Center};
+};
+
 struct SceneLayer
 {
     bool enabled{true};
@@ -50,6 +64,7 @@ struct SceneDefinition
 {
     std::filesystem::path source_path;
     SceneColor background_color;
+    SceneBackgroundImage background_image;
     bool show_status_overlay{true};
     std::string shader_directory;
     std::filesystem::path resources_directory;

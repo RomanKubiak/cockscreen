@@ -566,6 +566,11 @@ ShaderVideoWindow::~ShaderVideoWindow()
         glDeleteTextures(1, &background_texture_id_);
         background_texture_id_ = 0;
     }
+    if (background_image_texture_id_ != 0)
+    {
+        glDeleteTextures(1, &background_image_texture_id_);
+        background_image_texture_id_ = 0;
+    }
     if (note_label_atlas_texture_id_ != 0)
     {
         glDeleteTextures(1, &note_label_atlas_texture_id_);
@@ -609,6 +614,8 @@ void ShaderVideoWindow::initializeGL()
 
     ensure_blank_texture();
     ensure_background_texture();
+    background_image_texture_dirty_ = true;
+    ensure_background_image_texture();
     note_label_atlas_texture_dirty_ = true;
     glyph_preview_atlas_texture_dirty_ = true;
     ensure_note_label_atlas_texture();
@@ -631,6 +638,7 @@ void ShaderVideoWindow::paintGL()
     ensure_scene_fbos();
     ensure_blank_texture();
     ensure_background_texture();
+    ensure_background_image_texture();
 
     const auto now = std::chrono::steady_clock::now();
     const float elapsed_seconds = std::chrono::duration<float>(now - start_time_).count();
@@ -687,7 +695,7 @@ void ShaderVideoWindow::paintGL()
     const GLuint playback_output = render_layer_chain(QStringLiteral("playback"), playback_texture, playback_valid);
     const GLuint screen_output = render_layer_chain(QStringLiteral("screen"), background_texture_id_, true);
 
-    auto draw_texture = [&](GLuint texture, const QRectF &rect, GLfloat opacity) {
+    auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity) {
         if (texture == 0 || !blit_program_.isLinked())
         {
             return;
@@ -699,10 +707,10 @@ void ShaderVideoWindow::paintGL()
         const GLfloat bottom = static_cast<GLfloat>(rect.bottom() / std::max(static_cast<float>(height()), 1.0F));
 
         const GLfloat vertices[] = {
-            left, top, 0.0F, 0.0F,
-            right, top, 1.0F, 0.0F,
-            left, bottom, 0.0F, 1.0F,
-            right, bottom, 1.0F, 1.0F,
+            left, top, static_cast<GLfloat>(uv_rect.left()), static_cast<GLfloat>(uv_rect.top()),
+            right, top, static_cast<GLfloat>(uv_rect.right()), static_cast<GLfloat>(uv_rect.top()),
+            left, bottom, static_cast<GLfloat>(uv_rect.left()), static_cast<GLfloat>(uv_rect.bottom()),
+            right, bottom, static_cast<GLfloat>(uv_rect.right()), static_cast<GLfloat>(uv_rect.bottom()),
         };
 
         blit_program_.bind();
@@ -714,16 +722,8 @@ void ShaderVideoWindow::paintGL()
         blit_program_.setAttributeArray("a_position", GL_FLOAT, vertices, 2, 4 * sizeof(GLfloat));
         blit_program_.setAttributeArray("a_texcoord", GL_FLOAT, vertices + 2, 2, 4 * sizeof(GLfloat));
 
-        if (opacity >= 0.999F)
-        {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        }
-        else
-        {
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        }
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         blit_program_.setUniformValue("u_opacity", opacity);
 
@@ -737,17 +737,58 @@ void ShaderVideoWindow::paintGL()
 
     const QRectF full_rect{0.0, 0.0, static_cast<qreal>(width()), static_cast<qreal>(height())};
 
+    if (background_image_texture_id_ != 0 && background_image_texture_width_ > 0 &&
+        background_image_texture_height_ > 0)
+    {
+        QRectF background_rect = full_rect;
+        QRectF background_uv{0.0, 0.0, 1.0, 1.0};
+
+        switch (scene_.background_image.placement)
+        {
+            case BackgroundImagePlacement::Center:
+                background_rect = QRectF{(static_cast<qreal>(width()) - background_image_texture_width_) * 0.5,
+                                         (static_cast<qreal>(height()) - background_image_texture_height_) * 0.5,
+                                         static_cast<qreal>(background_image_texture_width_),
+                                         static_cast<qreal>(background_image_texture_height_)};
+                break;
+            case BackgroundImagePlacement::Stretched:
+                background_rect = full_rect;
+                break;
+            case BackgroundImagePlacement::ProportionalStretch:
+            {
+                const float scale_x = static_cast<float>(width()) / std::max(background_image_texture_width_, 1);
+                const float scale_y = static_cast<float>(height()) / std::max(background_image_texture_height_, 1);
+                const float scale = std::min(scale_x, scale_y);
+                const qreal scaled_width = static_cast<qreal>(background_image_texture_width_) * scale;
+                const qreal scaled_height = static_cast<qreal>(background_image_texture_height_) * scale;
+                background_rect = QRectF{(static_cast<qreal>(width()) - scaled_width) * 0.5,
+                                         (static_cast<qreal>(height()) - scaled_height) * 0.5, scaled_width,
+                                         scaled_height};
+                break;
+            }
+            case BackgroundImagePlacement::Tiled:
+                background_rect = full_rect;
+                background_uv = QRectF{0.0, 0.0, static_cast<qreal>(width()) /
+                                               std::max(static_cast<qreal>(background_image_texture_width_), 1.0),
+                                       static_cast<qreal>(height()) /
+                                           std::max(static_cast<qreal>(background_image_texture_height_), 1.0)};
+                break;
+        }
+
+        draw_textured_quad(background_image_texture_id_, background_rect, background_uv, 1.0F);
+    }
+
     if (video_on_top_)
     {
-        draw_texture(screen_output, full_rect, 1.0F);
-        draw_texture(playback_output, playback_rect, 1.0F);
-        draw_texture(video_output, video_rect, top_layer_opacity);
+        draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+        draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+        draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
     }
     else
     {
-        draw_texture(video_output, video_rect, 1.0F);
-        draw_texture(playback_output, playback_rect, 1.0F);
-        draw_texture(screen_output, full_rect, top_layer_opacity);
+        draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+        draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+        draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
     }
 
     if (status_overlay_ != nullptr)
@@ -975,6 +1016,56 @@ void ShaderVideoWindow::ensure_background_texture()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
     glBindTexture(GL_TEXTURE_2D, 0);
     background_texture_dirty_ = false;
+}
+
+void ShaderVideoWindow::ensure_background_image_texture()
+{
+    if (scene_.background_image.file.empty())
+    {
+        return;
+    }
+
+    if (background_image_texture_id_ == 0)
+    {
+        glGenTextures(1, &background_image_texture_id_);
+    }
+
+    if (!background_image_texture_dirty_)
+    {
+        return;
+    }
+
+    const auto background_path = resolve_scene_resource_path(scene_.resources_directory, scene_.background_image.file);
+    if (!background_path.has_value())
+    {
+        status_message_ = QStringLiteral("Background image not found");
+        background_image_texture_dirty_ = false;
+        return;
+    }
+
+    QImage image(QString::fromStdString(background_path->string()));
+    if (image.isNull())
+    {
+        status_message_ = QStringLiteral("Background image could not be loaded");
+        background_image_texture_dirty_ = false;
+        return;
+    }
+
+    const QImage flipped = vertically_flipped_image(image.convertToFormat(QImage::Format_RGBA8888));
+    glBindTexture(GL_TEXTURE_2D, background_image_texture_id_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    const GLenum wrap_mode = scene_.background_image.placement == BackgroundImagePlacement::Tiled ? GL_REPEAT
+                                                                                                  : GL_CLAMP_TO_EDGE;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap_mode);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap_mode);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, flipped.width(), flipped.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 flipped.constBits());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    background_image_texture_width_ = flipped.width();
+    background_image_texture_height_ = flipped.height();
+    background_image_texture_dirty_ = false;
 }
 
 void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage,

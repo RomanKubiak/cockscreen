@@ -66,6 +66,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
     void ensure_glyph_preview_atlas_texture();
+    void ensure_background_image_texture();
     void ensure_scene_fbos();
     void ensure_blank_texture();
     void ensure_background_texture();
@@ -130,6 +131,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     bool blank_texture_dirty_{true};
     GLuint background_texture_id_{0};
     bool background_texture_dirty_{true};
+    GLuint background_image_texture_id_{0};
+    int background_image_texture_width_{0};
+    int background_image_texture_height_{0};
+    bool background_image_texture_dirty_{false};
     std::vector<RenderStage> render_stages_;
     int render_stage_index_{0};
     std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};

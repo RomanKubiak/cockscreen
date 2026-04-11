@@ -54,6 +54,26 @@ SceneColor parse_color(const QJsonValue &value)
     return color;
 }
 
+BackgroundImagePlacement parse_background_image_placement(const std::string &placement)
+{
+    const QString normalized = QString::fromStdString(placement).trimmed().toLower();
+    if (normalized == QStringLiteral("stretched"))
+    {
+        return BackgroundImagePlacement::Stretched;
+    }
+    if (normalized == QStringLiteral("proportional-stretch") || normalized == QStringLiteral("propotional-stretch") ||
+        normalized == QStringLiteral("proportional_stretch"))
+    {
+        return BackgroundImagePlacement::ProportionalStretch;
+    }
+    if (normalized == QStringLiteral("tiled"))
+    {
+        return BackgroundImagePlacement::Tiled;
+    }
+
+    return BackgroundImagePlacement::Center;
+}
+
 SceneInput parse_input(const QJsonObject &object)
 {
     SceneInput input;
@@ -217,6 +237,35 @@ std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path
     if (const auto note_font_file = root.value(QStringLiteral("note_font_file")); note_font_file.isString())
     {
         scene.note_font_file = note_font_file.toString().toStdString();
+    }
+
+    if (const auto background_image = root.value(QStringLiteral("background_image")); background_image.isObject())
+    {
+        const auto background_object = background_image.toObject();
+        scene.background_image.file = json_string(background_object, "file");
+        if (const auto placement = background_object.value(QStringLiteral("placement")); placement.isString())
+        {
+            scene.background_image.placement = parse_background_image_placement(placement.toString().toStdString());
+        }
+    }
+    else if (background_image.isString())
+    {
+        scene.background_image.file = background_image.toString().toStdString();
+    }
+
+    if (scene.background_image.file.empty())
+    {
+        if (const auto background_image_file = root.value(QStringLiteral("background_image_file"));
+            background_image_file.isString())
+        {
+            scene.background_image.file = background_image_file.toString().toStdString();
+        }
+        if (const auto background_image_placement = root.value(QStringLiteral("background_image_placement"));
+            background_image_placement.isString())
+        {
+            scene.background_image.placement =
+                parse_background_image_placement(background_image_placement.toString().toStdString());
+        }
     }
 
     scene.video_layer = parse_layer(root.value(QStringLiteral("video")));

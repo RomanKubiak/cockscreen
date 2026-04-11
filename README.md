@@ -28,11 +28,13 @@ Runtime defaults can be stored in [config/default.ini](config/default.ini), whic
 
 The `runtime` group supports the same options as the CLI, including `video_device`, `audio_device`, `osc_endpoint`, `midi_input`, `shader_directory`, `shader_file`, `screen_shader_file`, `top_layer`, `top_layer_opacity`, `render_path`, `window_title`, `width`, `height`, and `frame_rate`.
 
-Scene-specific rendering can be loaded from a separate JSON file via `scene_file`. A scene defines inputs, video and screen shader chains, a background color, a shader directory, a resources directory, an optional note-font resource, and MIDI CC mappings for shader uniforms. The video input block can also request a capture format and control on-screen scale and position.
+Scene-specific rendering can be loaded from a separate JSON file via `scene_file`. A scene defines inputs, video and screen shader chains, a background color, a background image, a shader directory, a resources directory, an optional note-font resource, and MIDI CC mappings for shader uniforms. The video input block can also request a capture format and control on-screen scale and position.
+
+Background images are resolved from the scene's `resources_directory` and can be placed with `center`, `stretched`, `proportional-stretch` or `tiled`.
 
 Shader files are resolved from the scene's `shader_directory` first, then the INI `shader_directory`, then the CLI override, then the executable directory.
 
-Scene resources such as fonts, videos, data files, and textures are resolved from the scene's `resources_directory`. The MIDI dot note labels use a font resource from that directory when one is provided.
+Scene resources such as fonts, videos, data files, textures, and background images are resolved from the scene's `resources_directory`. The MIDI dot note labels use a font resource from that directory when one is provided.
 
 An example scene is available at [scenes/example.scene.json](scenes/example.scene.json).
 
