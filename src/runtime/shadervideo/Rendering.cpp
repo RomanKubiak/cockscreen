@@ -224,14 +224,14 @@ void ShaderVideoWindow::paintGL()
             current_valid = true;
             ++render_stage_index_;
         }
-
-        return current_texture;
+        return current_valid ? current_texture : 0;
     };
 
     const GLuint video_output = render_layer_chain(QStringLiteral("video"), camera_texture, camera_valid);
     const GLuint playback_output = render_layer_chain(QStringLiteral("playback"), playback_texture, playback_valid);
     const GLuint screen_base_texture = background_image_texture_id_ != 0 ? background_image_texture_id_ : background_texture_id_;
-    const GLuint screen_output = render_layer_chain(QStringLiteral("screen"), screen_base_texture, true);
+    const bool screen_base_valid = screen_base_texture != 0;
+    const GLuint screen_output = render_layer_chain(QStringLiteral("screen"), screen_base_texture, screen_base_valid);
 
     if (video_on_top_)
     {
@@ -248,14 +248,8 @@ void ShaderVideoWindow::paintGL()
 
     if (status_overlay_ != nullptr)
     {
-        const QString status_line = QStringLiteral("FPS %1 | Gain %2 | Px %3 | V %4 | P %5 | S %6")
-                                        .arg(processing_fps_, 0, 'f', 1)
-                                        .arg(frame_.gain, 0, 'f', 2)
-                                        .arg(screen_pixels)
-                                        .arg(video_shader_label_)
-                                        .arg(playback_shader_label_)
-                                        .arg(screen_shader_label_);
-        status_overlay_->set_status(status_line, status_message_);
+        status_overlay_->set_status_overlay_text(status_overlay_text_);
+        status_overlay_->raise();
     }
 
     if (last_frame_time_ != std::chrono::steady_clock::time_point{})
@@ -270,15 +264,6 @@ void ShaderVideoWindow::paintGL()
     last_frame_time_ = now;
 
     render_fps_ = render_timer.nsecsElapsed() > 0 ? 1.0e9 / static_cast<double>(render_timer.nsecsElapsed()) : render_fps_;
-    if (now - last_profile_report_ > std::chrono::seconds{1})
-    {
-        last_profile_report_ = now;
-        std::cout << "Shader video profile: camera=" << processing_fps_ << " fps"
-                  << ", render=" << render_fps_ << " fps"
-                  << ", pixels=" << screen_pixels
-                  << ", video-shader=" << video_shader_label_.toStdString()
-                  << ", screen-shader=" << screen_shader_label_.toStdString() << '\n';
-    }
 }
 
 void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage,

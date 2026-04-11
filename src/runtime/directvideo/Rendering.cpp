@@ -63,13 +63,9 @@ void DirectVideoWindow::paintGL()
 
     if (status_overlay_ != nullptr)
     {
-        const QString status_line = QStringLiteral("FPS %1 | Gain %2 | Shader %3")
-                                        .arg(capture_fps_, 0, 'f', 1)
-                                        .arg(frame_.gain, 0, 'f', 2)
-                                        .arg(shader_label_);
-        status_overlay_->set_status(status_line, status_message_);
+        status_overlay_->set_status_overlay_text(status_overlay_text_);
+        status_overlay_->raise();
     }
-
     const auto now = std::chrono::steady_clock::now();
     if (last_render_time_ != std::chrono::steady_clock::time_point{})
     {
@@ -83,14 +79,6 @@ void DirectVideoWindow::paintGL()
     last_render_time_ = now;
 
     render_ms_ = render_timer.nsecsElapsed() / 1.0e6;
-    if (now - last_profile_report_ > std::chrono::seconds{1})
-    {
-        last_profile_report_ = now;
-        std::cout << "Direct render profile: capture=" << capture_fps_ << " fps"
-                  << ", upload=" << upload_ms_ << " ms"
-                  << ", render=" << render_ms_ << " ms"
-                  << ", dmabuf-export=" << (capture_.dmabuf_export_supported() ? "yes" : "no") << '\n';
-    }
 }
 
 } // namespace cockscreen::runtime

@@ -32,6 +32,11 @@ QString MidiInputMonitor::status_message() const
     return QString::fromStdString(status_message_);
 }
 
+QString MidiInputMonitor::activity_message() const
+{
+    return QString::fromStdString(activity_message_);
+}
+
 void MidiInputMonitor::advance(float delta_seconds)
 {
     if (delta_seconds <= 0.0F)
@@ -185,6 +190,10 @@ void MidiInputMonitor::push_note_on(int channel, int note, int velocity)
               << ", velocity=" << velocity << " (" << std::clamp(static_cast<float>(velocity) / 127.0F, 0.0F, 1.0F)
               << ")" << '\n';
 
+    ++note_on_count_;
+    activity_message_ = "notes=" + std::to_string(note_on_count_) + ", last note=" + std::to_string(note) +
+                        ", channel=" + std::to_string(channel) + ", velocity=" + std::to_string(velocity);
+
     for (std::size_t index = events_.size() - 1; index > 0; --index)
     {
         events_[index] = events_[index - 1];
@@ -205,6 +214,10 @@ void MidiInputMonitor::update_control_change(int channel, int controller, int va
     const float normalized = std::clamp(static_cast<float>(value) / 127.0F, 0.0F, 1.0F);
     std::cout << "MIDI CC: channel " << midi::channel_label(channel) << ", cc=" << controller << ", value=" << value
               << " (" << normalized << ")" << '\n';
+
+    ++controller_count_;
+    activity_message_ = "cc=" + std::to_string(controller_count_) + ", last cc=" + std::to_string(controller) +
+                        ", channel=" + std::to_string(channel) + ", value=" + std::to_string(value);
 
     if (scene_midi_cc_mappings_ != nullptr)
     {

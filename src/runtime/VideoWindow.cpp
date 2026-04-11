@@ -1,5 +1,7 @@
 #include "../../include/cockscreen/runtime/VideoWindow.hpp"
 
+#include "cockscreen/runtime/StatusOverlay.hpp"
+
 #include <QColor>
 #include <QFont>
 #include <QPaintEvent>
@@ -11,6 +13,25 @@
 
 namespace cockscreen::runtime
 {
+
+namespace
+{
+
+void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
+{
+    if (widget == nullptr || overlay == nullptr)
+    {
+        return;
+    }
+
+    const int overlay_width = std::max(widget->width() * 3 / 10, 1);
+    const int overlay_x = std::max(widget->width() - overlay_width, 0);
+    const int overlay_y = widget->height() / 10;
+    const int overlay_height = widget->height() * 8 / 10;
+    overlay->setGeometry(overlay_x, overlay_y, overlay_width, overlay_height);
+}
+
+} // namespace
 
 VideoWindow::VideoWindow(const ApplicationSettings &settings, QCameraDevice video_device, QString video_label,
                                                  QString format_label, QString shader_label, bool show_status_overlay, QWidget *parent)
@@ -24,6 +45,13 @@ VideoWindow::VideoWindow(const ApplicationSettings &settings, QCameraDevice vide
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAttribute(Qt::WA_AcceptTouchEvents, true);
     setCursor(Qt::BlankCursor);
+
+    if (show_status_overlay_)
+    {
+        status_overlay_ = new StatusOverlay{this};
+        place_status_overlay(this, status_overlay_);
+        status_overlay_->raise();
+    }
 
     capture_session_.setVideoSink(&video_sink_);
     QObject::connect(&video_sink_, &QVideoSink::videoFrameChanged, this, [this](const QVideoFrame &frame) {
@@ -60,6 +88,26 @@ VideoWindow::VideoWindow(const ApplicationSettings &settings, QCameraDevice vide
     }
 }
 
+QString VideoWindow::status_message() const
+{
+    return status_message_;
+}
+
+double VideoWindow::processing_fps() const
+{
+    return processing_fps_;
+}
+
+void VideoWindow::set_status_overlay_text(QString text)
+{
+    status_overlay_text_ = std::move(text);
+    if (status_overlay_ != nullptr)
+    {
+        status_overlay_->set_status_overlay_text(status_overlay_text_);
+        status_overlay_->raise();
+    }
+}
+
 void VideoWindow::set_frame(const core::ControlFrame &frame)
 {
     frame_ = frame;
@@ -90,21 +138,20 @@ void VideoWindow::paintEvent(QPaintEvent *)
                                                                            : status_message_);
     }
 
-    if (show_status_overlay_)
+    if (status_overlay_ != nullptr)
     {
-        const QRect status_bar{0, height() - kStatusBarHeight, width(), kStatusBarHeight};
-        painter.fillRect(status_bar, Qt::black);
+        status_overlay_->set_status_overlay_text(status_overlay_text_);
+        status_overlay_->raise();
+    }
+}
 
-        QFont status_font{"Sans Serif", 10};
-        status_font.setBold(true);
-        painter.setFont(status_font);
-        painter.setPen(Qt::white);
-
-        const QString status_line = QStringLiteral("FPS %1 | Gain %2 | Shader %3")
-                                        .arg(processing_fps_, 0, 'f', 1)
-                                        .arg(frame_.gain, 0, 'f', 2)
-                                        .arg(shader_label_);
-        painter.drawText(status_bar.adjusted(16, 0, -16, 0), Qt::AlignVCenter | Qt::AlignLeft, status_line);
+void VideoWindow::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    place_status_overlay(this, status_overlay_);
+    if (status_overlay_ != nullptr)
+    {
+        status_overlay_->raise();
     }
 }
 

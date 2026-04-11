@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -23,6 +24,29 @@ bool looks_like_touch_input(const std::string &name);
 std::optional<std::string> find_usb_touchscreen();
 bool print_startup_preflight();
 bool validate_render_path(const ApplicationSettings &settings);
+
+struct SystemMetricsSnapshot
+{
+		double cpu_percent{0.0};
+		double memory_percent{0.0};
+		double memory_used_mb{0.0};
+		double memory_total_mb{0.0};
+		bool available{false};
+};
+
+class SystemMetricsSampler final
+{
+	public:
+		SystemMetricsSampler() = default;
+
+		[[nodiscard]] SystemMetricsSnapshot sample();
+
+	private:
+		bool have_previous_sample_{false};
+		double previous_cpu_seconds_{0.0};
+		std::chrono::steady_clock::time_point previous_sample_time_{};
+};
+
 std::optional<std::pair<int, int>> parse_capture_mode_dimensions(std::string_view mode);
 std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settings, QString *selected_label = nullptr);
 std::optional<QCameraDevice> select_video_input(const ApplicationSettings &settings, QString *selected_label);

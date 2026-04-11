@@ -13,6 +13,25 @@
 namespace cockscreen::runtime
 {
 
+namespace
+{
+
+void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
+{
+    if (widget == nullptr || overlay == nullptr)
+    {
+        return;
+    }
+
+    const int overlay_width = std::max(widget->width() * 3 / 10, 1);
+    const int overlay_x = std::max(widget->width() - overlay_width, 0);
+    const int overlay_y = widget->height() / 10;
+    const int overlay_height = widget->height() * 8 / 10;
+    overlay->setGeometry(overlay_x, overlay_y, overlay_width, overlay_height);
+}
+
+} // namespace
+
 DirectVideoWindow::DirectVideoWindow(const ApplicationSettings &settings, QString shader_label, bool show_status_overlay,
                                      QWidget *parent)
     : QOpenGLWidget{parent}, settings_{settings}, shader_label_{std::move(shader_label)},
@@ -30,7 +49,7 @@ DirectVideoWindow::DirectVideoWindow(const ApplicationSettings &settings, QStrin
     if (show_status_overlay_)
     {
         status_overlay_ = new StatusOverlay{this};
-        status_overlay_->setGeometry(0, height() - kStatusBarHeight, width(), kStatusBarHeight);
+        place_status_overlay(this, status_overlay_);
         status_overlay_->raise();
     }
 
@@ -80,6 +99,26 @@ bool DirectVideoWindow::dmabuf_export_supported() const
 QString DirectVideoWindow::status_message() const
 {
     return status_message_;
+}
+
+double DirectVideoWindow::capture_fps() const
+{
+    return capture_fps_;
+}
+
+double DirectVideoWindow::render_fps() const
+{
+    return render_fps_;
+}
+
+void DirectVideoWindow::set_status_overlay_text(QString text)
+{
+    status_overlay_text_ = std::move(text);
+    if (status_overlay_ != nullptr)
+    {
+        status_overlay_->set_status_overlay_text(status_overlay_text_);
+        status_overlay_->raise();
+    }
 }
 
 void DirectVideoWindow::set_frame(const core::ControlFrame &frame)
@@ -137,7 +176,7 @@ void DirectVideoWindow::resizeEvent(QResizeEvent *event)
     QOpenGLWidget::resizeEvent(event);
     if (status_overlay_ != nullptr)
     {
-        status_overlay_->setGeometry(0, height() - kStatusBarHeight, width(), kStatusBarHeight);
+        place_status_overlay(this, status_overlay_);
         status_overlay_->raise();
     }
 }

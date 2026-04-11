@@ -28,6 +28,7 @@ class MidiInputMonitor final
 
     [[nodiscard]] bool is_active() const;
     [[nodiscard]] QString status_message() const;
+    [[nodiscard]] QString activity_message() const;
 
     void advance(float delta_seconds);
     void poll();
@@ -63,6 +64,9 @@ class MidiInputMonitor final
     std::string requested_device_;
     std::string resolved_label_;
     std::string status_message_;
+    std::string activity_message_;
+    std::size_t note_on_count_{0};
+    std::size_t controller_count_{0};
     snd_seq_t *sequence_{nullptr};
     int source_client_{-1};
     int source_port_{-1};

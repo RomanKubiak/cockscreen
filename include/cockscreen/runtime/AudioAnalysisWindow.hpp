@@ -32,6 +32,7 @@ class AudioAnalysisWindow final : public QWidget
     [[nodiscard]] const std::array<float, core::kAudioFftBandCount> &fft_bands() const;
     [[nodiscard]] const std::array<float, core::kAudioWaveformSampleCount> &waveform_samples() const;
     [[nodiscard]] QString status_message() const;
+    [[nodiscard]] const QString &device_label() const;
 
     void place_on_screen(QScreen *screen);
 

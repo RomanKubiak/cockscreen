@@ -5,7 +5,46 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 WORKSPACE_TMP_DIR="${WORKSPACE_TMP_DIR:-${WORKSPACE_DIR}/tmp}"
-ROOT_DIR="${1:-/work/pizero}"
+ROOT_DIR="/work/pizero"
+POSITIONAL_ROOT_SEEN="false"
+
+usage() {
+	cat <<EOF
+Usage: ${BASH_SOURCE[0]} [options] [root-dir]
+
+Options:
+	-h, --help              Show this help text
+
+If root-dir is omitted, /work/pizero is used.
+EOF
+}
+
+for arg in "$@"; do
+	case "${arg}" in
+	-h | --help)
+		usage
+		exit 0
+		;;
+	--root-dir=*)
+		ROOT_DIR="${arg#*=}"
+		;;
+	--*)
+		echo "Unknown option: ${arg}" >&2
+		usage >&2
+		exit 1
+		;;
+	*)
+		if [[ "${POSITIONAL_ROOT_SEEN}" == "false" ]]; then
+			ROOT_DIR="${arg}"
+			POSITIONAL_ROOT_SEEN="true"
+		else
+			echo "Unexpected extra argument: ${arg}" >&2
+			usage >&2
+			exit 1
+		fi
+		;;
+	esac
+done
 TOOLCHAIN_VERSION="${TOOLCHAIN_VERSION:-15.2.rel1}"
 TOOLCHAIN_ARCHIVE="arm-gnu-toolchain-${TOOLCHAIN_VERSION}-x86_64-aarch64-none-linux-gnu.tar.xz"
 TOOLCHAIN_URL="https://developer.arm.com/-/media/Files/downloads/gnu/${TOOLCHAIN_VERSION}/binrel/${TOOLCHAIN_ARCHIVE}"

@@ -9,6 +9,7 @@
 #include "../../include/cockscreen/runtime/VideoWindow.hpp"
 
 #include <QApplication>
+#include <QCursor>
 #include <QTimer>
 
 #include <chrono>
@@ -20,6 +21,42 @@ namespace cockscreen::runtime
 {
 
 namespace support = application_support;
+
+namespace
+{
+
+QString limit_overlay_line(QString text, int max_chars)
+{
+    if (max_chars <= 0 || text.size() <= max_chars)
+    {
+        return text;
+    }
+
+    return text.left(std::max(max_chars - 3, 0)) + QStringLiteral("...");
+}
+
+QString build_overlay_text(const QString &fps_line, const QString &device_line, const QString &audio_line,
+                           const QString &metrics_line, const QString &midi_line, const QString &osc_line,
+                           const QString &extra_line = QString{})
+{
+    constexpr int kMaxCharsPerLine{40};
+
+    QStringList lines;
+    lines << limit_overlay_line(fps_line, kMaxCharsPerLine)
+          << limit_overlay_line(metrics_line, kMaxCharsPerLine)
+          << limit_overlay_line(device_line, kMaxCharsPerLine)
+          << limit_overlay_line(audio_line, kMaxCharsPerLine)
+          << limit_overlay_line(midi_line, kMaxCharsPerLine)
+          << limit_overlay_line(osc_line, kMaxCharsPerLine);
+    if (!extra_line.isEmpty())
+    {
+        lines << limit_overlay_line(extra_line, kMaxCharsPerLine);
+    }
+
+    return lines.join('\n');
+}
+
+} // namespace
 
 Application::Application(ApplicationSettings settings) : settings_{std::move(settings)} {}
 
@@ -46,6 +83,10 @@ int Application::run(int argc, char *argv[])
 
     QApplication application{argc, argv};
     application.setApplicationName(QString::fromStdString(settings_.window_title));
+    if (is_pi_target())
+    {
+        QApplication::setOverrideCursor(Qt::BlankCursor);
+    }
 
     SceneDefinition scene = support::default_scene_for_settings(settings_);
     if (!settings_.scene_file.empty())
@@ -77,6 +118,7 @@ int Application::run(int argc, char *argv[])
 
     AudioAnalysisWindow audio_analysis{settings_};
     MidiInputMonitor midi_input{settings_.midi_input, &scene.midi_cc_mappings};
+    SystemMetricsSampler system_metrics;
 
     const auto frame_time = std::chrono::milliseconds(settings_.frame_rate > 0 ? 1000 / settings_.frame_rate : 33);
     const float frame_step_seconds = static_cast<float>(frame_time.count()) / 1000.0F;
@@ -99,23 +141,92 @@ int Application::run(int argc, char *argv[])
         midi_input.populate_frame(frame);
     };
 
+    const auto build_metrics_line = [&system_metrics]() {
+        const auto metrics = system_metrics.sample();
+        if (!metrics.available)
+        {
+            return QStringLiteral("CPU n/a | MEM n/a");
+        }
+
+        return QStringLiteral("CPU %1% | MEM %2% (%3 / %4 MiB)")
+            .arg(metrics.cpu_percent, 0, 'f', 1)
+            .arg(metrics.memory_percent, 0, 'f', 1)
+            .arg(metrics.memory_used_mb, 0, 'f', 0)
+            .arg(metrics.memory_total_mb, 0, 'f', 0);
+    };
+
     if (settings_.render_path == "v4l2-dmabuf-egl")
     {
         const QString shader_label = shader_label_for(settings_);
         DirectVideoWindow window{settings_, shader_label, scene.show_status_overlay};
-        window.show();
+        if (is_pi_target())
+        {
+            window.showFullScreen();
+        }
+        else
+        {
+            window.show();
+        }
 
         QObject::connect(&timer, &QTimer::timeout, [&]() {
             auto frame = modulation_bus_.snapshot();
             refresh_frame(&frame);
             modulation_bus_.update(frame);
             window.set_frame(frame);
+            const QString fps_line = QStringLiteral("FPS capture %1 | render %2 | gain %3")
+                                         .arg(window.capture_fps(), 0, 'f', 1)
+                                         .arg(window.render_fps(), 0, 'f', 1)
+                                         .arg(frame.gain, 0, 'f', 2);
+            const QString device_line = QStringLiteral("Video %1 | format %2 | shader %3 | render path %4")
+                                            .arg(QString::fromStdString(settings_.video_device))
+                                            .arg(window.capture_format_label())
+                                            .arg(shader_label)
+                                            .arg(QString::fromStdString(settings_.render_path));
+            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString midi_line = QStringLiteral("MIDI %1 | %2")
+                                          .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
+                                                                                     : midi_input.status_message())
+                                          .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
+                                                                                       : midi_input.activity_message());
+            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
+                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         });
 
         auto live_frame = modulation_bus_.snapshot();
         refresh_frame(&live_frame);
         modulation_bus_.update(live_frame);
         window.set_frame(live_frame);
+        {
+            const QString fps_line = QStringLiteral("FPS capture %1 | render %2 | gain %3")
+                                         .arg(window.capture_fps(), 0, 'f', 1)
+                                         .arg(window.render_fps(), 0, 'f', 1)
+                                         .arg(live_frame.gain, 0, 'f', 2);
+            const QString device_line = QStringLiteral("Video %1 | format %2 | shader %3 | render path %4")
+                                            .arg(QString::fromStdString(settings_.video_device))
+                                            .arg(window.capture_format_label())
+                                            .arg(shader_label)
+                                            .arg(QString::fromStdString(settings_.render_path));
+            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString midi_line = QStringLiteral("MIDI %1 | %2")
+                                          .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
+                                                                                     : midi_input.status_message())
+                                          .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
+                                                                                       : midi_input.activity_message());
+            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
+                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
+        }
         timer.start(static_cast<int>(frame_time.count()));
 
         std::cout << "Cockscreen initial scaffold" << '\n';
@@ -124,7 +235,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Video device: " << settings_.video_device << '\n';
         std::cout << "Video format: " << window.capture_format_label().toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
-        std::cout << "Audio analysis: " << (audio_label.isEmpty() ? "<none>" : audio_label.toStdString()) << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
         std::cout << "MIDI input: " << settings_.midi_input << '\n';
         std::cout << "Shader directory: " << settings_.shader_directory << '\n';
@@ -137,17 +247,10 @@ int Application::run(int argc, char *argv[])
         std::cout << "DMABUF export: " << (window.dmabuf_export_supported() ? "available" : "unavailable") << '\n';
         std::cout << "Window mode: direct V4L2/EGL" << '\n';
         std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
-        std::cout << "Frame size: " << settings_.width << 'x' << settings_.height << " @ " << settings_.frame_rate
-                  << " fps" << '\n';
 
         if (!window.status_message().isEmpty())
         {
             std::cerr << "Direct backend status: " << window.status_message().toStdString() << '\n';
-        }
-
-        if (!audio_analysis.status_message().isEmpty())
-        {
-            std::cerr << "Audio analysis status: " << audio_analysis.status_message().toStdString() << '\n';
         }
 
         if (!midi_input.status_message().isEmpty())
@@ -176,19 +279,74 @@ int Application::run(int argc, char *argv[])
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
                      camera_format_text, video_on_top, show_status_overlay};
-        window.show();
+        if (is_pi_target())
+        {
+            window.showFullScreen();
+        }
+        else
+        {
+            window.show();
+        }
 
         QObject::connect(&timer, &QTimer::timeout, [&]() {
             auto frame = modulation_bus_.snapshot();
             refresh_frame(&frame);
             modulation_bus_.update(frame);
             window.set_frame(frame);
+            const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
+                                         .arg(window.processing_fps(), 0, 'f', 1)
+                                         .arg(window.processing_fps(), 0, 'f', 1)
+                                         .arg(frame.gain, 0, 'f', 2);
+            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3 | opacity %4")
+                                            .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
+                                            .arg(camera_format_text)
+                                            .arg(video_on_top ? QStringLiteral("video") : QStringLiteral("screen"))
+                                            .arg(settings_.top_layer_opacity, 0, 'f', 2);
+            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString midi_line = QStringLiteral("MIDI %1 | %2")
+                                          .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
+                                                                                     : midi_input.status_message())
+                                          .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
+                                                                                       : midi_input.activity_message());
+            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
+                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             QStringLiteral("Qt6 shader pipeline on Linux")));
         });
 
         auto live_frame = modulation_bus_.snapshot();
         refresh_frame(&live_frame);
         modulation_bus_.update(live_frame);
         window.set_frame(live_frame);
+        {
+            const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
+                                         .arg(window.processing_fps(), 0, 'f', 1)
+                                         .arg(window.processing_fps(), 0, 'f', 1)
+                                         .arg(live_frame.gain, 0, 'f', 2);
+            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3 | opacity %4")
+                                            .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
+                                            .arg(camera_format_text)
+                                            .arg(video_on_top ? QStringLiteral("video") : QStringLiteral("screen"))
+                                            .arg(settings_.top_layer_opacity, 0, 'f', 2);
+            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString midi_line = QStringLiteral("MIDI %1 | %2")
+                                          .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
+                                                                                     : midi_input.status_message())
+                                          .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
+                                                                                       : midi_input.activity_message());
+            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
+                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             QStringLiteral("Qt6 shader pipeline on Linux")));
+        }
         timer.start(static_cast<int>(frame_time.count()));
 
         std::cout << "Cockscreen initial scaffold" << '\n';
@@ -198,7 +356,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Video device: " << settings_.video_device << '\n';
         std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
-        std::cout << "Audio analysis: " << (audio_label.isEmpty() ? "<none>" : audio_label.toStdString()) << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
         std::cout << "MIDI input: " << settings_.midi_input << '\n';
         std::cout << "Shader directory: " << settings_.shader_directory << '\n';
@@ -211,13 +368,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "Window mode: Qt6 windowed" << '\n';
         std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
-        std::cout << "Frame size: " << settings_.width << 'x' << settings_.height << " @ " << settings_.frame_rate
-                  << " fps" << '\n';
-
-        if (!audio_analysis.status_message().isEmpty())
-        {
-            std::cerr << "Audio analysis status: " << audio_analysis.status_message().toStdString() << '\n';
-        }
 
         if (!midi_input.status_message().isEmpty())
         {
@@ -246,19 +396,74 @@ int Application::run(int argc, char *argv[])
 
     VideoWindow window{settings_, video_device.value_or(QCameraDevice{}), selected_video_label, camera_format_text,
                        video_shader_label, show_status_overlay};
-    window.show();
+    if (is_pi_target())
+    {
+        window.showFullScreen();
+    }
+    else
+    {
+        window.show();
+    }
 
     QObject::connect(&timer, &QTimer::timeout, [&]() {
         auto initial_frame = modulation_bus_.snapshot();
         refresh_frame(&initial_frame);
         modulation_bus_.update(initial_frame);
         window.set_frame(initial_frame);
+        const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
+                                     .arg(window.processing_fps(), 0, 'f', 1)
+                                     .arg(window.processing_fps(), 0, 'f', 1)
+                                     .arg(initial_frame.gain, 0, 'f', 2);
+        const QString device_line = QStringLiteral("Video %1 | format %2 | shader %3 | playback %4")
+                                        .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
+                                        .arg(camera_format_text)
+                                        .arg(video_shader_label)
+                                        .arg(screen_shader_label);
+        const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                                       .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                                       .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                                       .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                                       .arg(audio_analysis.peak_level(), 0, 'f', 3);
+        const QString midi_line = QStringLiteral("MIDI %1 | %2")
+                                      .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
+                                                                                 : midi_input.status_message())
+                                      .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
+                                                                                   : midi_input.activity_message());
+        const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
+                                     .arg(QString::fromStdString(settings_.osc_endpoint));
+        window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                         QStringLiteral("Qt6 windowed mode on Linux")));
     });
 
     auto live_frame = modulation_bus_.snapshot();
     refresh_frame(&live_frame);
     modulation_bus_.update(live_frame);
     window.set_frame(live_frame);
+    {
+        const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
+                                     .arg(window.processing_fps(), 0, 'f', 1)
+                                     .arg(window.processing_fps(), 0, 'f', 1)
+                                     .arg(live_frame.gain, 0, 'f', 2);
+        const QString device_line = QStringLiteral("Video %1 | format %2 | shader %3 | playback %4")
+                                        .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
+                                        .arg(camera_format_text)
+                                        .arg(video_shader_label)
+                                        .arg(screen_shader_label);
+        const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                                       .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                                       .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                                       .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                                       .arg(audio_analysis.peak_level(), 0, 'f', 3);
+        const QString midi_line = QStringLiteral("MIDI %1 | %2")
+                                      .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
+                                                                                 : midi_input.status_message())
+                                      .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
+                                                                                   : midi_input.activity_message());
+        const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
+                                     .arg(QString::fromStdString(settings_.osc_endpoint));
+        window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                         QStringLiteral("Qt6 windowed mode on Linux")));
+    }
     timer.start(static_cast<int>(frame_time.count()));
 
     std::cout << "Cockscreen initial scaffold" << '\n';
@@ -267,7 +472,6 @@ int Application::run(int argc, char *argv[])
     std::cout << "Video device: " << settings_.video_device << '\n';
     std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
     std::cout << "Audio device: " << settings_.audio_device << '\n';
-    std::cout << "Audio analysis: " << (audio_label.isEmpty() ? "<none>" : audio_label.toStdString()) << '\n';
     std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
     std::cout << "MIDI input: " << settings_.midi_input << '\n';
     std::cout << "Shader directory: " << settings_.shader_directory << '\n';
@@ -282,8 +486,6 @@ int Application::run(int argc, char *argv[])
     std::cout << "Render path: " << settings_.render_path << '\n';
     std::cout << "Window mode: Qt6 windowed" << '\n';
     std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
-    std::cout << "Frame size: " << settings_.width << 'x' << settings_.height << " @ " << settings_.frame_rate << " fps"
-              << '\n';
 
     const auto startup_frame = modulation_bus_.snapshot();
     std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';

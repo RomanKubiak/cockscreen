@@ -36,6 +36,10 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] QString capture_format_label() const;
     [[nodiscard]] bool dmabuf_export_supported() const;
     [[nodiscard]] QString status_message() const;
+    [[nodiscard]] double capture_fps() const;
+    [[nodiscard]] double render_fps() const;
+
+    void set_status_overlay_text(QString text);
 
     void set_frame(const core::ControlFrame &frame);
 
@@ -100,6 +104,7 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     float texture_layout_{0.0F};
     QString capture_format_label_{QStringLiteral("unknown")};
     QString status_message_;
+    QString status_overlay_text_;
     std::vector<std::uint8_t> staging_;
     std::unordered_map<int, ImportedTexture> imported_textures_;
     std::chrono::steady_clock::time_point last_capture_time_{};

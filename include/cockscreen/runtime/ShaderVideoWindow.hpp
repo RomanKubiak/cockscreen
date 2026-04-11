@@ -43,6 +43,12 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
                                QWidget *parent = nullptr);
     ~ShaderVideoWindow() override;
 
+    [[nodiscard]] double processing_fps() const;
+    [[nodiscard]] double render_fps() const;
+    [[nodiscard]] QString status_message() const;
+
+    void set_status_overlay_text(QString text);
+
     void set_frame(const core::ControlFrame &frame);
 
   protected:
@@ -100,6 +106,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QImage latest_playback_frame_;
     QString camera_format_label_{QStringLiteral("unknown")};
     QString status_message_;
+    QString status_overlay_text_;
     QOpenGLShaderProgram video_program_;
     QOpenGLShaderProgram screen_program_;
     QOpenGLShaderProgram blit_program_;
