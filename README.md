@@ -77,6 +77,8 @@ cmake --preset cross-pi-zero2w-debug
 cmake --build --preset cross-pi-zero2w-debug
 ```
 
+Both cross presets automatically rsync the built `cockscreen` binary to the Pi at the end of the build. The upload target uses the same build directory name on the Pi, so `cross-pi-zero2w-debug` and `cross-pi-zero2w-release` land under matching remote paths.
+
 The bootstrap script downloads the current Arm GNU/Linux AArch64 toolchain, creates an arm64 Debian Trixie sysroot with the Qt6, ALSA, EGL, and OpenGL development packages required by this project, and stores everything under `/work/pizero` for reuse across later builds.
 
 Bootstrap, configure, and build temp files are redirected into [tmp](tmp) inside the workspace rather than `/tmp`.
@@ -109,7 +111,7 @@ The workspace includes these tasks in [.vscode/tasks.json](/home/atom/devel/cock
 - `Remote Pi: Build Release`
 - `Remote Pi: Run Release`
 
-The remote tasks prompt for the SSH host and remote project directory. The default host is `atom@192.168.41.190` and the default remote project path is `/home/atom/cockscreen`.
+The remote tasks prompt for the SSH host and remote project directory. The default host is `atom@192.168.41.181` and the default remote project path is `/home/atom/cockscreen`.
 
 ## Next implementation steps
 

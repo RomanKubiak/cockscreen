@@ -5,6 +5,9 @@ project(cockscreen VERSION 0.1.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(FetchContent)
 
+set(COCKSCREEN_PI_SYNC_HOST "atom@192.168.41.181" CACHE STRING "SSH destination for automatic Pi binary sync")
+set(COCKSCREEN_PI_SYNC_ROOT "/home/atom/cockscreen" CACHE STRING "Remote Pi workspace root for automatic binary sync")
+
 option(COCKSCREEN_ENABLE_STRICT_WARNINGS "Enable extra warning flags" ON)
 set(COCKSCREEN_TARGET_PLATFORM "raspberry-pi-zero-2w" CACHE STRING "Target platform label")
 
@@ -118,6 +121,20 @@ target_compile_features(cockscreen PRIVATE cxx_std_20)
 
 if(COCKSCREEN_ENABLE_STRICT_WARNINGS)
     target_compile_options(cockscreen PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET_PLATFORM STREQUAL "raspberry-pi-zero-2w")
+    add_custom_target(cockscreen_pi_sync ALL
+        DEPENDS cockscreen
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DCOCKSCREEN_PI_SYNC_HOST=${COCKSCREEN_PI_SYNC_HOST}
+            -DCOCKSCREEN_PI_SYNC_ROOT=${COCKSCREEN_PI_SYNC_ROOT}
+            -DCOCKSCREEN_PI_SYNC_BINARY=$<TARGET_FILE:cockscreen>
+            -DCOCKSCREEN_PI_SYNC_BUILD_DIR=${CMAKE_BINARY_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sync-binary-to-pi.cmake
+        VERBATIM
+    )
 endif()
 
 install(TARGETS cockscreen RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
