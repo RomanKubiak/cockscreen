@@ -2,6 +2,8 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
+#include <unordered_map>
 
 namespace cockscreen::core
 {
@@ -24,6 +26,7 @@ struct ControlFrame
     float treble{0.0F};
     float osc_x{0.5F};
     float osc_y{0.5F};
+    std::unordered_map<std::string, float> osc_values;
     float midi_primary{0.0F};
     float midi_secondary{0.0F};
     std::array<float, kMidiEventCount> midi_notes{};

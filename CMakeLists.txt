@@ -58,6 +58,7 @@ target_sources(cockscreen_core
         src/runtime/helpers/System.cpp
         src/runtime/midi/Monitor.cpp
         src/runtime/midi/PortDiscovery.cpp
+        src/runtime/osc/Monitor.cpp
         src/runtime/Scene.cpp
         src/runtime/scene/Parse.cpp
         src/runtime/shadervideo/Assets.cpp

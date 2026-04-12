@@ -114,5 +114,34 @@
             "max": 1.0,
             "exponent": 1.0
         }
+    ],
+    "osc_mappings": [
+        {
+            "address": "/cockscreen/pink_key/r",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_r",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        {
+            "address": "/cockscreen/pink_key/g",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_g",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        {
+            "address": "/cockscreen/pink_key/b",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_b",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        }
     ]
 }

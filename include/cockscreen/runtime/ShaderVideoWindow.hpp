@@ -84,6 +84,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void build_render_stages();
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
+    void apply_scene_osc_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     GLuint render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
               float elapsed_seconds);
 

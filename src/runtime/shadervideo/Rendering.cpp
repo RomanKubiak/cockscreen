@@ -345,6 +345,38 @@ void ShaderVideoWindow::apply_scene_midi_mappings(QOpenGLShaderProgram *program,
     }
 }
 
+void ShaderVideoWindow::apply_scene_osc_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const
+{
+    if (program == nullptr || !program->isLinked())
+    {
+        return;
+    }
+
+    for (const auto &mapping : scene_.osc_mappings)
+    {
+        if (mapping.layer != stage.layer_name.toStdString())
+        {
+            continue;
+        }
+
+        if (!shader_mapping_matches(mapping.shader, stage.shader_path))
+        {
+            continue;
+        }
+
+        const auto it = frame_.osc_values.find(mapping.address);
+        if (it == frame_.osc_values.end())
+        {
+            continue;
+        }
+
+        float value = std::clamp(it->second, 0.0F, 1.0F);
+        value = std::pow(value, mapping.exponent);
+        value = mapping.minimum + (mapping.maximum - mapping.minimum) * value;
+        program->setUniformValue(mapping.uniform.c_str(), value);
+    }
+}
+
 GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
                                        float elapsed_seconds)
 {
@@ -414,6 +446,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     stage->program->setUniformValue("u_texture", 0);
     bind_stage_common_uniforms(stage->program.get(), *stage, elapsed_seconds);
     apply_scene_midi_mappings(stage->program.get(), *stage);
+    apply_scene_osc_mappings(stage->program.get(), *stage);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sampled_texture);

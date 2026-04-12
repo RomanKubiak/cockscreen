@@ -72,6 +72,17 @@ struct MidiNoteMapping
     float exponent{1.0F};
 };
 
+struct OscMapping
+{
+    std::string address;
+    std::string layer;
+    std::string shader;
+    std::string uniform;
+    float minimum{0.0F};
+    float maximum{1.0F};
+    float exponent{1.0F};
+};
+
 struct SceneDefinition
 {
     std::filesystem::path source_path;
@@ -90,6 +101,7 @@ struct SceneDefinition
     SceneLayer screen_layer;
     std::vector<MidiCcMapping> midi_cc_mappings;
     std::vector<MidiNoteMapping> midi_note_mappings;
+    std::vector<OscMapping> osc_mappings;
 };
 
 std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path, std::string *error_message = nullptr);

@@ -2,6 +2,7 @@
 #include "../../include/cockscreen/runtime/AudioAnalysisWindow.hpp"
 #include "../../include/cockscreen/runtime/DirectVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/MidiInputMonitor.hpp"
+#include "../../include/cockscreen/runtime/OscInputMonitor.hpp"
 #include "../../include/cockscreen/runtime/Scene.hpp"
 #include "../../include/cockscreen/runtime/ShaderVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/RuntimeHelpers.hpp"
@@ -118,6 +119,7 @@ int Application::run(int argc, char *argv[])
 
     AudioAnalysisWindow audio_analysis{settings_};
     MidiInputMonitor midi_input{settings_.midi_input, &scene.midi_cc_mappings};
+    OscInputMonitor osc_input{settings_.osc_endpoint, &scene.osc_mappings};
     SystemMetricsSampler system_metrics;
 
     const auto frame_time = std::chrono::milliseconds(settings_.frame_rate > 0 ? 1000 / settings_.frame_rate : 33);
@@ -139,6 +141,8 @@ int Application::run(int argc, char *argv[])
         midi_input.advance(frame_step_seconds);
         midi_input.poll();
         midi_input.populate_frame(frame);
+        osc_input.poll();
+        osc_input.populate_frame(frame);
     };
 
     const auto build_metrics_line = [&system_metrics]() {
@@ -192,8 +196,10 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
-                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            const QString osc_line = QStringLiteral("OSC %1 | %2")
+                                         .arg(osc_input.status_message())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                                                                     : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         });
@@ -222,8 +228,10 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
-                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            const QString osc_line = QStringLiteral("OSC %1 | %2")
+                                         .arg(osc_input.status_message())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                                                                     : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         }
@@ -306,8 +314,10 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
-                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            const QString osc_line = QStringLiteral("OSC %1 | %2")
+                                         .arg(osc_input.status_message())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                                                                     : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
         });
@@ -336,8 +346,10 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
-                                         .arg(QString::fromStdString(settings_.osc_endpoint));
+            const QString osc_line = QStringLiteral("OSC %1 | %2")
+                                         .arg(osc_input.status_message())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                                                                     : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
         }
@@ -417,8 +429,10 @@ int Application::run(int argc, char *argv[])
                                                                                  : midi_input.status_message())
                                       .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                    : midi_input.activity_message());
-        const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
-                                     .arg(QString::fromStdString(settings_.osc_endpoint));
+        const QString osc_line = QStringLiteral("OSC %1 | %2")
+                                     .arg(osc_input.status_message())
+                                     .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                                                                 : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                          QStringLiteral("Qt6 windowed mode on Linux")));
     });
@@ -447,8 +461,10 @@ int Application::run(int argc, char *argv[])
                                                                                  : midi_input.status_message())
                                       .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                    : midi_input.activity_message());
-        const QString osc_line = QStringLiteral("OSC %1 | incoming data: not implemented yet")
-                                     .arg(QString::fromStdString(settings_.osc_endpoint));
+        const QString osc_line = QStringLiteral("OSC %1 | %2")
+                                     .arg(osc_input.status_message())
+                                     .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                                                                 : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                          QStringLiteral("Qt6 windowed mode on Linux")));
     }

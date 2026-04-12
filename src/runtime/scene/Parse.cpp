@@ -302,6 +302,32 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         }
     }
 
+    if (const auto mappings = root.value(QStringLiteral("osc_mappings")); mappings.isArray())
+    {
+        for (const auto &mapping_value : mappings.toArray())
+        {
+            if (!mapping_value.isObject())
+            {
+                continue;
+            }
+
+            const auto mapping_object = mapping_value.toObject();
+            OscMapping mapping;
+            mapping.address = json_string(mapping_object, "address");
+            mapping.layer = json_string(mapping_object, "layer");
+            mapping.shader = json_string(mapping_object, "shader");
+            mapping.uniform = json_string(mapping_object, "uniform");
+            mapping.minimum = json_float(mapping_object, "min", 0.0F);
+            mapping.maximum = json_float(mapping_object, "max", 1.0F);
+            mapping.exponent = std::max(0.01F, json_float(mapping_object, "exponent", 1.0F));
+
+            if (!mapping.address.empty() && !mapping.layer.empty() && !mapping.uniform.empty())
+            {
+                scene.osc_mappings.push_back(std::move(mapping));
+            }
+        }
+    }
+
     return scene;
 }
 
