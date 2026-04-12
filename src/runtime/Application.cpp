@@ -236,7 +236,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Video format: " << window.capture_format_label().toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-        std::cout << "MIDI input: " << settings_.midi_input << '\n';
         std::cout << "Shader directory: " << settings_.shader_directory << '\n';
           std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
         std::cout << "Shader file: " << (settings_.shader_file.empty() ? "<default>" : settings_.shader_file) << '\n';
@@ -251,11 +250,6 @@ int Application::run(int argc, char *argv[])
         if (!window.status_message().isEmpty())
         {
             std::cerr << "Direct backend status: " << window.status_message().toStdString() << '\n';
-        }
-
-        if (!midi_input.status_message().isEmpty())
-        {
-            std::cerr << "MIDI input status: " << midi_input.status_message().toStdString() << '\n';
         }
 
         const auto startup_frame = modulation_bus_.snapshot();
@@ -357,7 +351,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-        std::cout << "MIDI input: " << settings_.midi_input << '\n';
         std::cout << "Shader directory: " << settings_.shader_directory << '\n';
         std::cout << "Shader file: " << (settings_.shader_file.empty() ? "<default>" : settings_.shader_file) << '\n';
         std::cout << "Screen shader file: "
@@ -368,11 +361,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "Window mode: Qt6 windowed" << '\n';
         std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
-
-        if (!midi_input.status_message().isEmpty())
-        {
-            std::cerr << "MIDI input status: " << midi_input.status_message().toStdString() << '\n';
-        }
 
         const auto startup_frame = modulation_bus_.snapshot();
         std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
@@ -473,7 +461,6 @@ int Application::run(int argc, char *argv[])
     std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
     std::cout << "Audio device: " << settings_.audio_device << '\n';
     std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-    std::cout << "MIDI input: " << settings_.midi_input << '\n';
     std::cout << "Shader directory: " << settings_.shader_directory << '\n';
       std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
     std::cout << "Shader file: " << (settings_.shader_file.empty() ? "<default>" : settings_.shader_file) << '\n';
@@ -489,11 +476,6 @@ int Application::run(int argc, char *argv[])
 
     const auto startup_frame = modulation_bus_.snapshot();
     std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
-
-    if (!midi_input.status_message().isEmpty())
-    {
-        std::cerr << "MIDI input status: " << midi_input.status_message().toStdString() << '\n';
-    }
 
     return application.exec();
 }

@@ -6,8 +6,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <iostream>
-
 namespace cockscreen::runtime
 {
 
@@ -186,10 +184,6 @@ void MidiInputMonitor::close_sequence()
 
 void MidiInputMonitor::push_note_on(int channel, int note, int velocity)
 {
-    std::cout << "MIDI note-on: channel " << midi::channel_label(channel) << ", note=" << note
-              << ", velocity=" << velocity << " (" << std::clamp(static_cast<float>(velocity) / 127.0F, 0.0F, 1.0F)
-              << ")" << '\n';
-
     ++note_on_count_;
     activity_message_ = "notes=" + std::to_string(note_on_count_) + ", last note=" + std::to_string(note) +
                         ", channel=" + std::to_string(channel) + ", velocity=" + std::to_string(velocity);
@@ -212,8 +206,6 @@ void MidiInputMonitor::update_control_change(int channel, int controller, int va
     }
 
     const float normalized = std::clamp(static_cast<float>(value) / 127.0F, 0.0F, 1.0F);
-    std::cout << "MIDI CC: channel " << midi::channel_label(channel) << ", cc=" << controller << ", value=" << value
-              << " (" << normalized << ")" << '\n';
 
     ++controller_count_;
     activity_message_ = "cc=" + std::to_string(controller_count_) + ", last cc=" + std::to_string(controller) +
@@ -228,9 +220,6 @@ void MidiInputMonitor::update_control_change(int channel, int controller, int va
                 continue;
             }
 
-            std::cout << "  matched scene mapping: layer=" << mapping.layer << ", shader=" << mapping.shader
-                      << ", uniform=" << mapping.uniform << ", min=" << mapping.minimum << ", max="
-                      << mapping.maximum << ", exponent=" << mapping.exponent << '\n';
         }
     }
 

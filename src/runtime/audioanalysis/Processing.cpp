@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <iostream>
 #include <limits>
 
 namespace cockscreen::runtime
@@ -97,13 +96,6 @@ void AudioAnalysisWindow::process_audio_chunk()
     update_levels(data);
     update();
 
-    const auto now = std::chrono::steady_clock::now();
-    if (last_profile_report_ == std::chrono::steady_clock::time_point{} || now - last_profile_report_ > std::chrono::seconds{1})
-    {
-        last_profile_report_ = now;
-        std::cout << "Audio analysis: L=" << channel_levels_db_[0] << " dB, R=" << channel_levels_db_[1]
-                  << " dB, overall=" << overall_level_db_ << " dB" << '\n';
-    }
 }
 
 void AudioAnalysisWindow::update_levels(const QByteArray &data)

@@ -43,7 +43,7 @@
             "device": "through"
         }
     },
-    "show_status_overlay": true,
+    "show_status_overlay": false,
     "video": {
         "enabled": false,
         "shaders": [
@@ -59,7 +59,12 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "wireframe_sphere.glsl"
+            "wireframe_sphere.glsl",
+            "midi_dots.glsl",
+            "rorschach_inkblot.glsl",
+            "kaleidoscope.glsl",
+            "audio_waveform.glsl",
+            "edge_distortion.glsl"
         ]
     },
     "midi_cc_mappings": [
