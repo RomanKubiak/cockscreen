@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1220" viewBox="0 0 1800 1220" role="img" aria-label="Detailed analog front end schematic">
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .panel { fill: #ffffff; stroke: #202020; stroke-width: 2.5; rx: 18; ry: 18; }
+      .chip { fill: #eef3ff; stroke: #1d3b66; stroke-width: 2.5; rx: 16; ry: 16; }
+      .green { fill: #eef9ee; stroke: #27632a; stroke-width: 2.5; rx: 16; ry: 16; }
+      .yellow { fill: #fff8e8; stroke: #8a5b00; stroke-width: 2.5; rx: 16; ry: 16; }
+      .label { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 700; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .tiny { fill: #555; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      .title { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 700; }
+      .subtitle { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
+      .wire { stroke: #2f2f2f; stroke-width: 4; fill: none; }
+      .wire2 { stroke: #2f2f2f; stroke-width: 2.5; fill: none; }
+      .dash { stroke-dasharray: 10 7; }
+      .arrow { marker-end: url(#arrow); }
+      .rail3v3 { stroke: #a11; stroke-width: 4; fill: none; }
+      .railgnd { stroke: #222; stroke-width: 4; fill: none; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f2f2f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1220"/>
+
+  <text class="title" x="70" y="56">Detailed analog front end proposal</text>
+  <text class="subtitle" x="70" y="84">Pi Zero 2 W / Waveshare ADS1256 board, direct CV on AD1-AD3, CD74HC4067 pot bank on AD0, and three gate inputs</text>
+
+  <path class="rail3v3" d="M 70 125 L 1730 125"/>
+  <text class="small" x="85" y="116">3V3 rail</text>
+  <path class="railgnd" d="M 70 1110 L 1730 1110"/>
+  <text class="small" x="85" y="1100">GND rail</text>
+
+  <rect class="panel" x="70" y="160" width="820" height="390"/>
+  <text class="label" x="90" y="194">Direct CV inputs on AD1, AD2, AD3</text>
+  <text class="small" x="90" y="220">These are not on the mux. They are the direct analog modulation inputs for external CV sources.</text>
+
+  <rect x="95" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
+  <text class="small" x="210" y="286" text-anchor="middle">CV1 -> AD1</text>
+  <text class="tiny" x="210" y="312" text-anchor="middle">J1 input jack</text>
+  <text class="tiny" x="210" y="332" text-anchor="middle">R1 100k / R2 100k</text>
+  <text class="tiny" x="210" y="352" text-anchor="middle">2:1 attenuation for 0-10 V</text>
+  <text class="tiny" x="210" y="372" text-anchor="middle">R3 1k series</text>
+  <text class="tiny" x="210" y="392" text-anchor="middle">D1 BAT54S clamp</text>
+  <text class="tiny" x="210" y="412" text-anchor="middle">C1 1 nF to GND</text>
+  <text class="tiny" x="210" y="432" text-anchor="middle">optional U1 MCP6002</text>
+  <text class="tiny" x="210" y="452" text-anchor="middle">for bipolar level shift</text>
+
+  <rect x="350" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
+  <text class="small" x="465" y="286" text-anchor="middle">CV2 -> AD2</text>
+  <text class="tiny" x="465" y="312" text-anchor="middle">J2 input jack</text>
+  <text class="tiny" x="465" y="332" text-anchor="middle">R1 100k / R2 100k</text>
+  <text class="tiny" x="465" y="352" text-anchor="middle">2:1 attenuation for 0-10 V</text>
+  <text class="tiny" x="465" y="372" text-anchor="middle">R3 1k series</text>
+  <text class="tiny" x="465" y="392" text-anchor="middle">D1 BAT54S clamp</text>
+  <text class="tiny" x="465" y="412" text-anchor="middle">C1 1 nF to GND</text>
+  <text class="tiny" x="465" y="432" text-anchor="middle">optional U1 MCP6002</text>
+  <text class="tiny" x="465" y="452" text-anchor="middle">for bipolar level shift</text>
+
+  <rect x="605" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
+  <text class="small" x="720" y="286" text-anchor="middle">CV3 -> AD3</text>
+  <text class="tiny" x="720" y="312" text-anchor="middle">J3 input jack</text>
+  <text class="tiny" x="720" y="332" text-anchor="middle">R1 100k / R2 100k</text>
+  <text class="tiny" x="720" y="352" text-anchor="middle">2:1 attenuation for 0-10 V</text>
+  <text class="tiny" x="720" y="372" text-anchor="middle">R3 1k series</text>
+  <text class="tiny" x="720" y="392" text-anchor="middle">D1 BAT54S clamp</text>
+  <text class="tiny" x="720" y="412" text-anchor="middle">C1 1 nF to GND</text>
+  <text class="tiny" x="720" y="432" text-anchor="middle">optional U1 MCP6002</text>
+  <text class="tiny" x="720" y="452" text-anchor="middle">for bipolar level shift</text>
+
+  <path class="wire arrow" d="M 325 367 L 350 367"/>
+  <path class="wire arrow" d="M 580 367 L 605 367"/>
+
+  <rect class="panel" x="900" y="160" width="830" height="390"/>
+  <text class="label" x="920" y="194">Potentiometer bank on AD0 via CD74HC4067</text>
+  <text class="small" x="920" y="220">Only potentiometers live on the mux. The mux common pin goes to AD0.</text>
+
+  <rect class="chip" x="940" y="255" width="300" height="225"/>
+  <text class="label" x="1090" y="286" text-anchor="middle">CD74HC4067</text>
+  <text class="tiny" x="1090" y="312" text-anchor="middle">COM / SIG -> AD0</text>
+  <text class="tiny" x="1090" y="332" text-anchor="middle">VCC -> 3V3</text>
+  <text class="tiny" x="1090" y="352" text-anchor="middle">GND -> GND</text>
+  <text class="tiny" x="1090" y="372" text-anchor="middle">EN -> GND</text>
+  <text class="tiny" x="1090" y="392" text-anchor="middle">S0 / S1 / S2 / S3 from Pi GPIO</text>
+  <text class="tiny" x="1090" y="412" text-anchor="middle">C0..C15 each get one pot wiper</text>
+  <text class="tiny" x="1090" y="434" text-anchor="middle">R4 1k series at mux output</text>
+  <text class="tiny" x="1090" y="454" text-anchor="middle">D2 BAT54S clamp to 0 V / 3V3</text>
+
+  <rect x="1280" y="255" width="390" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
+  <text class="small" x="1475" y="286" text-anchor="middle">Typical pot wiring</text>
+  <text class="tiny" x="1475" y="314" text-anchor="middle">P1 10k linear pot</text>
+  <text class="tiny" x="1475" y="334" text-anchor="middle">one outer leg -> 3V3</text>
+  <text class="tiny" x="1475" y="354" text-anchor="middle">other outer leg -> GND</text>
+  <text class="tiny" x="1475" y="374" text-anchor="middle">wiper -> C0..C15</text>
+  <text class="tiny" x="1475" y="394" text-anchor="middle">optional 100 nF smoothing cap</text>
+  <text class="tiny" x="1475" y="414" text-anchor="middle">one pot per mux channel</text>
+  <text class="tiny" x="1475" y="438" text-anchor="middle">mux select pins: BCM5, BCM6, BCM13, BCM26</text>
+
+  <path class="wire arrow" d="M 1240 367 L 1280 367"/>
+
+  <rect class="panel" x="70" y="590" width="820" height="270"/>
+  <text class="label" x="90" y="624">Gate inputs on BCM16, BCM19, BCM20</text>
+  <text class="small" x="90" y="650">These are digital gate / trigger inputs converted to clean 3.3 V logic before the Pi sees them.</text>
+
+  <rect class="green" x="95" y="680" width="220" height="130"/>
+  <text class="small" x="205" y="710" text-anchor="middle">Gate front-end x3</text>
+  <text class="tiny" x="205" y="736" text-anchor="middle">R5 10k series</text>
+  <text class="tiny" x="205" y="756" text-anchor="middle">R6 100k pull-down</text>
+  <text class="tiny" x="205" y="776" text-anchor="middle">D3 BAT54S clamp</text>
+  <text class="tiny" x="205" y="796" text-anchor="middle">U2 74LVC14 at 3.3 V</text>
+
+  <rect x="350" y="660" width="250" height="170" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
+  <text class="small" x="475" y="692" text-anchor="middle">Gate source</text>
+  <text class="tiny" x="475" y="718" text-anchor="middle">sequencer gate / trigger</text>
+  <text class="tiny" x="475" y="738" text-anchor="middle">synth gate / envelope out</text>
+  <text class="tiny" x="475" y="758" text-anchor="middle">do not connect raw 5 V</text>
+  <text class="tiny" x="475" y="778" text-anchor="middle">share ground with Pi</text>
+  <text class="tiny" x="475" y="798" text-anchor="middle">clean 3.3 V output only</text>
+
+  <path class="wire arrow" d="M 315 745 L 350 745"/>
+  <path class="wire arrow" d="M 600 745 L 645 745"/>
+
+  <rect class="chip" x="645" y="640" width="245" height="210"/>
+  <text class="label" x="767" y="672" text-anchor="middle">Pi GPIO inputs</text>
+  <text class="small" x="767" y="700" text-anchor="middle">GATE0 -> BCM16 / pin 36</text>
+  <text class="small" x="767" y="722" text-anchor="middle">GATE1 -> BCM19 / pin 35</text>
+  <text class="small" x="767" y="744" text-anchor="middle">GATE2 -> BCM20 / pin 38</text>
+  <text class="small" x="767" y="772" text-anchor="middle">runtime prints gate changes</text>
+  <text class="small" x="767" y="794" text-anchor="middle">active high expected</text>
+  <text class="small" x="767" y="816" text-anchor="middle">common GND required</text>
+
+  <rect class="panel" x="930" y="590" width="800" height="270"/>
+  <text class="label" x="950" y="624">Proposed element values</text>
+  <text class="small" x="950" y="656">Direct CV channel x3</text>
+  <text class="tiny" x="970" y="680">R1 100k / R2 100k divider for 0-10 V sources</text>
+  <text class="tiny" x="970" y="700">R3 1k series resistor</text>
+  <text class="tiny" x="970" y="720">D1 BAT54S clamp to GND and 3V3</text>
+  <text class="tiny" x="970" y="740">C1 1 nF to GND</text>
+  <text class="tiny" x="970" y="760">U1 MCP6002 only for bipolar sources</text>
+
+  <text class="small" x="1250" y="656">Pot mux x16</text>
+  <text class="tiny" x="1270" y="680">P1 10k linear pot per channel</text>
+  <text class="tiny" x="1270" y="700">R4 1k series at mux output</text>
+  <text class="tiny" x="1270" y="720">D2 BAT54S clamp to GND and 3V3</text>
+  <text class="tiny" x="1270" y="740">MUX VCC -> 3V3, EN -> GND</text>
+  <text class="tiny" x="1270" y="760">Select pins -> BCM5 / 6 / 13 / 26</text>
+
+  <text class="small" x="1505" y="656">Gate x3</text>
+  <text class="tiny" x="1525" y="680">R5 10k series</text>
+  <text class="tiny" x="1525" y="700">R6 100k pull-down</text>
+  <text class="tiny" x="1525" y="720">D3 BAT54S clamp</text>
+  <text class="tiny" x="1525" y="740">U2 74LVC14 Schmitt buffer</text>
+  <text class="tiny" x="1525" y="760">Inputs on BCM16 / 19 / 20</text>
+
+  <rect class="panel" x="70" y="900" width="1660" height="220"/>
+  <text class="label" x="90" y="934">Board-level wiring summary</text>
+  <text class="tiny" x="90" y="964">Direct CV: AD1, AD2, AD3</text>
+  <text class="tiny" x="90" y="986">Pot mux: AD0 with CD74HC4067 and 16 pots only</text>
+  <text class="tiny" x="90" y="1008">Gate inputs: BCM16, BCM19, BCM20</text>
+  <text class="tiny" x="90" y="1030">Common power: Waveshare board 3V3 and GND rails</text>
+  <text class="tiny" x="90" y="1052">Runtime: Linux AARCH64 only</text>
+  <text class="tiny" x="90" y="1074">If a source can go negative or above the ADC range, attenuate and clamp first</text>
+  <text class="tiny" x="90" y="1096">If a gate is not 3.3 V logic already, convert it with a front-end stage before the Pi</text>
+</svg>

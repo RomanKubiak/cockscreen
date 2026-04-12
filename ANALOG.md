@@ -4,16 +4,83 @@ This document covers the Pi-only analog front end used on the AARCH64 build.
 
 ## Overview
 
-The analog path is split into two parts:
+The analog path is split into three parts:
 
-- A 16-channel CV bank on the Waveshare board ADC input `AD0` using a `CD74HC4067`.
+- Three direct CV inputs on the Waveshare board ADC channels `AD1`, `AD2`, and `AD3`.
+- A 16-channel potentiometer bank on the Waveshare board ADC input `AD0` using a `CD74HC4067`.
 - Three separate gate inputs on free Pi GPIO pins for note/gate/trigger events.
 
 The runtime support is AARCH64-only and prints sampled CV values and gate states to the console.
 
-## CV Bank On `AD0`
+## Detailed Proposed Schematic
 
-The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever channel is selected.
+The preferred front-end is drawn in [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg). It shows the proposed element values for the three direct CV inputs on `AD1`-`AD3`, the `AD0` pot mux, and the gate inputs in one board-level diagram.
+
+The short version is:
+
+- Direct CV attenuation for 0-10 V sources: `100k` / `100k` divider.
+- Direct CV series protection: `1k`.
+- Direct CV clamp: `BAT54S` dual Schottky to `0 V` and `3V3`.
+- Direct CV low-pass filter: `1 nF` to ground.
+- Optional bipolar CV stage: `MCP6002` rail-to-rail op-amp with `100k` / `100k` mid-rail bias.
+- Pot mux series protection: `1k`.
+- Pot mux clamp: `BAT54S` dual Schottky to `0 V` and `3V3`.
+- Gate series resistor: `10k`.
+- Gate pull-down: `100k`.
+- Gate clamp: `BAT54S` to `0 V` and `3V3`.
+- Gate buffer: `74LVC14` Schmitt trigger at `3.3 V`.
+
+## Direct CV Inputs On `AD1`-`AD3`
+
+The three direct CV inputs are wired to the ADC channels `AD1`, `AD2`, and `AD3`. They do not go through the `CD74HC4067`; only the pot bank uses `AD0`.
+
+Each CV channel assumes a 3-position mode switch in front of the conditioning block:
+
+- Position 1: direct `0-5 V` input
+- Position 2: `0-10 V` attenuated input
+- Position 3: bipolar input shifted into the `0 V` to `5 V` range
+
+### Pin Map
+
+| CV channel | ADC input | Notes |
+|---|---|---|
+| `CV0` | `AD1` | direct analog input |
+| `CV1` | `AD2` | direct analog input |
+| `CV2` | `AD3` | direct analog input |
+
+### Power And Wiring
+
+| CV pin | Connect to |
+|---|---|
+| `CV0` / `AD1` | direct conditioned CV source |
+| `CV1` / `AD2` | direct conditioned CV source |
+| `CV2` / `AD3` | direct conditioned CV source |
+
+### Direct CV Circuit
+
+Each direct CV input uses the same element set:
+
+- `Jx` input jack
+- `R1` `100k` / `100k` attenuator for `0-10 V` sources
+- `R2` `1k` series protection resistor
+- `D1` `BAT54S` clamp to `0 V` and `3V3`
+- `C1` `1 nF` to ground
+- optional `U1` `MCP6002` if bipolar CV needs mid-rail shifting
+
+### CV Input Rules
+
+- Keep all CV sources referenced to the same ground as the Waveshare board.
+- Do not feed negative voltage into the ADC input path.
+- Do not exceed the ADC input range. If a source is above 5 V, attenuate it first.
+- For bipolar CV, shift it into the 0 V to 5 V range before `AD1`-`AD3`.
+
+### Direct CV Conditioning Block Diagram
+
+![Direct CV conditioning block diagram](docs/analog-cv-input.svg)
+
+## Pot Mux On `AD0`
+
+The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever pot channel is selected. The mux is used only for potentiometers, not for the direct CV inputs.
 
 ### Pin Map
 
@@ -38,24 +105,17 @@ The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC
 | `EN` | `GND` |
 | `VEE` | `GND` if exposed |
 
-### CV Input Rules
+Wire each potentiometer with one outer leg to `3V3`, the other outer leg to `GND`, and the wiper to one of the mux channels `C0` through `C15`.
 
-- Keep all CV sources referenced to the same ground as the Waveshare board.
-- Do not feed negative voltage into the ADC input path.
-- Do not exceed the ADC input range. If a source is above 5 V, attenuate it first.
-- For bipolar CV, shift it into the 0 V to 5 V range before `AD0`.
+### Pot Mux Rules
 
-Suggested front-end conditioning:
+- Use only potentiometers on the mux channels.
+- Keep the pot grounds common with the Waveshare board.
+- Each mux channel should stay inside the ADC range after the pot wiring and any local series protection.
 
-| Source type | Simplest conditioning |
-|---|---|
-| `0-5 V` unipolar CV | Optional 1 k series resistor, then straight into the mux channel |
-| `0-10 V` unipolar CV | 2:1 divider, then a 1 k series resistor |
-| `-5 V to +5 V` bipolar CV | Op-amp level shifter to mid-rail, then clamp to 0 V to 5 V |
+### Pot Mux Schematic
 
-### CV Schematic
-
-![CV mux schematic](docs/analog-cv-input.svg)
+The pot mux is shown in the board-level schematic above. It is the `AD0` section of [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg).
 
 ## Gate Inputs
 
@@ -72,7 +132,7 @@ Three gate inputs are read as digital GPIO states. These are intended for on/off
 ### Power And Wiring
 
 | Gate front-end pin | Connect to |
-|---|---|
+|---|---|---|
 | `OUT0` | Pi `GPIO16` |
 | `OUT1` | Pi `GPIO19` |
 | `OUT2` | Pi `GPIO20` |
@@ -93,7 +153,7 @@ Suggested front-end channel:
 - Optional pull-down: 100 k to GND
 - Optional Schmitt stage for cleaner edges
 
-### Gate Schematic
+### Gate Input Schematic
 
 ![Gate input schematic](docs/analog-gate-input.svg)
 
