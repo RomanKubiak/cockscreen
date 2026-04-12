@@ -1,7 +1,7 @@
 precision mediump float;
 
-varying vec2 v_texCoord;
-uniform sampler2D u_lastFrame;
+varying vec2 v_texcoord;
+uniform sampler2D u_texture;
 
 // Your music inputs
 uniform float u_time;
@@ -12,15 +12,15 @@ uniform float u_audio_waveform[64];
 
 // HELPER: Small Box Blur (Fast for Pi)
 // Returns the average luminosity around the coordinate
-float getBlurredLuma(vec2 coord, sampler2D tex, float offset)
+float getBlurredLuma(vec2 coord, float offset)
 {
     vec2 off = vec2(offset); // Offset in UV coordinates (e.g., 0.005)
 
     // Sample 4 points in a small cross
-    float s1 = texture2D(tex, coord + vec2(off.x, 0.0)).r;
-    float s2 = texture2D(tex, coord + vec2(-off.x, 0.0)).r;
-    float s3 = texture2D(tex, coord + vec2(0.0, off.y)).r;
-    float s4 = texture2D(tex, coord + vec2(0.0, -off.y)).r;
+    float s1 = texture2D(u_texture, coord + vec2(off.x, 0.0)).r;
+    float s2 = texture2D(u_texture, coord + vec2(-off.x, 0.0)).r;
+    float s3 = texture2D(u_texture, coord + vec2(0.0, off.y)).r;
+    float s4 = texture2D(u_texture, coord + vec2(0.0, -off.y)).r;
 
     // Average them. We only need the red channel for "lightness"
     return (s1 + s2 + s3 + s4) * 0.25;
@@ -28,7 +28,8 @@ float getBlurredLuma(vec2 coord, sampler2D tex, float offset)
 
 void main()
 {
-    vec2 uv = v_texCoord;
+    vec2 uv = v_texcoord;
+    vec4 base = texture2D(u_texture, uv);
 
     // == 1. INITIAL SETUP ==
     vec2 center = uv - 0.5;
@@ -44,7 +45,7 @@ void main()
     center *= mat2(c, -s, s, c);
     center *= (zoom - bass * 0.02);
 
-    vec2 sampleUV = center + 0.5;
+    vec2 sampleUV = clamp(center + 0.5, 0.0, 1.0);
 
     // ============================================
     // == NEW: THE "EDGE MELT" DISTORTION PASS ==
@@ -56,25 +57,25 @@ void main()
     // b. Calculate Gradient (Edge Normal)
     // We sample luminosity at two offset points (small x, small y)
     float blurOffset = 0.005; // Base radius of the edge finder
-    float currentLuma = getBlurredLuma(sampleUV, u_lastFrame, blurOffset);
-    float deltaX = getBlurredLuma(sampleUV + vec2(0.001, 0.0), u_lastFrame, blurOffset);
-    float deltaY = getBlurredLuma(sampleUV + vec2(0.0, 0.001), u_lastFrame, blurOffset);
+    float currentLuma = getBlurredLuma(sampleUV, blurOffset);
+    float deltaX = getBlurredLuma(sampleUV + vec2(0.001, 0.0), blurOffset);
+    float deltaY = getBlurredLuma(sampleUV + vec2(0.0, 0.001), blurOffset);
 
     // The vector pointing towards brighter areas (normal vector)
     vec2 edgeNormal = vec2(deltaX - currentLuma, deltaY - currentLuma);
 
     // c. Apply the Melt
     // We offset the main sampleUV based on this normal, weighted by meltStrength
-    vec2 meltedUV = sampleUV - (edgeNormal * meltStrength);
+    vec2 meltedUV = clamp(sampleUV - (edgeNormal * meltStrength), 0.0, 1.0);
 
     // ============================================
 
     // == 3. THE FEEDBACK LOOKUP (Using MeltedUV) ==
     // Note: We use the MeltedUV for the aberration offsets too.
     float aberration = 0.002 + (u_audio_peak * 0.01);
-    float r = texture2D(u_lastFrame, meltedUV).r;
-    float g = texture2D(u_lastFrame, meltedUV - aberration).g;
-    float b = texture2D(u_lastFrame, meltedUV + aberration).b;
+    float r = texture2D(u_texture, meltedUV).r;
+    float g = texture2D(u_texture, meltedUV - aberration).g;
+    float b = texture2D(u_texture, meltedUV + aberration).b;
 
     vec3 feedback = vec3(r, g, b);
 
@@ -92,5 +93,7 @@ void main()
     float noise = fract(sin(dot(uv + u_time, vec2(12.9898, 78.233))) * 43758.5453);
     finalColor += noise * 0.01;
 
-    gl_FragColor = vec4(finalColor, 1.0);
+    float effectOpacity = clamp(0.30 + u_audio_rms * 0.30 + u_audio_peak * 0.10, 0.20, 0.70);
+    vec3 composed = mix(base.rgb, clamp(finalColor, 0.0, 1.0), effectOpacity);
+    gl_FragColor = vec4(composed, base.a);
 }

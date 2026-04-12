@@ -1,5 +1,6 @@
 #include "../include/cockscreen/app/CliSupport.hpp"
 #include "../include/cockscreen/runtime/Application.hpp"
+#include "../include/cockscreen/runtime/Scene.hpp"
 
 #include <filesystem>
 #include <iostream>
@@ -74,6 +75,41 @@ int main(int argc, char *argv[])
 
     if (command_line.list_capture_modes_requested)
     {
+        if (command_line.settings.scene_file.empty())
+        {
+            std::cerr
+                << "Capture mode listing requires runtime.scene_file in config (or --scene-file) with inputs.video.device set\n";
+            return 2;
+        }
+
+        std::filesystem::path scene_path{command_line.settings.scene_file};
+        if (!scene_path.is_absolute())
+        {
+            const auto resolved_scene_path = cli::resolve_relative_path(scene_path);
+            if (!resolved_scene_path.has_value())
+            {
+                std::cerr << "Scene file not found: " << command_line.settings.scene_file << '\n';
+                return 2;
+            }
+
+            scene_path = *resolved_scene_path;
+        }
+
+        std::string scene_error;
+        const auto loaded_scene = cockscreen::runtime::load_scene_definition(scene_path, &scene_error);
+        if (!loaded_scene.has_value())
+        {
+            std::cerr << scene_error << '\n';
+            return 2;
+        }
+
+        if (loaded_scene->video_input.device.empty())
+        {
+            std::cerr << "Capture mode listing requires inputs.video.device in scene: " << scene_path.string() << '\n';
+            return 2;
+        }
+
+        command_line.settings.video_device = loaded_scene->video_input.device;
         cli::print_capture_modes(command_line.settings);
     }
 

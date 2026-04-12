@@ -2,10 +2,16 @@ precision mediump float;
 
 varying vec2 v_texcoord;
 uniform sampler2D u_texture;
+uniform float u_key_r;
+uniform float u_key_g;
+uniform float u_key_b;
 
 float yellow_key_strength(vec3 color)
 {
-    vec3 target = vec3(0.96, 0.86, 0.12);
+    vec3 default_target = vec3(0.96, 0.86, 0.12);
+    vec3 mapped_target = clamp(vec3(u_key_r, u_key_g, u_key_b), 0.0, 1.0);
+    float has_custom_target = step(0.001, mapped_target.r + mapped_target.g + mapped_target.b);
+    vec3 target = mix(default_target, mapped_target, has_custom_target);
     vec3 diff = abs(color - target);
 
     float distance = diff.r * 1.05 + diff.g * 1.00 + diff.b * 1.20;

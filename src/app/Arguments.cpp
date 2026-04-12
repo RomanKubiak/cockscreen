@@ -122,7 +122,7 @@ void print_help()
     std::cout << "Usage: cockscreen [options]\n"
               << "  --config-file PATH\n"
               << "  --list-devices\n"
-              << "  --list-capture-modes\n"
+              << "  --list-capture-modes (uses inputs.video.device from scene_file)\n"
               << "  --window-title TEXT\n"
               << "  --scene-file FILE\n"
               << "  --render-path qt|qt-shader|v4l2-dmabuf-egl\n"
