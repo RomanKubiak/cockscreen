@@ -28,7 +28,8 @@ struct ConfigFileSelection
 bool has_help_argument(int argc, char *argv[]);
 bool has_list_devices_argument(int argc, char *argv[]);
 std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem::path &path);
-ConfigFileSelection select_config_file(int argc, char *argv[]);
+ConfigFileSelection select_config_file(int argc, char *argv[],
+                                       const std::filesystem::path &executable_dir = {});
 bool load_config_file(const std::filesystem::path &path, runtime::ApplicationSettings *settings);
 void enable_shader_render_path_if_requested(runtime::ApplicationSettings *settings);
 

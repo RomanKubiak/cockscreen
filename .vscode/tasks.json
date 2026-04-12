@@ -137,6 +137,24 @@
 			"dependsOn": "Remote Pi: Build Release",
 			"isBackground": true,
 			"group": "test"
+		},
+		{
+			"label": "Local: Cross Build Windows Debug",
+			"type": "shell",
+			"command": "cmake --preset windows-x86_64-debug && cmake --build --preset windows-x86_64-debug",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build"
+		},
+		{
+			"label": "Local: Cross Build Windows Release",
+			"type": "shell",
+			"command": "cmake --preset windows-x86_64-release && cmake --build --preset windows-x86_64-release",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build"
 		}
 	]
 }

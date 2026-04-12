@@ -117,6 +117,48 @@ void ShaderVideoWindow::ensure_note_label_atlas_texture()
     note_label_atlas_texture_dirty_ = false;
 }
 
+void ShaderVideoWindow::ensure_icon_atlas_texture()
+{
+    if (!icon_atlas_texture_dirty_)
+    {
+        return;
+    }
+
+    const auto font_path = helper::resolve_scene_resource_path(scene_.resources_directory,
+                                                               "fonts/Font Awesome 7 Free-Solid-900.otf");
+    if (!font_path.has_value())
+    {
+        icon_atlas_texture_dirty_ = false;
+        return;
+    }
+
+    const QImage atlas = helper::build_icon_atlas_image(*font_path);
+    if (atlas.isNull() || !helper::image_has_opaque_pixels(atlas))
+    {
+        icon_atlas_texture_dirty_ = false;
+        return;
+    }
+
+    if (icon_atlas_texture_id_ == 0)
+    {
+        glGenTextures(1, &icon_atlas_texture_id_);
+        glBindTexture(GL_TEXTURE_2D, icon_atlas_texture_id_);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, icon_atlas_texture_id_);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlas.width(), atlas.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 atlas.constBits());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    icon_atlas_texture_dirty_ = false;
+}
+
 void ShaderVideoWindow::ensure_blank_texture()
 {
     if (blank_texture_id_ != 0)

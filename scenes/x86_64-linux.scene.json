@@ -1,14 +1,14 @@
 {
-    "resources_directory": "../resources",
+    "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     "background_image": {
         "file": "textures/masazer.jpg",
         "placement": "centered"
     },
-    "shader_directory": "../shaders",
+    "shader_directory": "../shaders/",
     "inputs": {
         "video": {
-            "enabled": true,
+            "enabled": false,
             "device": "/dev/video1",
             "format": "qvga",
             "scale": 0.25,
@@ -45,7 +45,7 @@
     },
     "show_status_overlay": false,
     "video": {
-        "enabled": true,
+        "enabled": false,
         "shaders": [
             "pink_key.glsl",
             "video_sphere.glsl"
@@ -59,7 +59,9 @@
     },
     "screen": {
         "enabled": true,
-        "shaders": []
+        "shaders": [
+            "kaleidoscope.glsl"
+        ]
     },
     "midi_cc_mappings": [
         {

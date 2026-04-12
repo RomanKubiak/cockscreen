@@ -12,6 +12,8 @@ namespace cockscreen::runtime
 namespace
 {
 
+#ifndef _WIN32
+
 std::optional<QString> detect_default_output_monitor_source_name()
 {
     QProcess info_process;
@@ -68,6 +70,8 @@ std::optional<QString> detect_default_output_monitor_source_name()
 
     return std::nullopt;
 }
+
+#endif // !_WIN32
 
 int camera_format_priority(QVideoFrameFormat::PixelFormat pixel_format)
 {
@@ -148,6 +152,7 @@ std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settin
         }
     }
 
+#ifndef _WIN32
     if (!is_pi_target())
     {
         if (const auto monitor_source_name = detect_default_output_monitor_source_name(); monitor_source_name.has_value())
@@ -167,6 +172,7 @@ std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settin
             }
         }
     }
+#endif // !_WIN32
 
     for (const auto &device : audio_inputs)
     {

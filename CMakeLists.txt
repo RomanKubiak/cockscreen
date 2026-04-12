@@ -27,14 +27,17 @@ FetchContent_Declare(pffft
 FetchContent_MakeAvailable(pffft)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia OpenGLWidgets OpenGL)
-find_library(EGL_LIBRARY NAMES EGL REQUIRED)
-find_library(ASOUND_LIBRARY NAMES asound REQUIRED)
 
-add_library(EGL::EGL UNKNOWN IMPORTED)
-set_target_properties(EGL::EGL PROPERTIES IMPORTED_LOCATION "${EGL_LIBRARY}")
+if(NOT WIN32)
+    find_library(EGL_LIBRARY NAMES EGL REQUIRED)
+    find_library(ASOUND_LIBRARY NAMES asound REQUIRED)
 
-add_library(ASOUND::ASOUND UNKNOWN IMPORTED)
-set_target_properties(ASOUND::ASOUND PROPERTIES IMPORTED_LOCATION "${ASOUND_LIBRARY}")
+    add_library(EGL::EGL UNKNOWN IMPORTED)
+    set_target_properties(EGL::EGL PROPERTIES IMPORTED_LOCATION "${EGL_LIBRARY}")
+
+    add_library(ASOUND::ASOUND UNKNOWN IMPORTED)
+    set_target_properties(ASOUND::ASOUND PROPERTIES IMPORTED_LOCATION "${ASOUND_LIBRARY}")
+endif()
 
 add_library(cockscreen_core)
 add_library(cockscreen::core ALIAS cockscreen_core)
@@ -49,15 +52,9 @@ target_sources(cockscreen_core
         src/core/ModulationBus.cpp
         src/runtime/Application.cpp
         src/runtime/application/Support.cpp
-        src/runtime/directvideo/Lifecycle.cpp
-        src/runtime/directvideo/Rendering.cpp
-        src/runtime/directvideo/Support.cpp
-        src/runtime/directvideo/Upload.cpp
         src/runtime/helpers/Media.cpp
         src/runtime/helpers/Shader.cpp
         src/runtime/helpers/System.cpp
-        src/runtime/midi/Monitor.cpp
-        src/runtime/midi/PortDiscovery.cpp
         src/runtime/osc/Monitor.cpp
         src/runtime/Scene.cpp
         src/runtime/scene/Parse.cpp
@@ -67,10 +64,31 @@ target_sources(cockscreen_core
         src/runtime/shadervideo/Support.cpp
         src/runtime/StatusOverlay.cpp
         src/runtime/VideoWindow.cpp
-        src/runtime/v4l2/Buffers.cpp
-        src/runtime/v4l2/Capture.cpp
-        src/runtime/v4l2/Formats.cpp
 )
+
+target_sources(cockscreen_core
+    PRIVATE
+        src/runtime/midi/Monitor.cpp
+        src/runtime/midi/PortDiscovery.cpp
+)
+
+if(NOT WIN32)
+    target_sources(cockscreen_core
+        PRIVATE
+            src/runtime/directvideo/Lifecycle.cpp
+            src/runtime/directvideo/Rendering.cpp
+            src/runtime/directvideo/Support.cpp
+            src/runtime/directvideo/Upload.cpp
+            src/runtime/v4l2/Buffers.cpp
+            src/runtime/v4l2/Capture.cpp
+            src/runtime/v4l2/Formats.cpp
+    )
+else()
+    target_sources(cockscreen_core
+        PRIVATE
+            src/runtime/audioanalysis/WasapiLoopback.cpp
+    )
+endif()
 
 set_source_files_properties(
     src/runtime/Application.cpp
@@ -101,10 +119,14 @@ target_link_libraries(cockscreen_core
     Qt6::Multimedia
     Qt6::OpenGLWidgets
     Qt6::OpenGL
-    ASOUND::ASOUND
     PFFFT::PFFFT
-    EGL::EGL
 )
+
+if(NOT WIN32)
+    target_link_libraries(cockscreen_core PUBLIC ASOUND::ASOUND EGL::EGL)
+else()
+    target_link_libraries(cockscreen_core PUBLIC winmm ws2_32 mmdevapi ole32 uuid psapi shell32)
+endif()
 
 target_compile_definitions(cockscreen_core
     PUBLIC
@@ -139,3 +161,94 @@ if(CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET_PLATFORM STREQUAL "raspberry-pi-ze
 endif()
 
 install(TARGETS cockscreen RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    find_program(WINE_EXECUTABLE NAMES wine wine64 REQUIRED
+        DOC "Wine host binary used to run windeployqt.exe during cross-compilation")
+
+    set(_cockscreen_windeployqt "${COCKSCREEN_WINDOWS_QT_ROOT}/bin/windeployqt.exe")
+
+    # Resolve MinGW runtime DLLs via the compiler's own search path.
+    set(_cockscreen_mingw_runtime_dlls "")
+    foreach(_dll IN ITEMS libgcc_s_seh-1.dll libstdc++-6.dll)
+        execute_process(
+            COMMAND "${CMAKE_CXX_COMPILER}" -print-file-name=${_dll}
+            OUTPUT_VARIABLE _dll_path
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        if(_dll_path AND NOT "${_dll_path}" STREQUAL "${_dll}")
+            list(APPEND _cockscreen_mingw_runtime_dlls "${_dll_path}")
+        endif()
+    endforeach()
+
+    # libwinpthread-1.dll lives in the MinGW sysroot, not in GCC's lib directory.
+    find_file(_cockscreen_libpthread NAMES libwinpthread-1.dll
+        PATHS "/usr/x86_64-w64-mingw32/lib"
+        NO_DEFAULT_PATH
+    )
+    if(_cockscreen_libpthread)
+        list(APPEND _cockscreen_mingw_runtime_dlls "${_cockscreen_libpthread}")
+    endif()
+
+    set(_cockscreen_deploy_dir "${CMAKE_BINARY_DIR}/deploy")
+
+    # Generate a cockscreen.ini with paths relative to the deploy folder root.
+    # (scene_file and shader_directory sit beside the exe, not one level up)
+    set(_cockscreen_deploy_ini "${CMAKE_BINARY_DIR}/cockscreen-deploy.ini")
+    file(WRITE "${_cockscreen_deploy_ini}"
+        "; Cockscreen defaults for Windows 10 64-bit\n"
+        "[runtime]\n"
+        "render_path=qt-shader\n"
+        "window_title=cockscreen\n"
+        "width=1024\n"
+        "height=600\n"
+        "frame_rate=30\n"
+        "scene_file=scenes/windows.scene.json\n"
+        "shader_directory=shaders\n"
+    )
+
+    # Include in ALL only for Release so it doesn't slow down debug iterations.
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(_cockscreen_package_in_all ALL)
+    else()
+        set(_cockscreen_package_in_all "")
+    endif()
+
+    add_custom_target(cockscreen_package ${_cockscreen_package_in_all}
+        DEPENDS cockscreen
+        # Create a clean staging directory.
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_cockscreen_deploy_dir}"
+        # Stage the executable so windeployqt deploys alongside it.
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:cockscreen>" "${_cockscreen_deploy_dir}/"
+        # Run windeployqt under Wine. WINEDEBUG=-all silences Wine noise.
+        # windeployqt deploys Qt DLLs and platform/multimedia/imageformat plugins
+        # into the same directory as the exe it is pointed at.
+        COMMAND ${CMAKE_COMMAND} -E env
+                    "WINEPREFIX=${CMAKE_BINARY_DIR}/.wineprefix"
+                    "WINEDEBUG=-all"
+                "${WINE_EXECUTABLE}" "${_cockscreen_windeployqt}"
+                    "$<IF:$<CONFIG:Release>,--release,--debug>"
+                    --no-translations
+                    --no-system-d3d-compiler
+                    --no-opengl-sw
+                    "${_cockscreen_deploy_dir}/cockscreen.exe"
+        # Copy MinGW runtime DLLs that windeployqt doesn't know about.
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${_cockscreen_mingw_runtime_dlls}
+                "${_cockscreen_deploy_dir}/"
+        # Copy cockscreen.ini next to the exe so double-clicking works out of the box.
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_cockscreen_deploy_ini}"
+                "${_cockscreen_deploy_dir}/cockscreen.ini"
+        # Copy runtime asset directories.
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/shaders"   "${_cockscreen_deploy_dir}/shaders"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/scenes"    "${_cockscreen_deploy_dir}/scenes"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/resources" "${_cockscreen_deploy_dir}/resources"
+        COMMENT "Packaging Windows deploy -> ${_cockscreen_deploy_dir}"
+        VERBATIM
+    )
+endif()

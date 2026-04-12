@@ -5,11 +5,22 @@
 #include <filesystem>
 #include <fstream>
 
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <initguid.h>
+#include <mmdeviceapi.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <mmsystem.h>
+#endif
+
 namespace cockscreen::app
 {
 
 namespace
 {
+#ifndef _WIN32
 
 std::optional<std::string> read_text_file(const std::filesystem::path &path)
 {
@@ -79,7 +90,87 @@ bool card_has_capture_pcm(const std::filesystem::path &card_dir)
     return false;
 }
 
+#endif // !_WIN32
 } // namespace
+
+#ifdef _WIN32
+
+std::optional<std::string> detect_default_audio_device()
+{
+    IMMDeviceEnumerator *enumerator = nullptr;
+    const HRESULT hr_enum = CoCreateInstance(CLSID_MMDeviceEnumerator, nullptr, CLSCTX_ALL,
+                                              IID_IMMDeviceEnumerator,
+                                              reinterpret_cast<void **>(&enumerator));
+    if (FAILED(hr_enum) || enumerator == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    IMMDevice *device = nullptr;
+    const HRESULT hr_dev = enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &device);
+    enumerator->Release();
+    if (FAILED(hr_dev) || device == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    IPropertyStore *props = nullptr;
+    device->OpenPropertyStore(STGM_READ, &props);
+    device->Release();
+    if (props == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    PROPVARIANT var;
+    PropVariantInit(&var);
+    const HRESULT hr_prop = props->GetValue(PKEY_Device_FriendlyName, &var);
+    props->Release();
+
+    std::optional<std::string> result;
+    if (SUCCEEDED(hr_prop) && var.vt == VT_LPWSTR && var.pwszVal != nullptr)
+    {
+        const int len = WideCharToMultiByte(CP_UTF8, 0, var.pwszVal, -1, nullptr, 0, nullptr, nullptr);
+        if (len > 1)
+        {
+            std::string name(static_cast<std::size_t>(len - 1), '\0');
+            WideCharToMultiByte(CP_UTF8, 0, var.pwszVal, -1, name.data(), len, nullptr, nullptr);
+            result = std::move(name);
+        }
+    }
+    PropVariantClear(&var);
+    return result;
+}
+
+std::vector<std::string> detect_midi_devices()
+{
+    std::vector<std::string> result;
+    const UINT num_devs = midiInGetNumDevs();
+    for (UINT i = 0; i < num_devs; ++i)
+    {
+        MIDIINCAPSW caps{};
+        if (midiInGetDevCapsW(i, &caps, sizeof(caps)) != MMSYSERR_NOERROR) { continue; }
+        const int wlen   = static_cast<int>(wcslen(caps.szPname));
+        const int needed = WideCharToMultiByte(CP_UTF8, 0, caps.szPname, wlen, nullptr, 0, nullptr, nullptr);
+        if (needed <= 0) { continue; }
+        std::string name(needed, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, caps.szPname, wlen, name.data(), needed, nullptr, nullptr);
+        result.push_back(std::move(name));
+    }
+    return result;
+}
+
+std::optional<std::string> detect_default_midi_device()
+{
+    const auto devices = detect_midi_devices();
+    if (!devices.empty())
+    {
+        return devices.front();
+    }
+    return std::nullopt;
+}
+
+#else // !_WIN32
 
 std::optional<std::string> detect_default_audio_device()
 {
@@ -215,5 +306,5 @@ std::optional<std::string> detect_default_midi_device()
 
     return midi_devices.front();
 }
-
+#endif // !_WIN32
 } // namespace cockscreen::app

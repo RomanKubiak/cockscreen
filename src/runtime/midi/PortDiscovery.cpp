@@ -1,5 +1,7 @@
 #include "cockscreen/runtime/midi/PortDiscovery.hpp"
 
+#ifndef _WIN32
+
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -103,3 +105,27 @@ std::string channel_label(int channel)
 }
 
 } // namespace cockscreen::runtime::midi
+
+#else // _WIN32
+
+namespace cockscreen::runtime::midi
+{
+
+std::vector<PortRecord> read_ports()
+{
+    return {}; // Not used on Windows; WinMM device enumeration is in Monitor.cpp
+}
+
+std::string make_label(const PortRecord &record)
+{
+    return record.client_name + " / " + record.port_name;
+}
+
+std::string channel_label(int channel)
+{
+    return std::to_string(channel + 1) + " (raw " + std::to_string(channel) + ")";
+}
+
+} // namespace cockscreen::runtime::midi
+
+#endif // !_WIN32

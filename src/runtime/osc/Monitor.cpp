@@ -2,13 +2,31 @@
 
 #include <QString>
 
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+using socket_t = SOCKET;
+static constexpr socket_t kInvalidSocket = INVALID_SOCKET;
+namespace { inline bool socket_invalid(socket_t s) { return s == INVALID_SOCKET; } }
+namespace { inline void socket_close(socket_t s) { ::closesocket(s); } }
+namespace { inline std::string last_socket_error() { return "WSAError " + std::to_string(WSAGetLastError()); } }
+#else
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-
 #include <cerrno>
+#include <cstring>
+using socket_t = int;
+static constexpr socket_t kInvalidSocket = -1;
+namespace { inline bool socket_invalid(socket_t s) { return s < 0; } }
+namespace { inline void socket_close(socket_t s) { ::close(s); } }
+namespace { inline std::string last_socket_error() { return std::strerror(errno); } }
+#endif
+
 #include <cstdint>
 #include <cstring>
 
@@ -50,12 +68,19 @@ bool parse_endpoint(const std::string &endpoint, std::string *host, uint16_t *po
 OscInputMonitor::OscInputMonitor(std::string endpoint, const std::vector<OscMapping> *scene_osc_mappings)
     : scene_osc_mappings_{scene_osc_mappings}, endpoint_{std::move(endpoint)}
 {
+#ifdef _WIN32
+    WSADATA wsa_data{};
+    WSAStartup(MAKEWORD(2, 2), &wsa_data);
+#endif
     open_socket();
 }
 
 OscInputMonitor::~OscInputMonitor()
 {
     close_socket();
+#ifdef _WIN32
+    WSACleanup();
+#endif
 }
 
 bool OscInputMonitor::is_active() const
@@ -83,21 +108,27 @@ bool OscInputMonitor::open_socket()
         return false;
     }
 
-    socket_fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (socket_fd_ < 0)
+    socket_fd_ = static_cast<std::uintptr_t>(::socket(AF_INET, SOCK_DGRAM, 0));
+    if (socket_invalid(static_cast<socket_t>(socket_fd_)))
     {
-        status_message_ = std::string{"socket() failed: "} + std::strerror(errno);
+        status_message_ = std::string{"socket() failed: "} + last_socket_error();
         return false;
     }
 
-    const int flags = ::fcntl(socket_fd_, F_GETFL, 0);
+#ifdef _WIN32
+    u_long nb_mode = 1;
+    ::ioctlsocket(static_cast<socket_t>(socket_fd_), FIONBIO, &nb_mode);
+#else
+    const int flags = ::fcntl(static_cast<socket_t>(socket_fd_), F_GETFL, 0);
     if (flags >= 0)
     {
-        ::fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK);
+        ::fcntl(static_cast<socket_t>(socket_fd_), F_SETFL, flags | O_NONBLOCK);
     }
+#endif
 
     const int opt = 1;
-    ::setsockopt(socket_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    ::setsockopt(static_cast<socket_t>(socket_fd_), SOL_SOCKET, SO_REUSEADDR,
+                 reinterpret_cast<const char *>(&opt), sizeof(opt));
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
@@ -111,18 +142,19 @@ bool OscInputMonitor::open_socket()
     {
         if (::inet_pton(AF_INET, host.c_str(), &addr.sin_addr) != 1)
         {
-            ::close(socket_fd_);
-            socket_fd_ = -1;
+            socket_close(static_cast<socket_t>(socket_fd_));
+            socket_fd_ = static_cast<std::uintptr_t>(kInvalidSocket);
             status_message_ = "invalid address: " + host;
             return false;
         }
     }
 
-    if (::bind(socket_fd_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0)
+    if (::bind(static_cast<socket_t>(socket_fd_),
+               reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0)
     {
-        ::close(socket_fd_);
-        socket_fd_ = -1;
-        status_message_ = std::string{"bind() failed on "} + endpoint_ + ": " + std::strerror(errno);
+        socket_close(static_cast<socket_t>(socket_fd_));
+        socket_fd_ = static_cast<std::uintptr_t>(kInvalidSocket);
+        status_message_ = std::string{"bind() failed on "} + endpoint_ + ": " + last_socket_error();
         return false;
     }
 
@@ -133,17 +165,17 @@ bool OscInputMonitor::open_socket()
 
 void OscInputMonitor::close_socket()
 {
-    if (socket_fd_ >= 0)
+    if (!socket_invalid(static_cast<socket_t>(socket_fd_)))
     {
-        ::close(socket_fd_);
-        socket_fd_ = -1;
+        socket_close(static_cast<socket_t>(socket_fd_));
+        socket_fd_ = static_cast<std::uintptr_t>(kInvalidSocket);
     }
     active_ = false;
 }
 
 void OscInputMonitor::poll()
 {
-    if (!active_ || socket_fd_ < 0)
+    if (!active_ || socket_invalid(static_cast<socket_t>(socket_fd_)))
     {
         return;
     }
@@ -153,12 +185,12 @@ void OscInputMonitor::poll()
 
     while (true)
     {
-        const ssize_t n = ::recv(socket_fd_, buf, sizeof(buf) - 1, 0);
+        const int n = static_cast<int>(::recv(static_cast<socket_t>(socket_fd_), buf, sizeof(buf) - 1, 0));
         if (n <= 0)
         {
             break;
         }
-        process_packet(buf, static_cast<int>(n));
+        process_packet(buf, n);
     }
 }
 

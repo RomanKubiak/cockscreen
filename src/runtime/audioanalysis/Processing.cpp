@@ -2,6 +2,9 @@
 
 #include "cockscreen/runtime/RuntimeHelpers.hpp"
 #include "cockscreen/runtime/audioanalysis/Support.hpp"
+#ifdef _WIN32
+#include "cockscreen/runtime/audioanalysis/WasapiLoopback.hpp"
+#endif
 
 #include <QByteArray>
 #include <QIODevice>
@@ -52,6 +55,22 @@ void AudioAnalysisWindow::start_audio_capture()
 
 void AudioAnalysisWindow::start_monitor_capture()
 {
+#ifdef _WIN32
+    wasapi_loopback_ = new audio_analysis::WasapiLoopbackCapture{this};
+    wasapi_loopback_->setAudioDataCallback([this](QByteArray data) {
+        process_audio_buffer(std::move(data));
+    });
+    if (!wasapi_loopback_->start())
+    {
+        set_status_message(wasapi_loopback_->errorString());
+        delete wasapi_loopback_;
+        wasapi_loopback_ = nullptr;
+        return;
+    }
+
+    audio_format_ = wasapi_loopback_->format();
+    set_status_message(QStringLiteral("Input: default output monitor (WASAPI loopback)"));
+#else
     using_external_capture_ = true;
     audio_format_.setChannelCount(2);
     audio_format_.setSampleRate(48000);
@@ -78,6 +97,7 @@ void AudioAnalysisWindow::start_monitor_capture()
 
     audio_io_ = &audio_process_;
     set_status_message(QStringLiteral("Input: default output monitor"));
+#endif
 }
 
 void AudioAnalysisWindow::process_audio_chunk()
@@ -96,6 +116,17 @@ void AudioAnalysisWindow::process_audio_chunk()
     update_levels(data);
     update();
 
+}
+
+void AudioAnalysisWindow::process_audio_buffer(const QByteArray &data)
+{
+    if (data.isEmpty())
+    {
+        return;
+    }
+
+    update_levels(data);
+    update();
 }
 
 void AudioAnalysisWindow::update_levels(const QByteArray &data)

@@ -1,11 +1,14 @@
 #include "cockscreen/runtime/MidiInputMonitor.hpp"
 
+#ifndef _WIN32
 #include "cockscreen/runtime/midi/PortDiscovery.hpp"
+#endif
 
 #include <QString>
 
 #include <algorithm>
 #include <cctype>
+#include <string>
 namespace cockscreen::runtime
 {
 
@@ -55,7 +58,33 @@ void MidiInputMonitor::advance(float delta_seconds)
 
 void MidiInputMonitor::poll()
 {
-    if (!active_ || sequence_ == nullptr)
+    if (!active_)
+    {
+        return;
+    }
+
+#ifdef _WIN32
+    std::vector<PendingMessage> snapshot;
+    {
+        std::lock_guard<std::mutex> lock{queue_mutex_};
+        snapshot.swap(message_queue_);
+    }
+
+    for (const auto &msg : snapshot)
+    {
+        const int type    = msg.status & 0xF0;
+        const int channel = msg.status & 0x0F;
+        if (type == 0x90 && msg.data2 > 0)
+        {
+            push_note_on(channel, msg.data1, msg.data2);
+        }
+        else if (type == 0xB0)
+        {
+            update_control_change(channel, msg.data1, msg.data2);
+        }
+    }
+#else
+    if (sequence_ == nullptr)
     {
         return;
     }
@@ -82,6 +111,7 @@ void MidiInputMonitor::poll()
             update_control_change(event->data.control.channel, event->data.control.param, event->data.control.value);
         }
     }
+#endif
 }
 
 void MidiInputMonitor::populate_frame(core::ControlFrame *frame) const
@@ -120,6 +150,125 @@ void MidiInputMonitor::populate_frame(core::ControlFrame *frame) const
         }
     }
 }
+
+#ifdef _WIN32
+
+namespace
+{
+std::string wide_to_utf8(const wchar_t *str)
+{
+    if (str == nullptr || str[0] == L'\0') { return {}; }
+    const int wlen   = static_cast<int>(wcslen(str));
+    const int needed = WideCharToMultiByte(CP_UTF8, 0, str, wlen, nullptr, 0, nullptr, nullptr);
+    if (needed <= 0) { return {}; }
+    std::string result(needed, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, str, wlen, result.data(), needed, nullptr, nullptr);
+    return result;
+}
+} // namespace
+
+void MidiInputMonitor::open_sequence()
+{
+    if (requested_device_.empty() || requested_device_ == "@disabled@" || requested_device_ == "@DISABLED@")
+    {
+        set_status("disabled");
+        return;
+    }
+
+    const UINT num_devices = midiInGetNumDevs();
+    if (num_devices == 0)
+    {
+        set_status("MIDI input: no devices available");
+        return;
+    }
+
+    UINT selected_id = 0;
+    bool found       = false;
+
+    // Try numeric device index first.
+    try
+    {
+        const UINT parsed_id = static_cast<UINT>(std::stoul(requested_device_));
+        if (parsed_id < num_devices)
+        {
+            MIDIINCAPSW caps{};
+            if (midiInGetDevCapsW(parsed_id, &caps, sizeof(caps)) == MMSYSERR_NOERROR)
+            {
+                selected_id    = parsed_id;
+                resolved_label_ = wide_to_utf8(caps.szPname);
+                found          = true;
+            }
+        }
+    }
+    catch (...) {}
+
+    if (!found)
+    {
+        // Case-insensitive name match.
+        for (UINT i = 0; i < num_devices; ++i)
+        {
+            MIDIINCAPSW caps{};
+            if (midiInGetDevCapsW(i, &caps, sizeof(caps)) != MMSYSERR_NOERROR) { continue; }
+            const auto name = wide_to_utf8(caps.szPname);
+            if (contains_case_insensitive(name, requested_device_) ||
+                contains_case_insensitive(requested_device_, name))
+            {
+                selected_id    = i;
+                resolved_label_ = name;
+                found          = true;
+                break;
+            }
+        }
+    }
+
+    if (!found)
+    {
+        set_status("MIDI input not found: " + requested_device_);
+        return;
+    }
+
+    const MMRESULT result = midiInOpen(&midi_in_, selected_id,
+                                       reinterpret_cast<DWORD_PTR>(&winmm_callback),
+                                       reinterpret_cast<DWORD_PTR>(this),
+                                       CALLBACK_FUNCTION);
+    if (result != MMSYSERR_NOERROR)
+    {
+        midi_in_ = nullptr;
+        set_status("MIDI input could not open: " + resolved_label_);
+        return;
+    }
+
+    midiInStart(midi_in_);
+    active_ = true;
+    set_status("Input: " + resolved_label_);
+}
+
+void MidiInputMonitor::close_sequence()
+{
+    if (midi_in_ != nullptr)
+    {
+        midiInStop(midi_in_);
+        midiInReset(midi_in_); // flushes pending sysex buffers
+        midiInClose(midi_in_); // blocks until callback thread exits
+        midi_in_ = nullptr;
+    }
+    active_ = false;
+}
+
+void CALLBACK MidiInputMonitor::winmm_callback(HMIDIIN /*hmi*/, UINT wMsg, DWORD_PTR dwInstance,
+                                               DWORD_PTR dwParam1, DWORD_PTR /*dwParam2*/)
+{
+    if (wMsg != MIM_DATA) { return; }
+    auto *self = reinterpret_cast<MidiInputMonitor *>(dwInstance);
+    const PendingMessage msg{
+        static_cast<int>(dwParam1 & 0xFF),
+        static_cast<int>((dwParam1 >> 8) & 0xFF),
+        static_cast<int>((dwParam1 >> 16) & 0xFF)};
+    std::lock_guard<std::mutex> lock{self->queue_mutex_};
+    self->message_queue_.push_back(msg);
+}
+
+#else // Linux ALSA
 
 void MidiInputMonitor::open_sequence()
 {
@@ -181,6 +330,8 @@ void MidiInputMonitor::close_sequence()
     source_port_ = -1;
     active_ = false;
 }
+
+#endif // _WIN32
 
 void MidiInputMonitor::push_note_on(int channel, int note, int velocity)
 {
@@ -274,6 +425,8 @@ bool MidiInputMonitor::contains_case_insensitive(std::string_view text, std::str
     return false;
 }
 
+#ifndef _WIN32
+
 std::optional<std::pair<int, int>> MidiInputMonitor::parse_numeric_port(std::string_view text)
 {
     const auto separator = text.find(':');
@@ -328,5 +481,7 @@ std::optional<std::pair<int, int>> MidiInputMonitor::resolve_requested_port(std:
 
     return std::nullopt;
 }
+
+#endif // !_WIN32
 
 } // namespace cockscreen::runtime

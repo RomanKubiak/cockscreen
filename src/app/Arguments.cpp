@@ -1,10 +1,14 @@
 #include "cockscreen/app/CliSupport.hpp"
 
+#ifndef _WIN32
+
 #include "cockscreen/runtime/V4l2Capture.hpp"
+#endif
 
 #include <QAudioDevice>
 #include <QCameraDevice>
 #include <QMediaDevices>
+#include <QVideoFrameFormat>
 
 #include <iostream>
 
@@ -125,7 +129,11 @@ void print_help()
               << "  --list-capture-modes (uses inputs.video.device from scene_file)\n"
               << "  --window-title TEXT\n"
               << "  --scene-file FILE\n"
+#ifdef _WIN32
+              << "  --render-path qt|qt-shader  (v4l2-dmabuf-egl redirects to qt-shader)\n"
+#else
               << "  --render-path qt|qt-shader|v4l2-dmabuf-egl\n"
+#endif
               << "  --width N\n"
               << "  --height N\n"
               << "  --frame-rate N\n";
@@ -133,6 +141,7 @@ void print_help()
 
 void print_capture_modes(const runtime::ApplicationSettings &settings)
 {
+#ifndef _WIN32
     const auto modes = runtime::V4l2Capture::enumerate_supported_modes(settings.video_device);
     std::cout << "Capture modes for " << settings.video_device << "\n";
     if (modes.empty())
@@ -146,6 +155,49 @@ void print_capture_modes(const runtime::ApplicationSettings &settings)
             std::cout << "  - " << mode << "\n";
         }
     }
+#else
+    // On Windows enumerate via Qt Multimedia (Media Foundation back-end).
+    const QString requested_id = QString::fromStdString(settings.video_device);
+    QCameraDevice selected_device;
+    for (const auto &device : QMediaDevices::videoInputs())
+    {
+        if (device.id() == requested_id.toUtf8() ||
+            device.description().compare(requested_id, Qt::CaseInsensitive) == 0)
+        {
+            selected_device = device;
+            break;
+        }
+    }
+    if (selected_device.isNull())
+    {
+        // Fall back to the default camera if no match found.
+        selected_device = QMediaDevices::defaultVideoInput();
+    }
+
+    if (selected_device.isNull())
+    {
+        std::cout << "No video capture device found.\n";
+    }
+    else
+    {
+        std::cout << "Capture modes for " << selected_device.description().toStdString() << "\n";
+        const auto formats = selected_device.videoFormats();
+        if (formats.isEmpty())
+        {
+            std::cout << "  <no format information available>\n";
+        }
+        else
+        {
+            for (const auto &fmt : formats)
+            {
+                const QSize res = fmt.resolution();
+                std::cout << "  - " << res.width() << "x" << res.height()
+                          << " @ " << fmt.minFrameRate() << "-" << fmt.maxFrameRate() << " fps"
+                          << "  pixel-format=" << static_cast<int>(fmt.pixelFormat()) << "\n";
+            }
+        }
+    }
+#endif
 
     std::cout << "Static presets:\n";
     std::cout << "  - qvga (320x240)\n";

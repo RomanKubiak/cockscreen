@@ -9,6 +9,12 @@
 #include <filesystem>
 #include <iostream>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <shlobj.h> // CSIDL_APPDATA / SHGetFolderPathW
+#endif
+
 namespace cockscreen::app
 {
 
@@ -107,7 +113,8 @@ std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem
     return std::nullopt;
 }
 
-ConfigFileSelection select_config_file(int argc, char *argv[])
+ConfigFileSelection select_config_file(int argc, char *argv[],
+                                       const std::filesystem::path &executable_dir)
 {
     for (int index = 1; index < argc; ++index)
     {
@@ -130,6 +137,40 @@ ConfigFileSelection select_config_file(int argc, char *argv[])
 
     ConfigFileSelection selection;
 
+    // Highest priority: cockscreen.ini next to the executable.
+    // This makes double-clicking cockscreen.exe work out of the box.
+    if (!executable_dir.empty())
+    {
+        const std::filesystem::path beside_exe = executable_dir / "cockscreen.ini";
+        if (std::filesystem::exists(beside_exe) && std::filesystem::is_regular_file(beside_exe))
+        {
+            selection.path = beside_exe;
+            return selection;
+        }
+    }
+
+#ifdef _WIN32
+    // On Windows prefer %APPDATA%\cockscreen\config.ini, fall back to USERPROFILE.
+    auto try_config_dir = [&selection](const wchar_t *base_w) {
+        if (base_w == nullptr || base_w[0] == L'\0') { return; }
+        const std::filesystem::path fallback_directory = std::filesystem::path{base_w} / "cockscreen";
+        const std::filesystem::path fallback_file = fallback_directory / "config.ini";
+        if (std::filesystem::exists(fallback_file) && std::filesystem::is_regular_file(fallback_file))
+        {
+            selection.path = fallback_file;
+        }
+    };
+
+    wchar_t appdata_path[MAX_PATH]{};
+    if (SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, appdata_path) == S_OK)
+    {
+        try_config_dir(appdata_path);
+    }
+    if (!selection.path.has_value())
+    {
+        try_config_dir(_wgetenv(L"USERPROFILE"));
+    }
+#else
     if (const char *home = std::getenv("HOME"); home != nullptr && *home != '\0')
     {
         const std::filesystem::path fallback_directory = std::filesystem::path{home} / ".config" / "cockscreen";
@@ -140,6 +181,7 @@ ConfigFileSelection select_config_file(int argc, char *argv[])
             selection.path = fallback_file;
         }
     }
+#endif
 
     return selection;
 }

@@ -285,6 +285,13 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
                                  QVector2D{static_cast<float>(helper::kNoteAtlasColumns),
                                            static_cast<float>(helper::kNoteAtlasRows)});
     }
+    if (icon_atlas_texture_id_ != 0)
+    {
+        program->setUniformValue("u_icon_atlas", 2);
+        program->setUniformValue("u_icon_grid",
+                                 QVector2D{static_cast<float>(helper::kIconAtlasColumns),
+                                           static_cast<float>(helper::kIconAtlasRows)});
+    }
     helper::set_midi_uniforms(program, frame_);
 }
 
@@ -457,6 +464,12 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         glBindTexture(GL_TEXTURE_2D, note_label_atlas_texture_id_);
         glActiveTexture(GL_TEXTURE0);
     }
+    if (icon_atlas_texture_id_ != 0)
+    {
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, icon_atlas_texture_id_);
+        glActiveTexture(GL_TEXTURE0);
+    }
     quad_vertex_buffer_.bind();
     quad_vertex_buffer_.allocate(kVertices, static_cast<int>(sizeof(kVertices)));
     stage->program->enableAttributeArray("a_position");
@@ -471,6 +484,12 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     if (note_label_atlas_texture_id_ != 0)
     {
         glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0);
+    }
+    if (icon_atlas_texture_id_ != 0)
+    {
+        glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
     }

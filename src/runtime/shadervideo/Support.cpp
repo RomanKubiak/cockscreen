@@ -6,6 +6,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLShaderProgram>
 #include <QPainter>
+#include <QRawFont>
 
 #include <algorithm>
 
@@ -340,6 +341,80 @@ QImage build_note_label_atlas_image(const QString &font_family)
 QImage vertically_flipped_image(const QImage &image)
 {
     return image.mirrored(false, true);
+}
+
+QImage build_icon_atlas_image(const std::filesystem::path &font_path)
+{
+    const int atlas_w = kIconAtlasColumns * kIconAtlasCellSize;
+    const int atlas_h = kIconAtlasRows * kIconAtlasCellSize;
+    QImage atlas{atlas_w, atlas_h, QImage::Format_RGBA8888};
+    atlas.fill(Qt::transparent);
+
+    const int font_id = QFontDatabase::addApplicationFont(QString::fromStdString(font_path.string()));
+    if (font_id < 0)
+    {
+        return atlas;
+    }
+
+    const auto families = QFontDatabase::applicationFontFamilies(font_id);
+    if (families.isEmpty())
+    {
+        return atlas;
+    }
+
+    QFont font{families.front()};
+    font.setPixelSize(static_cast<int>(kIconAtlasCellSize * 0.72F));
+    font.setHintingPreference(QFont::PreferFullHinting);
+
+    // Dynamically discover valid icon codepoints supported by this font
+    const QRawFont raw_font = QRawFont::fromFont(font);
+    std::vector<char32_t> valid_cp;
+    valid_cp.reserve(static_cast<std::size_t>(kIconAtlasColumns * kIconAtlasRows));
+
+    const int needed = kIconAtlasColumns * kIconAtlasRows;
+    // Scan the Private Use Area ranges used by icon fonts
+    for (uint32_t range_start : {0xE000u, 0xF000u, 0xF500u, 0xF800u})
+    {
+        for (uint32_t cp = range_start; cp < range_start + 0x500u && static_cast<int>(valid_cp.size()) < needed; ++cp)
+        {
+            if (raw_font.supportsCharacter(cp))
+            {
+                valid_cp.push_back(static_cast<char32_t>(cp));
+            }
+        }
+        if (static_cast<int>(valid_cp.size()) >= needed)
+        {
+            break;
+        }
+    }
+
+    if (valid_cp.empty())
+    {
+        return atlas;
+    }
+
+    // Pad to full grid with repeats of found codepoints
+    const std::size_t found = valid_cp.size();
+    while (static_cast<int>(valid_cp.size()) < needed)
+    {
+        valid_cp.push_back(valid_cp[valid_cp.size() % found]);
+    }
+
+    QPainter painter{&atlas};
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setFont(font);
+    painter.setPen(Qt::white);
+
+    for (int i = 0; i < needed; ++i)
+    {
+        const int col = i % kIconAtlasColumns;
+        const int row = i / kIconAtlasColumns;
+        const QRect cell{col * kIconAtlasCellSize, row * kIconAtlasCellSize, kIconAtlasCellSize, kIconAtlasCellSize};
+        painter.drawText(cell, Qt::AlignCenter, QString::fromUcs4(&valid_cp[static_cast<std::size_t>(i)], 1));
+    }
+
+    return atlas;
 }
 
 } // namespace cockscreen::runtime::shader_window

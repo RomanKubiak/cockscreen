@@ -24,6 +24,10 @@ inline constexpr int kNoteAtlasColumns{16};
 inline constexpr int kNoteAtlasRows{8};
 inline constexpr int kNoteAtlasCellSize{96};
 
+inline constexpr int kIconAtlasColumns{8};
+inline constexpr int kIconAtlasRows{8};
+inline constexpr int kIconAtlasCellSize{256};
+
 const char *vertex_shader_source();
 const char *fullscreen_vertex_shader_source();
 const char *passthrough_fragment_shader_source();
@@ -42,6 +46,7 @@ QString note_font_family_for_scene(const SceneDefinition &scene);
 bool image_has_opaque_pixels(const QImage &image);
 float image_opaque_coverage(const QImage &image);
 QImage build_note_label_atlas_image(const QString &font_family);
+QImage build_icon_atlas_image(const std::filesystem::path &font_path);
 QImage vertically_flipped_image(const QImage &image);
 
 } // namespace cockscreen::runtime::shader_window

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -37,7 +38,7 @@ class OscInputMonitor final
 
     const std::vector<OscMapping> *scene_osc_mappings_{nullptr};
     std::string endpoint_;
-    int socket_fd_{-1};
+    std::uintptr_t socket_fd_{static_cast<std::uintptr_t>(-1)};
     bool active_{false};
     std::string status_message_;
     std::string activity_message_;

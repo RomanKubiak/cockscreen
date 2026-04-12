@@ -16,6 +16,10 @@
 
 #include "Application.hpp"
 
+#ifdef _WIN32
+namespace cockscreen::runtime::audio_analysis { class WasapiLoopbackCapture; }
+#endif
+
 namespace cockscreen::runtime
 {
 
@@ -47,6 +51,7 @@ class AudioAnalysisWindow final : public QWidget
 
     void start_audio_capture();
     void process_audio_chunk();
+    void process_audio_buffer(const QByteArray &data);
     void update_levels(const QByteArray &data);
     void update_fft_analysis(float mono_sample);
     void refresh_waveform_samples();
@@ -64,6 +69,9 @@ class AudioAnalysisWindow final : public QWidget
     QIODevice *audio_io_{nullptr};
     QProcess audio_process_;
     bool using_external_capture_{false};
+#ifdef _WIN32
+    audio_analysis::WasapiLoopbackCapture *wasapi_loopback_{nullptr};
+#endif
     std::array<float, 2> channel_levels_db_{kSilenceDb, kSilenceDb};
     float overall_level_db_{kSilenceDb};
     float rms_level_{0.0F};

@@ -74,6 +74,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_texture();
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
+    void ensure_icon_atlas_texture();
     void ensure_background_image_texture();
     void ensure_scene_fbos();
     void ensure_blank_texture();
@@ -124,6 +125,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     int note_label_atlas_texture_width_{0};
     int note_label_atlas_texture_height_{0};
     bool note_label_atlas_texture_dirty_{false};
+    GLuint icon_atlas_texture_id_{0};
+    bool icon_atlas_texture_dirty_{true};
     StatusOverlay *status_overlay_{nullptr};
     QOpenGLFramebufferObject *video_scene_fbo_{nullptr};
     QOpenGLFramebufferObject *video_scene_fbo_alt_{nullptr};

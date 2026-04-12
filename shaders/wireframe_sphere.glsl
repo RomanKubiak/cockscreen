@@ -2,147 +2,129 @@ precision mediump float;
 
 varying vec2 v_texcoord;
 uniform sampler2D u_texture;
-uniform vec2 u_video_size;
+uniform vec2 u_viewport_size;
 uniform float u_time;
-uniform float u_wire_density;
+uniform float u_audio_level;
 uniform float u_audio_fft[16];
 
 const float kPi = 3.14159265359;
 const float kTau = 6.28318530718;
 
-float line_mask(float value, float width)
+// ---- geometry helpers -------------------------------------------------------
+
+// Side-by-side ray-march of a unit sphere centred at `centre` (NDC space).
+// Returns distance to sphere surface, or -1 if the ray misses.
+float sphere_hit(vec2 p, vec2 centre, float radius)
 {
-    return 1.0 - smoothstep(0.0, width, abs(value));
+    vec2 d = p - centre;
+    float r2 = dot(d, d);
+    return r2 <= radius * radius ? sqrt(max(0.0, 1.0 - r2 / (radius * radius))) : -1.0;
 }
 
-float mirrored_bounce(float t, float min_value, float max_value)
+float line_mask(float v, float w)
 {
-    float range = max(max_value - min_value, 0.0001);
-    float cycle = mod(t, range * 2.0);
-    float mirrored = cycle < range ? cycle : 2.0 * range - cycle;
-    return min_value + mirrored;
+    return 1.0 - smoothstep(0.0, w, abs(v));
 }
 
-float fft_band(float band_index)
+// Normalised mirrored bounce in [lo, hi] for a scalar time input.
+float bounce(float t, float lo, float hi)
 {
-    int index = int(clamp(floor(band_index + 0.5), 0.0, 15.0));
-
-    if (index == 0)
-        return u_audio_fft[0];
-    if (index == 1)
-        return u_audio_fft[1];
-    if (index == 2)
-        return u_audio_fft[2];
-    if (index == 3)
-        return u_audio_fft[3];
-    if (index == 4)
-        return u_audio_fft[4];
-    if (index == 5)
-        return u_audio_fft[5];
-    if (index == 6)
-        return u_audio_fft[6];
-    if (index == 7)
-        return u_audio_fft[7];
-    if (index == 8)
-        return u_audio_fft[8];
-    if (index == 9)
-        return u_audio_fft[9];
-    if (index == 10)
-        return u_audio_fft[10];
-    if (index == 11)
-        return u_audio_fft[11];
-    if (index == 12)
-        return u_audio_fft[12];
-    if (index == 13)
-        return u_audio_fft[13];
-    if (index == 14)
-        return u_audio_fft[14];
-    return u_audio_fft[15];
+    float span = max(hi - lo, 0.001);
+    float cycle = mod(t, span * 2.0);
+    float m = cycle < span ? cycle : span * 2.0 - cycle;
+    return lo + m;
 }
 
-vec3 fft_band_color(float band_index)
+// Simple 3×3 rotation matrix around Y then X axes
+mat3 rot_yx(float ay, float ax)
 {
-    float t = clamp(band_index / 15.0, 0.0, 1.0);
-    vec3 low = vec3(1.0, 0.24, 0.16);
-    vec3 low_mid = vec3(1.0, 0.78, 0.18);
-    vec3 high_mid = vec3(0.22, 0.95, 0.55);
-    vec3 high = vec3(0.18, 0.56, 1.0);
-
-    if (t < 0.33)
-    {
-        return mix(low, low_mid, t / 0.33);
-    }
-    if (t < 0.66)
-    {
-        return mix(low_mid, high_mid, (t - 0.33) / 0.33);
-    }
-
-    return mix(high_mid, high, (t - 0.66) / 0.34);
+    float sy = sin(ay), cy = cos(ay);
+    float sx = sin(ax), cx = cos(ax);
+    return mat3(cy, 0.0, sy, sy * sx, cx, -cy * sx, -sy * cx, sx, cy * cx);
 }
 
-vec3 reactive_segment_color(float band_index, float band_level)
-{
-    float stepped_shift = floor(band_level * 8.0 + 0.5);
-    float animated_shift = sin(u_time * (0.7 + band_index * 0.09) + band_level * 10.0) * band_level * 2.0;
-    vec3 idle_color = mix(vec3(0.03, 0.03, 0.04), fft_band_color(band_index), 0.12);
-    vec3 live_color = fft_band_color(mod(band_index + stepped_shift + animated_shift, 16.0));
-    vec3 hot_color = mix(live_color, vec3(1.0), smoothstep(0.68, 1.0, band_level) * 0.35);
-    return mix(idle_color, hot_color, band_level);
-}
+// ---- main -------------------------------------------------------------------
 
 void main()
 {
     vec4 base = texture2D(u_texture, v_texcoord);
 
-    float radius = 0.24 + 0.02 * sin(u_time * 0.7);
-    vec2 min_center = vec2(radius * 1.15);
-    vec2 max_center = vec2(1.0 - radius * 1.15);
-    vec2 center = vec2(mirrored_bounce(u_time * 0.23 + 0.11, min_center.x, max_center.x),
-                       mirrored_bounce(u_time * 0.31 + 0.37, min_center.y, max_center.y));
-    vec2 aspect = vec2(max(u_video_size.x, 1.0) / max(u_video_size.y, 1.0), 1.0);
-    vec2 p = (v_texcoord - center) * aspect / radius;
-    float r2 = dot(p, p);
+    vec2 aspect = vec2(u_viewport_size.x / max(u_viewport_size.y, 1.0), 1.0);
+    vec2 uv = (v_texcoord - 0.5) * aspect * 2.0; // -aspect..+aspect
 
-    if (r2 > 1.0)
+    // Audio bands
+    float low = (u_audio_fft[0] + u_audio_fft[1] + u_audio_fft[2] + u_audio_fft[3]) * 0.25;
+    float high = (u_audio_fft[12] + u_audio_fft[13] + u_audio_fft[14] + u_audio_fft[15]) * 0.25;
+    float presence = clamp(u_audio_level * 1.4, 0.0, 1.0);
+
+    // Sphere radius — gently pulses with bass
+    float radius = 0.26 + 0.04 * low + 0.015 * sin(u_time * 1.1);
+
+    // Bounce margin (centre must stay inside viewport so sphere stays visible)
+    float margin = radius * 1.08;
+    float x_range = aspect.x - margin; // half-NDC width
+    float y_range = 1.0 - margin;
+
+    // Bouncing centre in NDC space
+    vec2 centre = vec2(bounce(u_time * (0.19 + low * 0.09), -x_range, x_range),
+                       bounce(u_time * (0.27 + high * 0.07), -y_range, y_range));
+
+    // --- hit test ------------------------------------------------------------
+    vec2 d_raw = uv - centre;
+    float d2 = dot(d_raw, d_raw);
+    float r2 = radius * radius;
+
+    if (d2 > r2 * 1.0001)
     {
         gl_FragColor = base;
         return;
     }
 
-    float z = sqrt(max(0.0, 1.0 - r2));
-    vec3 n = normalize(vec3(p, z));
+    float z = sqrt(max(0.0, 1.0 - d2 / r2));
+    vec3 n = normalize(vec3(d_raw / radius, z));
 
-    float spin = u_time * 1.45;
-    mat2 twist = mat2(cos(spin), -sin(spin), sin(spin), cos(spin));
-    vec2 surface = twist * vec2(atan(n.x, n.z), asin(clamp(n.y, -1.0, 1.0)));
+    // --- spin ----------------------------------------------------------------
+    float spin_y = u_time * (0.55 + low * 0.7);
+    float spin_x = u_time * (0.28 + high * 0.5);
+    vec3 ns = rot_yx(spin_y, spin_x) * n;
 
-    float density = clamp(u_wire_density, 0.0, 1.0);
-    float meridians = floor(mix(6.0, 18.0, density) + 0.5);
-    float parallels = floor(mix(4.0, 12.0, density) + 0.5);
-    float line_width = mix(0.06, 0.025, density);
+    // --- wireframe grid (lat/lon) -------------------------------------------
+    float lon = atan(ns.x, ns.z);             // -pi .. +pi
+    float lat = asin(clamp(ns.y, -1.0, 1.0)); // -pi/2 .. +pi/2
 
-    float meridian_mask = line_mask(sin(surface.x * meridians), line_width);
-    float parallel_mask = line_mask(sin(surface.y * parallels), line_width);
+    const float kMeridians = 12.0;
+    const float kParallels = 8.0;
+    const float kLineWidth = 0.19;
+    const float kBorderWidth = 0.28; // dark halo around each line
 
-    float meridian_coord = fract((surface.x + kPi) / kTau) * meridians;
-    float parallel_coord = clamp((surface.y + 0.5 * kPi) / kPi, 0.0, 0.9999) * parallels;
-    float meridian_cell_index = mod(floor(meridian_coord), max(meridians, 1.0));
-    float parallel_cell_index = clamp(floor(parallel_coord), 0.0, max(parallels - 1.0, 0.0));
+    float meridian_mask = line_mask(sin(lon * kMeridians * 0.5), kLineWidth);
+    float parallel_mask = line_mask(sin(lat * kParallels), kLineWidth);
+    float grid = max(meridian_mask, parallel_mask);
+    float border_mask =
+        max(line_mask(sin(lon * kMeridians * 0.5), kBorderWidth), line_mask(sin(lat * kParallels), kBorderWidth));
+    // dark halo makes lines pop against any background
+    float border = clamp(border_mask - grid, 0.0, 1.0);
 
-    float segment_band_index = mod(meridian_cell_index + parallel_cell_index * max(meridians, 1.0), 16.0);
-    float segment_band_level = pow(clamp(fft_band(segment_band_index) * 4.5, 0.0, 1.0), 0.18);
+    // --- colour --------------------------------------------------------------
+    vec3 wire_color = vec3(1.0); // white
+    vec3 fill_color = vec3(0.0); // black interior
 
-    float rim_fade = 1.0 - smoothstep(0.78, 1.0, sqrt(r2));
-    float sphere_light = 0.18 + 0.82 * smoothstep(0.0, 1.0, z);
-    float grid_mask = max(meridian_mask, parallel_mask);
+    // Dim lines that face away from viewer
+    float lit = 0.18 + 0.82 * smoothstep(0.0, 1.0, z);
+    float rim_fade = 1.0 - smoothstep(0.82, 1.0, sqrt(d2 / r2));
 
-    vec3 segment_fill = reactive_segment_color(segment_band_index, segment_band_level);
-    segment_fill *= rim_fade * (0.18 + sphere_light * 0.55 + segment_band_level * 2.4);
+    vec3 color = fill_color;
+    color = mix(color, vec3(0.0), border * rim_fade * 0.75); // dark halo
+    color = mix(color, wire_color * lit * rim_fade * (0.7 + presence * 0.3), grid * 0.98);
 
-    vec3 grid_color = mix(vec3(0.01, 0.01, 0.02), vec3(0.95, 0.95, 1.0), 0.08 + segment_band_level * 0.22);
-    float grid_strength = clamp(grid_mask * (0.7 + segment_band_level * 0.9), 0.0, 1.0);
+    // Subtle specular highlight
+    vec3 light_dir = normalize(vec3(0.5, 0.8, 1.0));
+    float spec = pow(max(dot(ns, light_dir), 0.0), 18.0);
+    color += vec3(spec * 0.18 * (0.5 + presence * 0.5));
 
-    vec3 color = mix(segment_fill, grid_color, grid_strength);
+    // Blend over background
+    float alpha = clamp(grid * rim_fade, 0.0, 1.0);
+    color = mix(base.rgb, color, alpha * 0.97 + 0.02);
 
-    gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    gl_FragColor = vec4(clamp(color, 0.0, 1.0), base.a);
 }

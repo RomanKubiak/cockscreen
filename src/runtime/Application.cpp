@@ -73,14 +73,26 @@ int Application::run(int argc, char *argv[])
         return 2;
     }
 
+#ifdef _WIN32
+    // v4l2-dmabuf-egl is Linux-only; silently fall back to qt-shader which uses
+    // Qt Multimedia (Media Foundation on Windows) for camera capture.
+    if (settings_.render_path == "v4l2-dmabuf-egl")
+    {
+        std::cerr << "Render path 'v4l2-dmabuf-egl' is not supported on Windows; using 'qt-shader' instead.\n";
+        settings_.render_path = "qt-shader";
+    }
+#endif
+
     if (is_pi_target())
     {
         qputenv("QT_QPA_PLATFORM", "eglfs");
     }
+#ifndef _WIN32
     else
     {
         qputenv("QT_QPA_PLATFORM", "wayland-egl");
     }
+#endif
 
     QApplication application{argc, argv};
     application.setApplicationName(QString::fromStdString(settings_.window_title));
@@ -161,6 +173,10 @@ int Application::run(int argc, char *argv[])
 
     if (settings_.render_path == "v4l2-dmabuf-egl")
     {
+#ifdef _WIN32
+        std::cerr << "Render path 'v4l2-dmabuf-egl' is not supported on Windows.\n";
+        return 2;
+#else
         const QString shader_label = shader_label_for(settings_);
         DirectVideoWindow window{settings_, shader_label, scene.show_status_overlay};
         if (is_pi_target())
@@ -268,6 +284,7 @@ int Application::run(int argc, char *argv[])
         std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
 
         return application.exec();
+#endif // !_WIN32
     }
 
     if (settings_.render_path == "qt-shader")

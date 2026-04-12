@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef _WIN32
+
 #include <chrono>
 #include <memory>
 #include <unordered_map>
@@ -117,3 +119,4 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 };
 
 } // namespace cockscreen::runtime
+#endif // !_WIN32

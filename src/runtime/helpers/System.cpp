@@ -15,6 +15,10 @@
 #if defined(__linux__)
 #include <sys/resource.h>
 #include <sys/sysinfo.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <psapi.h>
 #endif
 
 namespace cockscreen::runtime
@@ -156,6 +160,17 @@ bool print_startup_preflight()
 
 bool validate_render_path(const ApplicationSettings &settings)
 {
+#ifdef _WIN32
+    if (settings.render_path == "qt" || settings.render_path == "qt-shader" ||
+        settings.render_path == "v4l2-dmabuf-egl")
+    {
+        return true; // v4l2-dmabuf-egl is redirected to qt-shader at runtime
+    }
+
+    std::cerr << "Unknown render path: " << settings.render_path << "\n";
+    std::cerr << "Supported render paths on Windows: qt, qt-shader\n";
+    return false;
+#else
     if (settings.render_path == "qt" || settings.render_path == "qt-shader" || settings.render_path == "v4l2-dmabuf-egl")
     {
         return true;
@@ -164,6 +179,7 @@ bool validate_render_path(const ApplicationSettings &settings)
     std::cerr << "Unknown render path: " << settings.render_path << "\n";
     std::cerr << "Supported render paths: qt, qt-shader, v4l2-dmabuf-egl\n";
     return false;
+#endif
 }
 
 SystemMetricsSnapshot SystemMetricsSampler::sample()
@@ -205,6 +221,42 @@ SystemMetricsSnapshot SystemMetricsSampler::sample()
         snapshot.memory_total_mb = total_bytes / (1024.0 * 1024.0);
         snapshot.memory_used_mb = used_bytes / (1024.0 * 1024.0);
         snapshot.memory_percent = std::clamp((used_bytes / total_bytes) * 100.0, 0.0, 100.0);
+    }
+#elif defined(_WIN32)
+    snapshot.available = true;
+
+    const auto now = std::chrono::steady_clock::now();
+
+    FILETIME creation_time{}, exit_time{}, kernel_time{}, user_time{};
+    if (GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time))
+    {
+        auto filetime_to_seconds = [](const FILETIME &ft) -> double {
+            const ULONGLONG ticks = (static_cast<ULONGLONG>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+            return static_cast<double>(ticks) / 1.0e7; // 100-nanosecond intervals
+        };
+        const double cpu_seconds = filetime_to_seconds(kernel_time) + filetime_to_seconds(user_time);
+        if (have_previous_sample_)
+        {
+            const double wall_seconds = std::max(elapsed_seconds(now, previous_sample_time_), 1.0e-6);
+            const double cpu_delta = std::max(cpu_seconds - previous_cpu_seconds_, 0.0);
+            const double cores = std::max(1.0, static_cast<double>(std::thread::hardware_concurrency()));
+            snapshot.cpu_percent = std::clamp((cpu_delta / wall_seconds) * 100.0 / cores, 0.0, 100.0);
+        }
+        previous_cpu_seconds_ = cpu_seconds;
+        previous_sample_time_ = now;
+        have_previous_sample_ = true;
+    }
+
+    MEMORYSTATUSEX mem{};
+    mem.dwLength = sizeof(mem);
+    if (GlobalMemoryStatusEx(&mem))
+    {
+        const double total_bytes = static_cast<double>(mem.ullTotalPhys);
+        const double avail_bytes = static_cast<double>(mem.ullAvailPhys);
+        const double used_bytes  = std::max(total_bytes - avail_bytes, 0.0);
+        snapshot.memory_total_mb = total_bytes / (1024.0 * 1024.0);
+        snapshot.memory_used_mb  = used_bytes  / (1024.0 * 1024.0);
+        snapshot.memory_percent  = std::clamp((used_bytes / total_bytes) * 100.0, 0.0, 100.0);
     }
 #else
     (void)have_previous_sample_;

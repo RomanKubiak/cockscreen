@@ -83,6 +83,48 @@
         "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-Wl,--gc-sections -Wl,-O1",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE": "OFF"
       }
+    },
+    {
+      "name": "windows-x86_64-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/windows-x86_64-mingw.cmake",
+      "environment": {
+        "TMPDIR": "${sourceDir}/tmp",
+        "TMP": "${sourceDir}/tmp",
+        "TEMP": "${sourceDir}/tmp"
+      },
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "COCKSCREEN_TARGET_PLATFORM": "windows-x86_64",
+        "COCKSCREEN_WINDOWS_QT_ROOT": "/opt/Qt/6.8.3/mingw_64",
+        "QT_HOST_PATH": "/usr"
+      }
+    },
+    {
+      "name": "windows-x86_64-debug",
+      "displayName": "Windows x86_64 Debug (MinGW-w64)",
+      "inherits": "windows-x86_64-base",
+      "description": "Cross-compiled debug build targeting Windows 10 64-bit using MinGW-w64",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-x86_64-release",
+      "displayName": "Windows x86_64 Release (MinGW-w64)",
+      "inherits": "windows-x86_64-base",
+      "description": "Cross-compiled release build targeting Windows 10 64-bit using MinGW-w64",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2 -DNDEBUG -ffunction-sections -fdata-sections",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-Wl,--gc-sections -Wl,-O1",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -121,6 +163,16 @@
       "name": "cross-pi-zero2w-release",
       "inherits": "build-base",
       "configurePreset": "cross-pi-zero2w-release"
+    },
+    {
+      "name": "windows-x86_64-debug",
+      "inherits": "build-base",
+      "configurePreset": "windows-x86_64-debug"
+    },
+    {
+      "name": "windows-x86_64-release",
+      "inherits": "build-base",
+      "configurePreset": "windows-x86_64-release"
     }
   ]
 }

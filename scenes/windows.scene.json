@@ -8,7 +8,7 @@
     "shader_directory": "../shaders/",
     "inputs": {
         "video": {
-            "enabled": true,
+            "enabled": false,
             "device": "/dev/video1",
             "format": "qvga",
             "scale": 0.25,
@@ -35,17 +35,17 @@
             "a": 1.0
         },
         "audio": {
-            "enabled": true,
+            "enabled": false,
             "device": "PCM2902 Audio Codec"
         },
         "midi": {
-            "enabled": true,
-            "device": "SQ-1"
+            "enabled": false,
+            "device": "through"
         }
     },
-    "show_status_overlay": true,
+    "show_status_overlay": false,
     "video": {
-        "enabled": true,
+        "enabled": false,
         "shaders": [
             "pink_key.glsl",
             "video_sphere.glsl"
@@ -60,7 +60,11 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "kaleidoscope.glsl"
+            "wireframe_sphere.glsl",
+            "rorschach_inkblot.glsl",
+            "horro_ink.glsl",
+            "video_feedback.glsl",
+            "crt_noise.glsl"
         ]
     },
     "midi_cc_mappings": [

@@ -172,6 +172,11 @@ ShaderVideoWindow::~ShaderVideoWindow()
         glDeleteTextures(1, &note_label_atlas_texture_id_);
         note_label_atlas_texture_id_ = 0;
     }
+    if (icon_atlas_texture_id_ != 0)
+    {
+        glDeleteTextures(1, &icon_atlas_texture_id_);
+        icon_atlas_texture_id_ = 0;
+    }
     if (quad_vertex_buffer_.isCreated())
     {
         quad_vertex_buffer_.destroy();
@@ -243,6 +248,8 @@ void ShaderVideoWindow::initializeGL()
     ensure_background_image_texture();
     note_label_atlas_texture_dirty_ = true;
     ensure_note_label_atlas_texture();
+    icon_atlas_texture_dirty_ = true;
+    ensure_icon_atlas_texture();
     scene_fbo_dirty_ = true;
 }
 

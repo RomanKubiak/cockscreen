@@ -6,25 +6,32 @@
 #include <iostream>
 #include <system_error>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 int main(int argc, char *argv[])
 {
     namespace cli = cockscreen::app;
 
     const std::filesystem::path executable_directory = [argv]() {
+#ifdef _WIN32
+        wchar_t path[MAX_PATH]{};
+        if (GetModuleFileNameW(nullptr, path, MAX_PATH) != 0)
+        {
+            return std::filesystem::path{path}.parent_path();
+        }
+#else
         std::error_code error;
         const auto resolved = std::filesystem::read_symlink("/proc/self/exe", error);
         if (!error)
         {
             return resolved.parent_path();
         }
-
-        const auto fallback = std::filesystem::absolute(std::filesystem::path{argv[0]}, error);
-        if (!error)
-        {
-            return fallback.parent_path();
-        }
-
-        return std::filesystem::current_path();
+#endif
+        const auto fallback = std::filesystem::absolute(std::filesystem::path{argv[0]});
+        return fallback.parent_path();
     }();
 
     if (cli::has_help_argument(argc, argv))
@@ -39,10 +46,18 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    const auto config_selection = cli::select_config_file(argc, argv);
+    const auto config_selection = cli::select_config_file(argc, argv, executable_directory);
     if (!config_selection.path.has_value())
     {
-        std::cerr << "No config file found on the command line or in $HOME/.config/cockscreen/config.ini\n";
+        std::cerr << "No config file found. Tried:\n"
+                  << "  " << (executable_directory / "cockscreen.ini").string() << "\n"
+#ifdef _WIN32
+                  << "  %APPDATA%\\cockscreen\\config.ini\n"
+                  << "  %USERPROFILE%\\cockscreen\\config.ini\n";
+#else
+                  << "  $HOME/.config/cockscreen/config.ini\n";
+#endif
+        std::cerr << "Pass --config-file PATH to specify one explicitly.\n";
         return 2;
     }
 

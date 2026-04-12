@@ -7,7 +7,14 @@
 #include <utility>
 #include <vector>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <mmsystem.h>
+#include <mutex>
+#else
 #include <alsa/asoundlib.h>
+#endif
 
 #include "../core/ControlFrame.hpp"
 #include "Scene.hpp"
@@ -54,9 +61,25 @@ class MidiInputMonitor final
     void set_status(std::string message);
 
     static bool contains_case_insensitive(std::string_view text, std::string_view needle);
+
+#ifdef _WIN32
+    struct PendingMessage { int status; int data1; int data2; };
+    static void CALLBACK winmm_callback(HMIDIIN hmi, UINT wMsg, DWORD_PTR dwInstance,
+                                        DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+
+    HMIDIIN midi_in_{nullptr};
+    std::mutex queue_mutex_;
+    std::vector<PendingMessage> message_queue_;
+#else
     static std::optional<std::pair<int, int>> parse_numeric_port(std::string_view text);
     static std::optional<std::pair<int, int>> resolve_requested_port(std::string_view requested_device,
                                       std::string *resolved_label);
+
+    snd_seq_t *sequence_{nullptr};
+    int source_client_{-1};
+    int source_port_{-1};
+    int input_port_{-1};
+#endif
 
     std::array<MidiEvent, core::kMidiEventCount> events_{};
     std::array<float, core::kMidiChannelCount * core::kMidiCcCount> cc_values_{};
@@ -67,10 +90,6 @@ class MidiInputMonitor final
     std::string activity_message_;
     std::size_t note_on_count_{0};
     std::size_t controller_count_{0};
-    snd_seq_t *sequence_{nullptr};
-    int source_client_{-1};
-    int source_port_{-1};
-    int input_port_{-1};
     bool active_{false};
 };
 
