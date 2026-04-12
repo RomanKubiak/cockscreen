@@ -276,6 +276,7 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
 
     Q_UNUSED(stage);
     program->setUniformValue("u_time", elapsed_seconds);
+    program->setUniformValue("u_resolution", QVector2D{static_cast<float>(width()), static_cast<float>(height())});
     helper::set_audio_uniforms(program, frame_);
     if (note_label_atlas_texture_id_ != 0)
     {

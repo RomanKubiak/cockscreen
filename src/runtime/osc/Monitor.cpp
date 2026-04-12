@@ -212,6 +212,7 @@ void OscInputMonitor::process_packet(const char *data, int size)
         float value = 0.0F;
         std::memcpy(&value, &raw, 4);
         values_[address] = value;
+        ++message_count_;
         activity_message_ = address + " f=" + std::to_string(value).substr(0, 6);
     }
     else if (arg_type == 'i')
@@ -224,6 +225,7 @@ void OscInputMonitor::process_packet(const char *data, int size)
         std::memcpy(&raw, data + data_offset, 4);
         const auto ival = static_cast<int32_t>(ntohl(raw));
         values_[address] = static_cast<float>(ival);
+        ++message_count_;
         activity_message_ = address + " i=" + std::to_string(ival);
     }
 }
@@ -235,6 +237,16 @@ void OscInputMonitor::populate_frame(core::ControlFrame *frame) const
         return;
     }
     frame->osc_values = values_;
+}
+
+unsigned long OscInputMonitor::message_count() const
+{
+    return message_count_;
+}
+
+int OscInputMonitor::address_count() const
+{
+    return static_cast<int>(values_.size());
 }
 
 } // namespace cockscreen::runtime

@@ -14,8 +14,8 @@
             "scale": 0.25,
             "on_top": false,
             "position": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0.5,
+                "y": 0.5
             }
         },
         "playback": {
@@ -47,7 +47,8 @@
     "video": {
         "enabled": true,
         "shaders": [
-            "pink_key.glsl"
+            "pink_key.glsl",
+            "video_sphere.glsl"
         ]
     },
     "playback": {
@@ -58,10 +59,7 @@
     },
     "screen": {
         "enabled": true,
-        "shaders": [
-            "wireframe_sphere.glsl",
-            "video_feedback.glsl"
-        ]
+        "shaders": []
     },
     "midi_cc_mappings": [
         {
@@ -87,7 +85,7 @@
         {
             "layer": "video",
             "shader": "pink_key.glsl",
-            "uniform": "u_key_r",
+            "uniform": "u_key_h",
             "channel": 0,
             "cc": 93,
             "min": 0.0,
@@ -97,17 +95,17 @@
         {
             "layer": "video",
             "shader": "pink_key.glsl",
-            "uniform": "u_key_g",
+            "uniform": "u_key_hrange",
             "channel": 0,
             "cc": 94,
             "min": 0.0,
-            "max": 1.0,
+            "max": 0.5,
             "exponent": 1.0
         },
         {
             "layer": "video",
             "shader": "pink_key.glsl",
-            "uniform": "u_key_b",
+            "uniform": "u_key_spread",
             "channel": 0,
             "cc": 95,
             "min": 0.0,
@@ -117,28 +115,37 @@
     ],
     "osc_mappings": [
         {
-            "address": "/cockscreen/pink_key/r",
+            "address": "/cockscreen/key/hue",
             "layer": "video",
             "shader": "pink_key.glsl",
-            "uniform": "u_key_r",
+            "uniform": "u_key_h",
             "min": 0.0,
             "max": 1.0,
             "exponent": 1.0
         },
         {
-            "address": "/cockscreen/pink_key/g",
+            "address": "/cockscreen/key/hrange",
             "layer": "video",
             "shader": "pink_key.glsl",
-            "uniform": "u_key_g",
+            "uniform": "u_key_hrange",
+            "min": 0.0,
+            "max": 0.5,
+            "exponent": 1.0
+        },
+        {
+            "address": "/cockscreen/key/spread",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_spread",
             "min": 0.0,
             "max": 1.0,
             "exponent": 1.0
         },
         {
-            "address": "/cockscreen/pink_key/b",
+            "address": "/cockscreen/key/smin",
             "layer": "video",
             "shader": "pink_key.glsl",
-            "uniform": "u_key_b",
+            "uniform": "u_key_smin",
             "min": 0.0,
             "max": 1.0,
             "exponent": 1.0

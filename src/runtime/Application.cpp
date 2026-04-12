@@ -196,9 +196,11 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | %2")
+            const QString osc_line = QStringLiteral("OSC %1 | rx:%2 addr:%3 | %4")
                                          .arg(osc_input.status_message())
-                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                         .arg(osc_input.message_count())
+                                         .arg(osc_input.address_count())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
@@ -228,9 +230,11 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | %2")
+            const QString osc_line = QStringLiteral("OSC %1 | rx:%2 addr:%3 | %4")
                                          .arg(osc_input.status_message())
-                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                         .arg(osc_input.message_count())
+                                         .arg(osc_input.address_count())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
@@ -314,9 +318,11 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | %2")
+            const QString osc_line = QStringLiteral("OSC %1 | rx:%2 addr:%3 | %4")
                                          .arg(osc_input.status_message())
-                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                         .arg(osc_input.message_count())
+                                         .arg(osc_input.address_count())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
@@ -346,9 +352,11 @@ int Application::run(int argc, char *argv[])
                                                                                      : midi_input.status_message())
                                           .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                        : midi_input.activity_message());
-            const QString osc_line = QStringLiteral("OSC %1 | %2")
+            const QString osc_line = QStringLiteral("OSC %1 | rx:%2 addr:%3 | %4")
                                          .arg(osc_input.status_message())
-                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                         .arg(osc_input.message_count())
+                                         .arg(osc_input.address_count())
+                                         .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
@@ -429,9 +437,11 @@ int Application::run(int argc, char *argv[])
                                                                                  : midi_input.status_message())
                                       .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                    : midi_input.activity_message());
-        const QString osc_line = QStringLiteral("OSC %1 | %2")
+        const QString osc_line = QStringLiteral("OSC %1 | rx:%2 addr:%3 | %4")
                                      .arg(osc_input.status_message())
-                                     .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                     .arg(osc_input.message_count())
+                                     .arg(osc_input.address_count())
+                                     .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                          QStringLiteral("Qt6 windowed mode on Linux")));
@@ -461,9 +471,11 @@ int Application::run(int argc, char *argv[])
                                                                                  : midi_input.status_message())
                                       .arg(midi_input.activity_message().isEmpty() ? QStringLiteral("no incoming data yet")
                                                                                    : midi_input.activity_message());
-        const QString osc_line = QStringLiteral("OSC %1 | %2")
+        const QString osc_line = QStringLiteral("OSC %1 | rx:%2 addr:%3 | %4")
                                      .arg(osc_input.status_message())
-                                     .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("listening")
+                                     .arg(osc_input.message_count())
+                                     .arg(osc_input.address_count())
+                                     .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                          QStringLiteral("Qt6 windowed mode on Linux")));

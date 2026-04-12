@@ -24,6 +24,8 @@ class OscInputMonitor final
     [[nodiscard]] bool is_active() const;
     [[nodiscard]] QString status_message() const;
     [[nodiscard]] QString activity_message() const;
+    [[nodiscard]] unsigned long message_count() const;
+    [[nodiscard]] int address_count() const;
 
     void poll();
     void populate_frame(core::ControlFrame *frame) const;
@@ -40,6 +42,7 @@ class OscInputMonitor final
     std::string status_message_;
     std::string activity_message_;
     std::unordered_map<std::string, float> values_;
+    unsigned long message_count_{0};
 };
 
 } // namespace cockscreen::runtime
