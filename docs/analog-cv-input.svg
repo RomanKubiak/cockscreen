@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="CV mux schematic">
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .box { fill: #ffffff; stroke: #222; stroke-width: 2; rx: 14; ry: 14; }
+      .chip { fill: #eef3ff; stroke: #1d3b66; stroke-width: 2; rx: 14; ry: 14; }
+      .label { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 18px; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .wire { stroke: #333; stroke-width: 3; fill: none; }
+      .dash { stroke-dasharray: 8 6; }
+      .arrow { marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="360"/>
+
+  <rect class="box" x="30" y="85" width="190" height="190"/>
+  <text class="label" x="125" y="120" text-anchor="middle">CV source</text>
+  <text class="small" x="125" y="148" text-anchor="middle">pot / knob / synth CV</text>
+  <text class="small" x="125" y="170" text-anchor="middle">0-5 V preferred</text>
+  <text class="small" x="125" y="192" text-anchor="middle">0-10 V -> attenuate</text>
+  <text class="small" x="125" y="214" text-anchor="middle">bipolar -> shift first</text>
+
+  <rect class="box" x="255" y="85" width="240" height="190"/>
+  <text class="label" x="375" y="120" text-anchor="middle">Input conditioning</text>
+  <text class="small" x="375" y="148" text-anchor="middle">1 k series resistor</text>
+  <text class="small" x="375" y="170" text-anchor="middle">optional divider / buffer</text>
+  <text class="small" x="375" y="192" text-anchor="middle">clamp to 0-5 V</text>
+  <text class="small" x="375" y="214" text-anchor="middle">common ground</text>
+
+  <rect class="chip" x="545" y="70" width="210" height="220"/>
+  <text class="label" x="650" y="110" text-anchor="middle">CD74HC4067</text>
+  <text class="small" x="650" y="140" text-anchor="middle">COM / SIG -> AD0</text>
+  <text class="small" x="650" y="162" text-anchor="middle">VCC -> 3V3</text>
+  <text class="small" x="650" y="184" text-anchor="middle">GND -> GND</text>
+  <text class="small" x="650" y="206" text-anchor="middle">EN -> GND</text>
+  <text class="small" x="650" y="228" text-anchor="middle">C0..C15 = 16 sources</text>
+
+  <rect class="box" x="830" y="85" width="330" height="190"/>
+  <text class="label" x="995" y="120" text-anchor="middle">Waveshare AD/DA board</text>
+  <text class="small" x="995" y="148" text-anchor="middle">ADS1256 ADC samples AD0</text>
+  <text class="small" x="995" y="170" text-anchor="middle">Pi select lines: BCM5 / 6 / 13 / 26</text>
+  <text class="small" x="995" y="192" text-anchor="middle">3V3 and GND power the mux</text>
+  <text class="small" x="995" y="214" text-anchor="middle">AARCH64-only runtime logging</text>
+
+  <path class="wire arrow" d="M 220 180 L 255 180"/>
+  <path class="wire arrow" d="M 495 180 L 545 180"/>
+  <path class="wire arrow" d="M 755 180 L 830 180"/>
+
+  <path class="wire dash" d="M 650 290 L 650 318"/>
+  <text class="small" x="650" y="338" text-anchor="middle">S0/S1/S2/S3 from Pi GPIO</text>
+</svg>

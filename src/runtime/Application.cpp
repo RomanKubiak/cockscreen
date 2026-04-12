@@ -3,6 +3,9 @@
 #include "../../include/cockscreen/runtime/DirectVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/MidiInputMonitor.hpp"
 #include "../../include/cockscreen/runtime/OscInputMonitor.hpp"
+#if defined(__linux__) && defined(__aarch64__)
+#include "../../include/cockscreen/runtime/pi/WaveshareAds1256Monitor.hpp"
+#endif
 #include "../../include/cockscreen/runtime/Scene.hpp"
 #include "../../include/cockscreen/runtime/ShaderVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/RuntimeHelpers.hpp"
@@ -16,6 +19,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <utility>
 
 namespace cockscreen::runtime
@@ -72,6 +76,19 @@ int Application::run(int argc, char *argv[])
     {
         return 2;
     }
+
+#if defined(__linux__) && defined(__aarch64__)
+    std::unique_ptr<WaveshareAds1256Monitor> ads1256_monitor;
+    if (is_pi_target())
+    {
+        ads1256_monitor = std::make_unique<WaveshareAds1256Monitor>();
+        if (!ads1256_monitor->start())
+        {
+            std::cerr << "[ads1256] analog monitor disabled" << '\n';
+            ads1256_monitor.reset();
+        }
+    }
+#endif
 
 #ifdef _WIN32
     // v4l2-dmabuf-egl is Linux-only; silently fall back to qt-shader which uses

@@ -163,6 +163,10 @@ Map MIDI note activity to a shader uniform:
 
 The OSC server listens on the port set by `osc_endpoint` in the INI file (e.g. `osc_endpoint=0.0.0.0:9000`). Values arriving on a mapped address are clamped to `[0, 1]`, exponent-mapped, then scaled to `[min, max]` before being set as the uniform.
 
+### Analog front end
+
+The Pi AARCH64 analog wiring, mux pinout, gate inputs, and simple front-end schematics now live in [ANALOG.md](ANALOG.md).
+
 ---
 
 ## Global shader uniforms

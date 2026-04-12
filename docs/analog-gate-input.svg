@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="Gate input schematic">
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .box { fill: #ffffff; stroke: #222; stroke-width: 2; rx: 14; ry: 14; }
+      .chip { fill: #eef9ee; stroke: #27632a; stroke-width: 2; rx: 14; ry: 14; }
+      .label { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 18px; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .wire { stroke: #333; stroke-width: 3; fill: none; }
+      .dash { stroke-dasharray: 8 6; }
+      .arrow { marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="360"/>
+
+  <rect class="box" x="30" y="85" width="200" height="190"/>
+  <text class="label" x="130" y="120" text-anchor="middle">Gate source</text>
+  <text class="small" x="130" y="148" text-anchor="middle">sequencer gate / trigger</text>
+  <text class="small" x="130" y="170" text-anchor="middle">synth gate / envelope out</text>
+  <text class="small" x="130" y="192" text-anchor="middle">share ground with Pi</text>
+  <text class="small" x="130" y="214" text-anchor="middle">do not connect raw 5 V</text>
+
+  <rect class="box" x="260" y="70" width="270" height="220"/>
+  <text class="label" x="395" y="110" text-anchor="middle">Front-end conditioning</text>
+  <text class="small" x="395" y="138" text-anchor="middle">10 k to 100 k input resistor</text>
+  <text class="small" x="395" y="160" text-anchor="middle">clamp to 0 V and 3.3 V</text>
+  <text class="small" x="395" y="182" text-anchor="middle">optional 100 k pull-down</text>
+  <text class="small" x="395" y="204" text-anchor="middle">optional Schmitt/comparator</text>
+  <text class="small" x="395" y="226" text-anchor="middle">output is clean 3.3 V logic</text>
+
+  <rect class="chip" x="590" y="70" width="240" height="220"/>
+  <text class="label" x="710" y="110" text-anchor="middle">Pi GPIO inputs</text>
+  <text class="small" x="710" y="142" text-anchor="middle">GATE0 -> BCM16 / pin 36</text>
+  <text class="small" x="710" y="164" text-anchor="middle">GATE1 -> BCM19 / pin 35</text>
+  <text class="small" x="710" y="186" text-anchor="middle">GATE2 -> BCM20 / pin 38</text>
+  <text class="small" x="710" y="208" text-anchor="middle">runtime prints gate changes</text>
+  <text class="small" x="710" y="230" text-anchor="middle">active high expected</text>
+
+  <rect class="box" x="880" y="85" width="290" height="190"/>
+  <text class="label" x="1025" y="120" text-anchor="middle">Waveshare board</text>
+  <text class="small" x="1025" y="148" text-anchor="middle">3V3 powers the front-end</text>
+  <text class="small" x="1025" y="170" text-anchor="middle">GND is shared everywhere</text>
+  <text class="small" x="1025" y="192" text-anchor="middle">gate states are read in software</text>
+  <text class="small" x="1025" y="214" text-anchor="middle">AARCH64-only runtime support</text>
+
+  <path class="wire arrow" d="M 230 180 L 260 180"/>
+  <path class="wire arrow" d="M 530 180 L 590 180"/>
+  <path class="wire arrow" d="M 830 180 L 880 180"/>
+
+  <path class="wire dash" d="M 395 290 L 395 318"/>
+  <text class="small" x="395" y="338" text-anchor="middle">power from 3V3, return to GND</text>
+</svg>

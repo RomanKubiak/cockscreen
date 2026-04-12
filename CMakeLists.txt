@@ -83,6 +83,13 @@ if(NOT WIN32)
             src/runtime/v4l2/Capture.cpp
             src/runtime/v4l2/Formats.cpp
     )
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+        target_sources(cockscreen_core
+            PRIVATE
+                src/runtime/pi/WaveshareAds1256Monitor.cpp
+        )
+    endif()
 else()
     target_sources(cockscreen_core
         PRIVATE
