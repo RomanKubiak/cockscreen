@@ -20,6 +20,7 @@ A good orderable desktop enclosure for this layout is the Hammond 1456WL3BKBK sl
 - 20.26 x 11.61 x 3.21 in overall size
 - wide enough for eight manual pots, one NeoSlider, and two motorized faders without going to a rack chassis
 - if you want a steeper layout, the Hammond 1456WK4BKBK is the 30 degree alternate
+- if you want a DIY build, see [docs/diy-enclosure-option-2.md](docs/diy-enclosure-option-2.md) for a plywood-shell and aluminum-top-panel rough cut/layout
 
 ## Detailed Proposed Schematic
 
