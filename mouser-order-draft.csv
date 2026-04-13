@@ -18,7 +18,8 @@ Qty,Manufacturer Part Number,Status,Notes
 4,71-RN55C9761BRE5,verified,9.76k 0.1% feedback resistor
 4,810-FG28C0G1H103JNT6,verified,10 nF C0G reconstruction capacitor
 4,652-3296W-1-501,verified,Trim pot for output gain calibration
-16,652-PDB12-F2301103BF,verified,10k linear panel pots for AD0 bank
+2,COM-10976,verified,SparkFun motorized fader modules; feedback wiper can be sampled on AD0 mux channels
+1,595-SN754410NE,verified,Dual H-bridge driver for the two fader motors
 22,512-1N4148,verified,Clamp diodes across CV, gate, mux, and output paths
 4,595-OPA277PA,verified,Precision op amp for CV outputs
 1,584-AD780ANZ,verified,2.5 V reference

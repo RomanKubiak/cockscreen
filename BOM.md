@@ -1,6 +1,8 @@
 # Cockscreen BOM
 
-This BOM covers the Pi Zero 2 W analog front end described in [ANALOG.md](ANALOG.md). It assumes one build with three direct CV inputs on AD1-AD3, one 16-channel pot bank on AD0, and three gate inputs.
+This BOM covers the Pi Zero 2 W analog front end described in [ANALOG.md](ANALOG.md). It assumes one build with three direct CV inputs on AD1-AD3, a control surface with eight user-supplied manual pots, one Adafruit NeoSlider slider module, and two motorized faders, and three gate inputs.
+
+The manual pots are user-supplied and are not listed as purchase items below.
 
 All discrete add-on parts below are specified in THT or leaded packages. The Pi and Waveshare board are module assemblies, not discrete parts.
 
@@ -27,15 +29,19 @@ Repeat the parts below three times, once for each direct CV input on AD1, AD2, a
 | 0-3 | MCP6002-I/P | Optional bipolar level shift stage, DIP-8 THT dual RRIO op-amp |
 | 3 | 3-position switch | Direct 0-5 V, attenuated 0-10 V, or bipolar mode |
 
-## Pot bank on AD0
+## Control Surface On AD0 And I2C
+
+The manual pots are user-supplied and are not listed as purchase items. The NeoSlider is an I2C module. The motorized-fader feedback wipers can share the AD0 mux; their motors need a dual H-bridge driver.
 
 | Qty | Part | Notes |
 |---|---|---|
 | 1 | CD74HC4067E | 16-channel analog multiplexer, DIP-24 THT |
-| 16 | 10k linear potentiometer | One per mux channel |
+| 2 | COM-10976 motorized fader | 10k linear motorized slide pot; feedback wiper to AD0 mux, motor leads to driver |
+| 1 | Adafruit NeoSlider | I2C 75 mm slide pot module |
+| 1 | SN754410NE | Dual H-bridge driver for the two motorized faders |
 | 1 | 1k resistor | Series protection at mux output |
 | 2 | 1N4148 diode | Clamp pair at mux output |
-| 0-16 | 100 nF capacitor | Optional smoothing capacitor per pot channel |
+| 0-10 | 100 nF capacitor | Optional smoothing capacitor per manual pot or fader feedback channel |
 | 1 | Breakout or PCB for mux wiring | Keeps the pot bank tidy |
 
 ## Gate inputs
@@ -100,6 +106,7 @@ The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-st
 |---|---|---|
 | 1 | PCB or perfboard | If you are not using a custom board |
 | 1 | Hookup wire / ribbon cable | Board interconnects |
+| 1 | Custom enclosure or front panel | Needs room for eight knobs, one slider, and two motorized faders |
 | 1 | Panel hardware set | Jack nuts, washers, labels, etc. |
 
 ## Notes
@@ -112,3 +119,4 @@ The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-st
 - For the 4-channel build, use four OPA277PA parts; OPA4227PA is the stocked quad alternative if you want one 14-pin package.
 - The stocked THT fallback parts I verified in Poland are OPA277PA, OPA227PA, and OPA4227PA; none of them are true rail-to-rail substitutes.
 - If exact 0 V / 5 V rail-to-rail behavior matters, keep the SMD RRIO part and mount it on a DIP adapter instead.
+- The control surface now assumes a custom wide panel or enclosure rather than a stock box.

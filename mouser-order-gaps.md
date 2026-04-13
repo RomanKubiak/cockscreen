@@ -10,6 +10,7 @@ The mux module is already owned by the user, so do not order a CD74HC4067.
 | 1 | Calibration header or test points | Helpful during trim and verification |
 | 1 | Hookup wire / ribbon cable | Board interconnects |
 | 1 | 12 V DC wall PSU | Sized for the full system load |
+| 1 | Custom enclosure or front panel | Needs room for eight knobs, one slider, and two motorized faders |
 | 1 | Panel hardware set | Nuts, washers, labels, etc. |
 
 ## Helpful DIY Assembly Extras
@@ -19,7 +20,7 @@ The mux module is already owned by the user, so do not order a CD74HC4067.
 | 5 | DIP-8 socket | For the four OPA277PA parts and AD780AN |
 | 1 | DIP-14 socket | Helpful if you keep a THT Schmitt trigger |
 | 1 | SMD adapter board | For the 100 nF C0G and 33 uH SMD parts if you do not place them directly on a PCB |
-| 16 | Pot knobs | Makes the pot bank usable |
+| 8 | Pot knobs | Makes the user-supplied manual pots usable |
 | 1 | Heat-shrink assortment | Wire insulation and strain relief |
 | 1 | Ferrule or crimp assortment | Improves reliability of power and panel wiring |
 | 1 | Solder and flux | Basic assembly consumables |

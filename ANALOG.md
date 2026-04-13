@@ -7,14 +7,14 @@ This document covers the Pi-only analog front end used on the AARCH64 build.
 The analog path is split into three parts:
 
 - Three direct CV inputs on the Waveshare board ADC channels `AD1`, `AD2`, and `AD3`.
-- A 16-channel potentiometer bank on the Waveshare board ADC input `AD0` using a `CD74HC4067`.
+- A control surface built from eight user-supplied manual pots on the Waveshare board ADC input `AD0` using a `CD74HC4067`, one I2C NeoSlider module, and two motorized faders.
 - Three separate gate inputs on free Pi GPIO pins for note/gate/trigger events.
 
 The runtime support is AARCH64-only and prints sampled CV values and gate states to the console.
 
 ## Detailed Proposed Schematic
 
-The preferred front-end is drawn in [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg). It shows the proposed element values for the three direct CV inputs on `AD1`-`AD3`, the `AD0` pot mux, and the gate inputs in one board-level diagram.
+The preferred front-end is drawn in [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg). It shows the proposed element values for the three direct CV inputs on `AD1`-`AD3`, the baseline `AD0` mux wiring, and the gate inputs in one board-level diagram. The motorized faders and NeoSlider are separate control-surface modules described below.
 
 The short version is:
 
@@ -25,6 +25,8 @@ The short version is:
 - Optional bipolar CV stage: `MCP6002-I/P` dual rail-to-rail op-amp in DIP-8 with `100k` / `100k` mid-rail bias.
 - Pot mux series protection: `1k`.
 - Pot mux clamp: two `1N4148` diodes to `0 V` and `3V3`.
+- Control surface: eight user-supplied manual pots, one NeoSlider I2C slider module, and two motorized faders.
+- Motorized fader drive: `SN754410NE` dual H-bridge, one chip for both faders.
 - Gate series resistor: `10k`.
 - Gate pull-down: `100k`.
 - Gate clamp: two `1N4148` diodes to `0 V` and `3V3`.
@@ -84,7 +86,7 @@ Each direct CV input uses the same element set:
 
 ## Pot Mux On `AD0`
 
-The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever pot channel is selected. The mux is used only for potentiometers, not for the direct CV inputs.
+The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever manual pot or motorized-fader feedback channel is selected. The mux is used for the control-surface pots and fader feedback, not for the direct CV inputs or the NeoSlider module.
 
 ### Pin Map
 
@@ -109,17 +111,41 @@ The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC
 | `EN` | `GND` |
 | `VEE` | `GND` if exposed |
 
-Wire each potentiometer with one outer leg to `3V3`, the other outer leg to `GND`, and the wiper to one of the mux channels `C0` through `C15`.
+Wire each manual potentiometer or motorized-fader feedback track with one outer leg to `3V3`, the other outer leg to `GND`, and the wiper to one of the mux channels `C0` through `C15`.
 
 ### Pot Mux Rules
 
-- Use only potentiometers on the mux channels.
+- Use only manual potentiometers or motorized-fader feedback tracks on the mux channels.
 - Keep the pot grounds common with the Waveshare board.
 - Each mux channel should stay inside the ADC range after the pot wiring and any local series protection.
 
 ### Pot Mux Schematic
 
 The pot mux is shown in the board-level schematic above. It is the `AD0` section of [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg).
+
+## Motorized Faders
+
+The two COM-10976 motorized faders are panel controls with a 10k linear position pot and a small motor. Treat each one as two subsystems:
+
+- a position wiper sampled on `AD0` through a spare mux channel
+- a motor driven by an `SN754410NE` dual H-bridge
+
+### Power And Wiring
+
+| Fader pin | Connect to |
+|---|---|
+| `WIPER` | One of the spare mux channels |
+| `MOTOR+` / `MOTOR-` | `SN754410NE` outputs |
+| `VCC` / motor rail | `5 V_DIG` or a separate motor rail sized to the fader datasheet |
+| `GND` | Shared ground |
+| `TOUCH` if exposed | Optional spare Pi GPIO |
+
+### Driver Rules
+
+- One `SN754410NE` can drive both motorized faders.
+- Keep the driver and motor-supply decoupling close to the panel harness.
+- The firmware needs to compare the sampled fader position against the target position before moving the motor.
+- The Adafruit NeoSlider module is separate on I2C and does not use the mux.
 
 ## Gate Inputs
 
