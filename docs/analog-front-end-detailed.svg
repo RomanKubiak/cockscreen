@@ -50,7 +50,7 @@
   <rect class="bg" x="0" y="0" width="1800" height="1220"/>
 
   <text class="title" x="70" y="56">Detailed analog front end proposal</text>
-  <text class="subtitle" x="70" y="84">Pi Zero 2 W / Waveshare ADS1256 board, direct CV on AD1-AD3, CD74HC4067 pot bank on AD0, and three gate inputs</text>
+  <text class="subtitle" x="70" y="84">Pi Zero 2 W / Waveshare ADS1256 board, direct CV on AD1-AD3, desktop control surface in a sloped console, and three gate inputs</text>
 
   <path class="rail3v3" d="M 70 125 L 1730 125"/>
   <text class="small" x="85" y="116">3V3 rail</text>
@@ -98,31 +98,55 @@
   <path class="wire arrow" d="M 580 367 L 605 367"/>
 
   <rect class="panel" x="900" y="160" width="830" height="390"/>
-  <text class="label" x="920" y="194">Potentiometer bank on AD0 via CD74HC4067</text>
-  <text class="small" x="920" y="220">Only potentiometers live on the mux. The mux common pin goes to AD0.</text>
+  <text class="label" x="920" y="194">Desktop enclosure control surface</text>
+  <text class="small" x="920" y="220">Recommended panel: Hammond 1456WL3BKBK sloped console, 15 degree slope, 20.26 x 11.61 x 3.21 in.</text>
+  <text class="small" x="920" y="242">Eight manual pots are user-supplied. One NeoSlider is I2C. Two motorized faders use the SN754410NE driver.</text>
 
-  <rect class="chip" x="940" y="255" width="300" height="225"/>
-  <text class="label" x="1090" y="286" text-anchor="middle">CD74HC4067</text>
-  <text class="tiny" x="1090" y="312" text-anchor="middle">COM / SIG -> AD0</text>
-  <text class="tiny" x="1090" y="332" text-anchor="middle">VCC -> 3V3</text>
-  <text class="tiny" x="1090" y="352" text-anchor="middle">GND -> GND</text>
-  <text class="tiny" x="1090" y="372" text-anchor="middle">EN -> GND</text>
-  <text class="tiny" x="1090" y="392" text-anchor="middle">S0 / S1 / S2 / S3 from Pi GPIO</text>
-  <text class="tiny" x="1090" y="412" text-anchor="middle">C0..C15 each get one pot wiper</text>
-  <text class="tiny" x="1090" y="444" text-anchor="middle">R4 1k series at mux output</text>
-  <text class="tiny" x="1090" y="464" text-anchor="middle">D2 BAT54S clamp to 0 V / 3V3</text>
+  <polygon points="940,262 1350,262 1325,470 965,470" fill="#fff" stroke="#222" stroke-width="2.5"/>
+  <text class="tiny" x="1145" y="286" text-anchor="middle">Front panel layout</text>
 
-  <rect x="1280" y="255" width="390" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
-  <text class="small" x="1475" y="286" text-anchor="middle">Typical pot wiring</text>
-  <text class="tiny" x="1475" y="314" text-anchor="middle">P1 10k linear pot</text>
-  <text class="tiny" x="1475" y="334" text-anchor="middle">one outer leg -> 3V3</text>
-  <text class="tiny" x="1475" y="354" text-anchor="middle">other outer leg -> GND</text>
-  <text class="tiny" x="1475" y="374" text-anchor="middle">wiper -> C0..C15</text>
-  <text class="tiny" x="1475" y="394" text-anchor="middle">optional 100 nF smoothing cap</text>
-  <text class="tiny" x="1475" y="414" text-anchor="middle">one pot per mux channel</text>
-  <text class="tiny" x="1475" y="438" text-anchor="middle">mux select pins: BCM5, BCM6, BCM13, BCM26</text>
+  <rect x="995" y="296" width="300" height="18" rx="8" fill="#dfe8ff" stroke="#1d3b66" stroke-width="2"/>
+  <text class="tiny" x="1145" y="290" text-anchor="middle">NeoSlider I2C module</text>
 
-  <path class="wire arrow" d="M 1240 367 L 1280 367"/>
+  <circle cx="1010" cy="350" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1090" cy="350" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1170" cy="350" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1250" cy="350" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1010" cy="400" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1090" cy="400" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1170" cy="400" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="1250" cy="400" r="16" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <text class="tiny" x="1010" y="330" text-anchor="middle">P1</text>
+  <text class="tiny" x="1090" y="330" text-anchor="middle">P2</text>
+  <text class="tiny" x="1170" y="330" text-anchor="middle">P3</text>
+  <text class="tiny" x="1250" y="330" text-anchor="middle">P4</text>
+  <text class="tiny" x="1010" y="380" text-anchor="middle">P5</text>
+  <text class="tiny" x="1090" y="380" text-anchor="middle">P6</text>
+  <text class="tiny" x="1170" y="380" text-anchor="middle">P7</text>
+  <text class="tiny" x="1250" y="380" text-anchor="middle">P8</text>
+
+  <rect x="990" y="432" width="150" height="14" rx="7" fill="#f3ebd0" stroke="#8a5b00" stroke-width="2"/>
+  <rect x="1160" y="432" width="150" height="14" rx="7" fill="#f3ebd0" stroke="#8a5b00" stroke-width="2"/>
+  <circle cx="1060" cy="439" r="8" fill="#8a5b00"/>
+  <circle cx="1230" cy="439" r="8" fill="#8a5b00"/>
+  <text class="tiny" x="1065" y="455" text-anchor="middle">F1 motorized fader</text>
+  <text class="tiny" x="1235" y="455" text-anchor="middle">F2 motorized fader</text>
+
+  <path class="wire arrow" d="M 1325 304 L 1410 304"/>
+  <path class="wire arrow" d="M 1325 348 L 1410 390"/>
+  <path class="wire arrow" d="M 1325 439 L 1410 475"/>
+
+  <rect class="chip" x="1410" y="270" width="280" height="70"/>
+  <text class="small" x="1550" y="298" text-anchor="middle">CD74HC4067E</text>
+  <text class="tiny" x="1550" y="320" text-anchor="middle">manual pots and feedback -> AD0</text>
+
+  <rect class="chip" x="1410" y="355" width="280" height="70"/>
+  <text class="small" x="1550" y="383" text-anchor="middle">NeoSlider</text>
+  <text class="tiny" x="1550" y="405" text-anchor="middle">I2C to Pi Zero 2 W</text>
+
+  <rect class="green" x="1410" y="440" width="280" height="70"/>
+  <text class="small" x="1550" y="468" text-anchor="middle">SN754410NE</text>
+  <text class="tiny" x="1550" y="490" text-anchor="middle">motor drive for F1 / F2</text>
 
   <rect class="panel" x="70" y="590" width="820" height="270"/>
   <text class="label" x="90" y="624">Gate inputs on BCM16, BCM19, BCM20</text>
@@ -156,37 +180,27 @@
   <text class="small" x="767" y="816" text-anchor="middle">common GND required</text>
 
   <rect class="panel" x="930" y="590" width="800" height="270"/>
-  <text class="label" x="950" y="624">Proposed element values</text>
-  <text class="small" x="950" y="656">Direct CV channel x3</text>
-  <use href="#res-100k" x="970" y="668"/>
-  <text class="tiny" x="1034" y="684">R1 100k / R2 100k divider for 0-10 V sources</text>
-  <use href="#res-1k" x="970" y="690"/>
-  <text class="tiny" x="1034" y="706">R3 1k series resistor</text>
-  <text class="tiny" x="970" y="720">D1 BAT54S clamp to GND and 3V3</text>
-  <text class="tiny" x="970" y="740">C1 1 nF to GND</text>
-  <text class="tiny" x="970" y="760">U1 MCP6002 only for bipolar sources</text>
+  <text class="label" x="950" y="624">Control-surface wiring map</text>
+  <text class="small" x="950" y="656">Manual pots x8</text>
+  <text class="tiny" x="950" y="680">P1-P8 are user-supplied 10k pots</text>
+  <text class="tiny" x="950" y="700">wipers -> CD74HC4067E -> AD0</text>
 
-  <text class="small" x="1250" y="656">Pot mux x16</text>
-  <text class="tiny" x="1270" y="680">P1 10k linear pot per channel</text>
-  <use href="#res-1k" x="1270" y="690"/>
-  <text class="tiny" x="1334" y="706">R4 1k series at mux output</text>
-  <text class="tiny" x="1270" y="720">D2 BAT54S clamp to GND and 3V3</text>
-  <text class="tiny" x="1270" y="740">MUX VCC -> 3V3, EN -> GND</text>
-  <text class="tiny" x="1270" y="760">Select pins -> BCM5 / 6 / 13 / 26</text>
+  <text class="small" x="1260" y="656">NeoSlider</text>
+  <text class="tiny" x="1260" y="680">I2C device to Pi Zero 2 W</text>
+  <text class="tiny" x="1260" y="700">kept off the mux</text>
 
-  <text class="small" x="1505" y="656">Gate x3</text>
-  <use href="#res-10k" x="1525" y="668"/>
-  <text class="tiny" x="1589" y="684">R5 10k series</text>
-  <use href="#res-100k" x="1525" y="690"/>
-  <text class="tiny" x="1589" y="706">R6 100k pull-down</text>
-  <text class="tiny" x="1525" y="720">D3 BAT54S clamp</text>
-  <text class="tiny" x="1525" y="740">U2 74LVC14 Schmitt buffer</text>
-  <text class="tiny" x="1525" y="760">Inputs on BCM16 / 19 / 20</text>
+  <text class="small" x="1510" y="656">Motorized faders x2</text>
+  <text class="tiny" x="1510" y="680">wipers -> spare AD0 mux channels</text>
+  <text class="tiny" x="1510" y="700">motors -> SN754410NE</text>
+
+  <text class="tiny" x="950" y="736">Recommended enclosure: Hammond 1456WL3BKBK sloped console, 15 degree slope, 20.26 x 11.61 x 3.21 in.</text>
+  <text class="tiny" x="950" y="758">Use the 20-inch desktop console instead of a rack case; it gives enough front-panel width for the sliders and knob spacing.</text>
+  <text class="tiny" x="950" y="780">The Pi and Waveshare board stay on the internal mounting standoffs behind the panel.</text>
 
   <rect class="panel" x="70" y="900" width="1660" height="220"/>
   <text class="label" x="90" y="934">Board-level wiring summary</text>
   <text class="tiny" x="90" y="964">Direct CV: AD1, AD2, AD3</text>
-  <text class="tiny" x="90" y="986">Pot mux: AD0 with CD74HC4067 and 16 pots only</text>
+  <text class="tiny" x="90" y="986">Control surface: eight manual pots, one NeoSlider, and two motorized faders</text>
   <text class="tiny" x="90" y="1008">Gate inputs: BCM16, BCM19, BCM20</text>
   <text class="tiny" x="90" y="1030">Common power: Waveshare board 3V3 and GND rails</text>
   <text class="tiny" x="90" y="1052">Runtime: Linux AARCH64 only</text>

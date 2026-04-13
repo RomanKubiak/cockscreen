@@ -106,7 +106,7 @@ The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-st
 |---|---|---|
 | 1 | PCB or perfboard | If you are not using a custom board |
 | 1 | Hookup wire / ribbon cable | Board interconnects |
-| 1 | Custom enclosure or front panel | Needs room for eight knobs, one slider, and two motorized faders |
+| 1 | Hammond 1456WL3BKBK sloped metal console enclosure | Desktop enclosure, 15 degree slope, 20.26 x 11.61 x 3.21 in; good fit for the control surface |
 | 1 | Panel hardware set | Jack nuts, washers, labels, etc. |
 
 ## Notes
@@ -119,4 +119,4 @@ The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-st
 - For the 4-channel build, use four OPA277PA parts; OPA4227PA is the stocked quad alternative if you want one 14-pin package.
 - The stocked THT fallback parts I verified in Poland are OPA277PA, OPA227PA, and OPA4227PA; none of them are true rail-to-rail substitutes.
 - If exact 0 V / 5 V rail-to-rail behavior matters, keep the SMD RRIO part and mount it on a DIP adapter instead.
-- The control surface now assumes a custom wide panel or enclosure rather than a stock box.
+- The control surface now assumes a Hammond 1456WL3BKBK sloped desktop console or an equivalent wide sloped enclosure rather than a rack case.

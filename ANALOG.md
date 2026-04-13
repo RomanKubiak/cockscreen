@@ -12,9 +12,18 @@ The analog path is split into three parts:
 
 The runtime support is AARCH64-only and prints sampled CV values and gate states to the console.
 
+### Desktop Enclosure
+
+A good orderable desktop enclosure for this layout is the Hammond 1456WL3BKBK sloped metal console.
+
+- 15 degree sloped top for comfortable knob and fader access
+- 20.26 x 11.61 x 3.21 in overall size
+- wide enough for eight manual pots, one NeoSlider, and two motorized faders without going to a rack chassis
+- if you want a steeper layout, the Hammond 1456WK4BKBK is the 30 degree alternate
+
 ## Detailed Proposed Schematic
 
-The preferred front-end is drawn in [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg). It shows the proposed element values for the three direct CV inputs on `AD1`-`AD3`, the baseline `AD0` mux wiring, and the gate inputs in one board-level diagram. The motorized faders and NeoSlider are separate control-surface modules described below.
+The preferred front-end is drawn in [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg). It shows the direct CV blocks, the control-surface layout, the NeoSlider module, the motorized faders, and the gate inputs in one board-level diagram.
 
 The short version is:
 

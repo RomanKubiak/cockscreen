@@ -10,7 +10,7 @@ The mux module is already owned by the user, so do not order a CD74HC4067.
 | 1 | Calibration header or test points | Helpful during trim and verification |
 | 1 | Hookup wire / ribbon cable | Board interconnects |
 | 1 | 12 V DC wall PSU | Sized for the full system load |
-| 1 | Custom enclosure or front panel | Needs room for eight knobs, one slider, and two motorized faders |
+| 1 | Front-panel drilling / cutout work | Needed to fit the eight pots, one NeoSlider, and two motorized faders into the ordered console |
 | 1 | Panel hardware set | Nuts, washers, labels, etc. |
 
 ## Helpful DIY Assembly Extras
@@ -26,6 +26,12 @@ The mux module is already owned by the user, so do not order a CD74HC4067.
 | 1 | Solder and flux | Basic assembly consumables |
 | 1 | Solder wick or pump | Rework and cleanup |
 | 1 | Wire labels or markers | Helpful for panel harnesses |
+
+Recommended enclosure:
+
+- Hammond 1456WL3BKBK sloped metal console enclosure
+- 15 degree slope, 20.26 x 11.61 x 3.21 in
+- orderable from major distributors; the remaining fabrication step is the panel cutout work
 
 ## Exact Mouser Numbers Captured
 
