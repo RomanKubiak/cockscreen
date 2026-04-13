@@ -21,6 +21,30 @@
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f2f2f"/>
     </marker>
+
+    <g id="res-1k">
+      <rect x="0" y="0" width="54" height="16" rx="2" ry="2" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.2"/>
+      <rect x="14" y="0" width="4" height="16" fill="#8b5a2b"/>
+      <rect x="22" y="0" width="4" height="16" fill="#111111"/>
+      <rect x="30" y="0" width="4" height="16" fill="#c62828"/>
+      <rect x="42" y="0" width="4" height="16" fill="#d4af37"/>
+    </g>
+
+    <g id="res-10k">
+      <rect x="0" y="0" width="54" height="16" rx="2" ry="2" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.2"/>
+      <rect x="14" y="0" width="4" height="16" fill="#8b5a2b"/>
+      <rect x="22" y="0" width="4" height="16" fill="#111111"/>
+      <rect x="30" y="0" width="4" height="16" fill="#f57c00"/>
+      <rect x="42" y="0" width="4" height="16" fill="#d4af37"/>
+    </g>
+
+    <g id="res-100k">
+      <rect x="0" y="0" width="54" height="16" rx="2" ry="2" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.2"/>
+      <rect x="14" y="0" width="4" height="16" fill="#8b5a2b"/>
+      <rect x="22" y="0" width="4" height="16" fill="#111111"/>
+      <rect x="30" y="0" width="4" height="16" fill="#f2c94c"/>
+      <rect x="42" y="0" width="4" height="16" fill="#d4af37"/>
+    </g>
   </defs>
 
   <rect class="bg" x="0" y="0" width="1800" height="1220"/>
@@ -40,9 +64,9 @@
   <rect x="95" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
   <text class="small" x="210" y="286" text-anchor="middle">CV1 -> AD1</text>
   <text class="tiny" x="210" y="312" text-anchor="middle">J1 input jack</text>
-  <text class="tiny" x="210" y="332" text-anchor="middle">R1 100k / R2 100k</text>
-  <text class="tiny" x="210" y="352" text-anchor="middle">2:1 attenuation for 0-10 V</text>
-  <text class="tiny" x="210" y="372" text-anchor="middle">R3 1k series</text>
+  <text class="tiny" x="210" y="344" text-anchor="middle">R1 100k / R2 100k</text>
+  <text class="tiny" x="210" y="364" text-anchor="middle">2:1 attenuation for 0-10 V</text>
+  <text class="tiny" x="210" y="380" text-anchor="middle">R3 1k series</text>
   <text class="tiny" x="210" y="392" text-anchor="middle">D1 BAT54S clamp</text>
   <text class="tiny" x="210" y="412" text-anchor="middle">C1 1 nF to GND</text>
   <text class="tiny" x="210" y="432" text-anchor="middle">optional U1 MCP6002</text>
@@ -51,9 +75,9 @@
   <rect x="350" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
   <text class="small" x="465" y="286" text-anchor="middle">CV2 -> AD2</text>
   <text class="tiny" x="465" y="312" text-anchor="middle">J2 input jack</text>
-  <text class="tiny" x="465" y="332" text-anchor="middle">R1 100k / R2 100k</text>
-  <text class="tiny" x="465" y="352" text-anchor="middle">2:1 attenuation for 0-10 V</text>
-  <text class="tiny" x="465" y="372" text-anchor="middle">R3 1k series</text>
+  <text class="tiny" x="465" y="344" text-anchor="middle">R1 100k / R2 100k</text>
+  <text class="tiny" x="465" y="364" text-anchor="middle">2:1 attenuation for 0-10 V</text>
+  <text class="tiny" x="465" y="380" text-anchor="middle">R3 1k series</text>
   <text class="tiny" x="465" y="392" text-anchor="middle">D1 BAT54S clamp</text>
   <text class="tiny" x="465" y="412" text-anchor="middle">C1 1 nF to GND</text>
   <text class="tiny" x="465" y="432" text-anchor="middle">optional U1 MCP6002</text>
@@ -62,9 +86,9 @@
   <rect x="605" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
   <text class="small" x="720" y="286" text-anchor="middle">CV3 -> AD3</text>
   <text class="tiny" x="720" y="312" text-anchor="middle">J3 input jack</text>
-  <text class="tiny" x="720" y="332" text-anchor="middle">R1 100k / R2 100k</text>
-  <text class="tiny" x="720" y="352" text-anchor="middle">2:1 attenuation for 0-10 V</text>
-  <text class="tiny" x="720" y="372" text-anchor="middle">R3 1k series</text>
+  <text class="tiny" x="720" y="344" text-anchor="middle">R1 100k / R2 100k</text>
+  <text class="tiny" x="720" y="364" text-anchor="middle">2:1 attenuation for 0-10 V</text>
+  <text class="tiny" x="720" y="380" text-anchor="middle">R3 1k series</text>
   <text class="tiny" x="720" y="392" text-anchor="middle">D1 BAT54S clamp</text>
   <text class="tiny" x="720" y="412" text-anchor="middle">C1 1 nF to GND</text>
   <text class="tiny" x="720" y="432" text-anchor="middle">optional U1 MCP6002</text>
@@ -85,8 +109,8 @@
   <text class="tiny" x="1090" y="372" text-anchor="middle">EN -> GND</text>
   <text class="tiny" x="1090" y="392" text-anchor="middle">S0 / S1 / S2 / S3 from Pi GPIO</text>
   <text class="tiny" x="1090" y="412" text-anchor="middle">C0..C15 each get one pot wiper</text>
-  <text class="tiny" x="1090" y="434" text-anchor="middle">R4 1k series at mux output</text>
-  <text class="tiny" x="1090" y="454" text-anchor="middle">D2 BAT54S clamp to 0 V / 3V3</text>
+  <text class="tiny" x="1090" y="444" text-anchor="middle">R4 1k series at mux output</text>
+  <text class="tiny" x="1090" y="464" text-anchor="middle">D2 BAT54S clamp to 0 V / 3V3</text>
 
   <rect x="1280" y="255" width="390" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
   <text class="small" x="1475" y="286" text-anchor="middle">Typical pot wiring</text>
@@ -106,9 +130,9 @@
 
   <rect class="green" x="95" y="680" width="220" height="130"/>
   <text class="small" x="205" y="710" text-anchor="middle">Gate front-end x3</text>
-  <text class="tiny" x="205" y="736" text-anchor="middle">R5 10k series</text>
-  <text class="tiny" x="205" y="756" text-anchor="middle">R6 100k pull-down</text>
-  <text class="tiny" x="205" y="776" text-anchor="middle">D3 BAT54S clamp</text>
+  <text class="tiny" x="205" y="746" text-anchor="middle">R5 10k series</text>
+  <text class="tiny" x="205" y="768" text-anchor="middle">R6 100k pull-down</text>
+  <text class="tiny" x="205" y="788" text-anchor="middle">D3 BAT54S clamp</text>
   <text class="tiny" x="205" y="796" text-anchor="middle">U2 74LVC14 at 3.3 V</text>
 
   <rect x="350" y="660" width="250" height="170" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
@@ -134,22 +158,27 @@
   <rect class="panel" x="930" y="590" width="800" height="270"/>
   <text class="label" x="950" y="624">Proposed element values</text>
   <text class="small" x="950" y="656">Direct CV channel x3</text>
-  <text class="tiny" x="970" y="680">R1 100k / R2 100k divider for 0-10 V sources</text>
-  <text class="tiny" x="970" y="700">R3 1k series resistor</text>
+  <use href="#res-100k" x="970" y="668"/>
+  <text class="tiny" x="1034" y="684">R1 100k / R2 100k divider for 0-10 V sources</text>
+  <use href="#res-1k" x="970" y="690"/>
+  <text class="tiny" x="1034" y="706">R3 1k series resistor</text>
   <text class="tiny" x="970" y="720">D1 BAT54S clamp to GND and 3V3</text>
   <text class="tiny" x="970" y="740">C1 1 nF to GND</text>
   <text class="tiny" x="970" y="760">U1 MCP6002 only for bipolar sources</text>
 
   <text class="small" x="1250" y="656">Pot mux x16</text>
   <text class="tiny" x="1270" y="680">P1 10k linear pot per channel</text>
-  <text class="tiny" x="1270" y="700">R4 1k series at mux output</text>
+  <use href="#res-1k" x="1270" y="690"/>
+  <text class="tiny" x="1334" y="706">R4 1k series at mux output</text>
   <text class="tiny" x="1270" y="720">D2 BAT54S clamp to GND and 3V3</text>
   <text class="tiny" x="1270" y="740">MUX VCC -> 3V3, EN -> GND</text>
   <text class="tiny" x="1270" y="760">Select pins -> BCM5 / 6 / 13 / 26</text>
 
   <text class="small" x="1505" y="656">Gate x3</text>
-  <text class="tiny" x="1525" y="680">R5 10k series</text>
-  <text class="tiny" x="1525" y="700">R6 100k pull-down</text>
+  <use href="#res-10k" x="1525" y="668"/>
+  <text class="tiny" x="1589" y="684">R5 10k series</text>
+  <use href="#res-100k" x="1525" y="690"/>
+  <text class="tiny" x="1589" y="706">R6 100k pull-down</text>
   <text class="tiny" x="1525" y="720">D3 BAT54S clamp</text>
   <text class="tiny" x="1525" y="740">U2 74LVC14 Schmitt buffer</text>
   <text class="tiny" x="1525" y="760">Inputs on BCM16 / 19 / 20</text>

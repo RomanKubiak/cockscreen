@@ -8,6 +8,7 @@ A Qt6 / OpenGL ES shader pipeline for Raspberry Pi Zero 2 W and x86_64 Linux. It
 - OSC control input (UDP)
 - MIDI control input (ALSA sequencer / WinMM on Windows)
 - Windows cross-compilation via MinGW-w64
+- Analog CV input and precision CV output paths for modular-style control voltage work
 
 ## Remote target
 
@@ -165,7 +166,9 @@ The OSC server listens on the port set by `osc_endpoint` in the INI file (e.g. `
 
 ### Analog front end
 
-The Pi AARCH64 analog wiring, mux pinout, gate inputs, and simple front-end schematics now live in [ANALOG.md](ANALOG.md).
+The Pi AARCH64 analog wiring, mux pinout, gate inputs, power distribution, and precision CV output stage now live in [ANALOG.md](ANALOG.md).
+The split schematics are [docs/cv-power-input-stage.svg](docs/cv-power-input-stage.svg) and [docs/cv-output-stage.svg](docs/cv-output-stage.svg).
+The matching hardware bill of materials is in [BOM.md](BOM.md).
 
 ---
 

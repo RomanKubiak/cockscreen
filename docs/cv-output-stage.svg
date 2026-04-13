@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1180" viewBox="0 0 1900 1180" role="img" aria-label="Precision CV output schematic">
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .panel { fill: #ffffff; stroke: #202020; stroke-width: 2.5; rx: 18; ry: 18; }
+      .chip { fill: #eef3ff; stroke: #1d3b66; stroke-width: 2.5; rx: 16; ry: 16; }
+      .green { fill: #eef9ee; stroke: #27632a; stroke-width: 2.5; rx: 16; ry: 16; }
+      .yellow { fill: #fff8e8; stroke: #8a5b00; stroke-width: 2.5; rx: 16; ry: 16; }
+      .label { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 700; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .tiny { fill: #555; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      .title { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: 700; }
+      .subtitle { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
+      .wire { stroke: #2f2f2f; stroke-width: 4; fill: none; }
+      .arrow { marker-end: url(#arrow); }
+      .rail5 { stroke: #27632a; stroke-width: 4; fill: none; }
+      .railgnd { stroke: #222; stroke-width: 4; fill: none; }
+      .railref { stroke: #7a4f00; stroke-width: 4; fill: none; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f2f2f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1900" height="1180"/>
+
+  <text class="title" x="70" y="56">Precision CV output schematic</text>
+  <text class="subtitle" x="70" y="84">Four DAC channels are available on the board, each filtered, trimmed, buffered, and clamped for stable microtuning output</text>
+
+  <path class="rail5" d="M 70 125 L 1830 125"/>
+  <text class="small" x="84" y="116">5 V_A rail</text>
+  <path class="railref" d="M 70 170 L 1830 170"/>
+  <text class="small" x="84" y="160">2.5 V reference rail</text>
+  <path class="railgnd" d="M 70 1090 L 1830 1090"/>
+  <text class="small" x="84" y="1080">GND star point</text>
+
+  <rect class="panel" x="70" y="220" width="360" height="260"/>
+  <text class="label" x="90" y="256">DAC source section</text>
+  <text class="small" x="90" y="284">DAC0, DAC1, DAC2, DAC3</text>
+  <text class="tiny" x="90" y="318">High-resolution DAC output around 0-2.5 V</text>
+  <text class="tiny" x="90" y="340">One output block is repeated for each channel</text>
+  <text class="tiny" x="90" y="362">Channel labels in software should map 0-3 only</text>
+
+  <rect class="chip" x="490" y="220" width="390" height="260"/>
+  <text class="label" x="685" y="256" text-anchor="middle">U2 AD780AN</text>
+  <text class="small" x="685" y="284" text-anchor="middle">precision 2.5 V reference, DIP-8</text>
+  <text class="tiny" x="685" y="318" text-anchor="middle">CREF1 100 nF and CREF2 10 uF nearby</text>
+  <text class="tiny" x="685" y="340" text-anchor="middle">RREF 10 k 0.1% load / bias resistor</text>
+  <text class="tiny" x="685" y="362" text-anchor="middle">feeds the DAC reference or calibration rail</text>
+  <text class="tiny" x="685" y="394" text-anchor="middle">keep the reference node short and guarded</text>
+
+  <path class="wire arrow" d="M 430 330 L 490 330"/>
+  <path class="wire" d="M 685 220 L 685 170"/>
+  <path class="wire" d="M 685 480 L 685 1090"/>
+
+  <rect class="green" x="940" y="220" width="390" height="260"/>
+  <text class="label" x="1135" y="256" text-anchor="middle">U3A MCP6V28-I/P</text>
+  <text class="small" x="1135" y="284" text-anchor="middle">zero-drift RRIO op-amp, DIP-8</text>
+  <text class="tiny" x="1135" y="318" text-anchor="middle">non-inverting gain stage with precision trim</text>
+  <text class="tiny" x="1135" y="340" text-anchor="middle">R2 10k to GND, R3 9.76k feedback</text>
+  <text class="tiny" x="1135" y="362" text-anchor="middle">TRIM1 3296W-1-501 for final endpoint calibration</text>
+  <text class="tiny" x="1135" y="394" text-anchor="middle">C2 100 nF local supply decoupling</text>
+
+  <path class="wire arrow" d="M 880 330 L 940 330"/>
+  <path class="wire" d="M 1135 220 L 1135 125"/>
+  <path class="wire" d="M 1135 480 L 1135 1090"/>
+
+  <rect class="panel" x="70" y="540" width="1780" height="250"/>
+  <text class="label" x="90" y="576">Per-channel structure, repeat x4</text>
+  <text class="small" x="90" y="604">Each channel is filtered, amplified, and clamped before the CV jack</text>
+  <text class="tiny" x="90" y="638">DACx -> 1 k series resistor -> 10 nF C0G reconstruction capacitor -> U3A input</text>
+  <text class="tiny" x="90" y="660">U3A output -> 1 k series resistor -> CV jack tip</text>
+  <text class="tiny" x="90" y="682">D4 and D5 are 1N4148 clamp diodes to 0 V and 5 V_A</text>
+  <text class="tiny" x="90" y="704">Gain network uses 0.1% metal film resistors for low drift</text>
+  <text class="tiny" x="90" y="726">One dual op-amp package covers two channels; two packages cover all four outputs</text>
+  <text class="tiny" x="90" y="748">Use software calibration to map code-to-voltage after hardware trim</text>
+
+  <rect class="yellow" x="1450" y="590" width="220" height="120"/>
+  <text class="small" x="1560" y="626" text-anchor="middle">Jx</text>
+  <text class="tiny" x="1560" y="648" text-anchor="middle">CV out tip</text>
+  <text class="tiny" x="1560" y="668" text-anchor="middle">sleeve to GND</text>
+
+  <rect class="chip" x="1450" y="730" width="220" height="120"/>
+  <text class="small" x="1560" y="766" text-anchor="middle">D4 / D5 1N4148</text>
+  <text class="tiny" x="1560" y="788" text-anchor="middle">output clamps</text>
+  <text class="tiny" x="1560" y="808" text-anchor="middle">to 0 V and 5 V_A</text>
+
+  <path class="wire" d="M 1325 330 L 1440 330"/>
+  <path class="wire" d="M 1560 730 L 1560 125"/>
+  <path class="wire" d="M 1560 850 L 1560 1090"/>
+</svg>

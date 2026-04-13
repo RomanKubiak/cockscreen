@@ -20,15 +20,15 @@ The short version is:
 
 - Direct CV attenuation for 0-10 V sources: `100k` / `100k` divider.
 - Direct CV series protection: `1k`.
-- Direct CV clamp: `BAT54S` dual Schottky to `0 V` and `3V3`.
+- Direct CV clamp: two `1N4148` diodes to `0 V` and `3V3`.
 - Direct CV low-pass filter: `1 nF` to ground.
-- Optional bipolar CV stage: `MCP6002` rail-to-rail op-amp with `100k` / `100k` mid-rail bias.
+- Optional bipolar CV stage: `MCP6002-I/P` dual rail-to-rail op-amp in DIP-8 with `100k` / `100k` mid-rail bias.
 - Pot mux series protection: `1k`.
-- Pot mux clamp: `BAT54S` dual Schottky to `0 V` and `3V3`.
+- Pot mux clamp: two `1N4148` diodes to `0 V` and `3V3`.
 - Gate series resistor: `10k`.
 - Gate pull-down: `100k`.
-- Gate clamp: `BAT54S` to `0 V` and `3V3`.
-- Gate buffer: `74LVC14` Schmitt trigger at `3.3 V`.
+- Gate clamp: two `1N4148` diodes to `0 V` and `3V3`.
+- Gate buffer: `SN74LVC14AN` Schmitt trigger at `3.3 V`.
 
 ## Direct CV Inputs On `AD1`-`AD3`
 
@@ -63,9 +63,9 @@ Each direct CV input uses the same element set:
 - `Jx` input jack
 - `R1` `100k` / `100k` attenuator for `0-10 V` sources
 - `R2` `1k` series protection resistor
-- `D1` `BAT54S` clamp to `0 V` and `3V3`
+- `D1` two `1N4148` clamp diodes to `0 V` and `3V3`
 - `C1` `1 nF` to ground
-- optional `U1` `MCP6002` if bipolar CV needs mid-rail shifting
+- optional `U1` `MCP6002-I/P` if bipolar CV needs mid-rail shifting
 
 ### CV Input Rules
 
@@ -77,6 +77,10 @@ Each direct CV input uses the same element set:
 ### Direct CV Conditioning Block Diagram
 
 ![Direct CV conditioning block diagram](docs/analog-cv-input.svg)
+
+### Direct CV Conditioning Schematic
+
+![Direct CV conditioning schematic](docs/analog-cv-conditioning-schematic.svg)
 
 ## Pot Mux On `AD0`
 
@@ -156,6 +160,58 @@ Suggested front-end channel:
 ### Gate Input Schematic
 
 ![Gate input schematic](docs/analog-gate-input.svg)
+
+### Gate Conditioning Schematic
+
+![Gate conditioning schematic](docs/analog-gate-conditioning-schematic.svg)
+
+## Power And CV Outputs
+
+All project power comes from a 12 V wall PSU. The input is protected, converted to 5 V_DIG for the Raspberry Pi and digital logic, and then filtered again into 5 V_A for the precision output/reference stage.
+
+The CV output path is designed for microtuning stability. The board exposes four DAC channels (DAC0-DAC3), and each source around 0-2.5 V is filtered and amplified to a calibrated 0-5 V output.
+
+### Power Input And Distribution
+
+The detailed drawing is in [docs/cv-power-input-stage.svg](docs/cv-power-input-stage.svg).
+
+| Stage | Parts |
+|---|---|
+| 12 V input | barrel jack, polyfuse, 1N5819 reverse-polarity diode, 1.5KE15A TVS, bulk capacitors |
+| 5 V_DIG regulator | LM2596T-5.0, 33 uH inductor, 1N5822 catch diode, output bulk capacitor |
+| 5 V_A analog branch | 10 ohm isolation resistor, 470 uF reservoir capacitor, 100 nF C0G decoupling |
+
+### Precision CV Output Channel
+
+Each output channel uses the same element set:
+
+- `Jx` CV output jack
+- `R1` `1k` series resistor from the DAC node
+- `C1` `10 nF` C0G reconstruction capacitor to ground
+- `U1A` `MCP6V28-I/P` zero-drift RRIO op-amp in a gain-of-2 stage, with `MCP6V27-I/P` as the single-channel equivalent
+- `R2` `10k` 0.1% metal film resistor to ground
+- `R3` `9.76k` 0.1% metal film resistor in the feedback network
+- `TRIM1` `3296W-1-501` multiturn trimmer for fine gain trim
+- `D1` two `1N4148` diodes as output clamps to `0 V` and `5 V_A`
+- `C2` `100 nF` decoupling capacitor at the op-amp supply pins
+
+### Reference Rail
+
+- `U2` `AD780AN` precision 2.5 V reference in DIP-8
+- `RREF` `10k` 0.1% metal film load resistor
+- `CREF1` `100 nF` decoupling capacitor
+- `CREF2` `10 uF` reservoir capacitor
+
+### Output Rules
+
+- Keep the DAC and op-amp grounds in a star layout with the power entry point.
+- Use 0.1% metal film resistors in the gain network.
+- Use C0G/NP0 or film capacitors for the reconstruction and reference decoupling path.
+- Calibrate each channel against a known reference before using it for microtuning.
+
+### Output Schematic
+
+The detailed drawing is in [docs/cv-output-stage.svg](docs/cv-output-stage.svg).
 
 ## Runtime Output
 
