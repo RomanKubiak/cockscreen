@@ -4,21 +4,9 @@ Qty,Manufacturer Part Number,Status,Notes
 1,576-1.5KE15A,verified,15 V TVS diode
 1,926-LM2596T-5.0/NOPB,verified,5 V buck regulator
 1,494-1N5822,verified,Buck catch diode
-1,851-CDRH127NP-330MC,verified,33 uH 3 A power inductor
-2,661-LXY25VB471M,verified,470 uF 25 V input bulk capacitor
-1,594-2222-138-34471,verified,470 uF 10 V analog rail reservoir capacitor
-1,594-MAL211834331E3,verified,330 uF 10 V buck output bulk capacitor
-1,71-CCF60-10,verified,10 ohm 1/2 W analog rail isolation resistor
-6,505-MKS2.1/63/5T,verified,100 nF film decoupling capacitor
-1,810-C3216C0G2A104J6C,substitute,100 nF C0G capacitor is the exact Mouser number found, but it is SMD
-9,603-MFP-25BTD52-100K,verified,100k resistor for direct CV dividers and gate pull-downs
-11,588-MOX70031001BYE,verified,1k resistor for series protection and mux output
-3,594-A102J15C0GF5UAAP,verified,1 nF C0G capacitor for direct CV low-pass
-8,588-MOX70031002BYE,verified,10k resistor for gate series, output gain network, and reference load
+1,652-2100LL-330-H-RC,verified,33 uH THT toroidal power inductor
 4,71-RN55C9761BRE5,verified,9.76k 0.1% feedback resistor
-4,810-FG28C0G1H103JNT6,verified,10 nF C0G reconstruction capacitor
 4,652-3296W-1-501,verified,Trim pot for output gain calibration
-2,COM-10976,verified,SparkFun motorized fader modules; feedback wiper can be sampled on AD0 mux channels
 1,595-SN754410NE,verified,Dual H-bridge driver for the two fader motors
 22,512-1N4148,verified,Clamp diodes across CV, gate, mux, and output paths
 4,595-OPA277PA,verified,Precision op amp for CV outputs
@@ -27,5 +15,4 @@ Qty,Manufacturer Part Number,Status,Notes
 1,485-610,verified,Panel mount 2.1 mm DC barrel jack
 10,502-35RAPC2AHN2,verified,3.5 mm mono jacks for CV and gate I/O
 3,633-D22013LP,verified,ON-OFF-ON panel toggle switch
-4,909-HEX-SPACER-M3X12,verified,M3 spacers for mounting
-1,595-SN74LVC14ANSR,substitute,SMD Schmitt trigger selected because the DIP variant is not stocked on Mouser Poland
+1,595-SN74HCT14N,verified,Through-hole Schmitt trigger inverter for gate conditioning
