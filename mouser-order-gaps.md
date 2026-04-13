@@ -2,6 +2,12 @@
 
 These are the parts still missing from [mouser-order-draft.csv](/home/atom/devel/cockscreen/mouser-order-draft.csv#L1) for a practical DIY build.
 
+## User-Supplied Parts
+
+| Qty | Item | Notes |
+|---|---|---|
+| 1 | ProtoSupplies 16-ch analog/digital mux module | Already owned by the user; do not order the CD74HC4067 separately |
+
 ## Mechanical And Interconnect
 
 | Qty | Item | Notes |
@@ -12,12 +18,21 @@ These are the parts still missing from [mouser-order-draft.csv](/home/atom/devel
 | 4 | Output jack | One per CV output |
 | 3 | 3-position switch | Direct, attenuated, bipolar modes |
 | 1 | PCB or perfboard | If not using a custom board |
-| 1 | Breakout or PCB for mux wiring | Keeps the pot bank tidy |
 | 1 | Calibration header or test points | Helpful during trim and verification |
 | 1 | Standoffs, screws, spacers | Mechanical mounting |
 | 1 | Panel hardware set | Nuts, washers, labels, etc. |
 | 1 | Hookup wire / ribbon cable | Board interconnects |
 | 1 | 12 V DC wall PSU | Sized for the full system load |
+
+## Exact Mouser Candidates Found
+
+| Qty | Item | Mouser Number | Notes |
+|---|---|---|---|
+| 1 | 40-pin GPIO header / connector set | 474-PRT-13054 | 2x20 shrouded header option; 474-PRT-14275 is the male header alternative |
+| 1 | 5.5 x 2.1 mm DC barrel jack, panel mount | 485-610 | Panel mount 2.1mm DC barrel jack |
+| 10 | 3.5 mm mono jack | 502-35RAPC2AHN2 | Use for the input/output jack pool if you standardize on 3.5 mm mono |
+| 3 | 3-position switch | 633-D22013LP | ON-OFF-ON panel-mount toggle switch |
+| 4 | M3 spacer | 909-HEX-SPACER-M3X12 | Example board-mount spacer length |
 
 ## Passive Parts
 
@@ -50,8 +65,6 @@ These are the parts still missing from [mouser-order-draft.csv](/home/atom/devel
 |---|---|---|
 | 5 | DIP-8 socket | For the four OPA277PA parts and AD780AN |
 | 1 | DIP-14 socket | Helpful if you keep a THT Schmitt trigger |
-| 1 | DIP-24 socket | Helpful if you keep the THT mux |
-| 1 | SMD adapter board | For CD74HC4067M96 if you keep the SMD substitute |
 | 1 | SMD adapter board | For SN74LVC14ANSR if you keep the SMD substitute |
 | 16 | Pot knobs | Makes the pot bank usable |
 | 1 | Heat-shrink assortment | Wire insulation and strain relief |
@@ -75,5 +88,6 @@ Already covered in the current CSV:
 | 1 | AD780ANZ |
 | 22 | 1N4148 diodes |
 | 16 | 10k linear potentiometers |
-| 1 | CD74HC4067M96 substitute |
 | 1 | SN74LVC14ANSR substitute |
+
+The mux module is already owned, so it is intentionally excluded from the order CSV.

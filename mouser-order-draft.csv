@@ -8,5 +8,4 @@ Qty,Manufacturer Part Number,Status,Notes
 1,584-AD780ANZ,verified,2.5 V reference
 22,512-1N4148,verified,Clamp diodes across CV and gate paths
 16,652-PDB12-F2301103BF,verified,10k linear panel pots for AD0 bank
-1,595-CD74HC4067M96,substitute,SMD mux selected because the THT variant is not stocked on Mouser Poland
 1,595-SN74LVC14ANSR,substitute,SMD Schmitt trigger selected because the DIP variant is not stocked on Mouser Poland
