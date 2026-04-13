@@ -1,0 +1,12 @@
+Qty,Manufacturer Part Number,Status,Notes
+1,652-MFR110,verified,Polyfuse for 12 V input
+1,637-1N5819,verified,Reverse polarity Schottky diode
+1,576-1.5KE15A,verified,15 V TVS diode
+1,926-LM2596T-5.0/NOPB,verified,5 V buck regulator
+1,494-1N5822,verified,Buck catch diode
+4,595-OPA277PA,verified,Precision op amp for CV outputs
+1,584-AD780ANZ,verified,2.5 V reference
+22,512-1N4148,verified,Clamp diodes across CV and gate paths
+16,652-PDB12-F2301103BF,verified,10k linear panel pots for AD0 bank
+1,595-CD74HC4067M96,substitute,SMD mux selected because the THT variant is not stocked on Mouser Poland
+1,595-SN74LVC14ANSR,substitute,SMD Schmitt trigger selected because the DIP variant is not stocked on Mouser Poland

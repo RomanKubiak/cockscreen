@@ -89,7 +89,7 @@ The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-st
 | 4 | 3296W-1-501 multiturn trimmer | Fine gain trim per channel |
 | 8 | 1N4148 diode | Clamp pair at each CV output, two per channel |
 | 4 | 100 nF film capacitor | Local op-amp supply decoupling |
-| 2 | MCP6V28-I/P | Dual zero-drift RRIO op-amp, DIP-8 THT |
+| 4 | OPA277PA | Best stocked THT precision fallback I could verify in Poland, DIP-8; one per CV channel |
 | 1 | AD780AN | Precision 2.5 V reference, DIP-8 THT |
 | 1 | 10 k 0.1% metal film resistor | Reference load / bias resistor |
 | 1 | Calibration header or test points | Helpful when trimming output voltage accuracy |
@@ -108,4 +108,7 @@ The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-st
 - Do not feed negative voltages directly into the ADC path.
 - Do not connect raw 5 V gate signals straight to Pi GPIO.
 - The precision output stage assumes the DAC source is a high-resolution digital section elsewhere in the project; this BOM covers the analog conditioning, reference, and power distribution around it.
-- For a single-channel prototype, use MCP6V27-I/P; for the 4-channel build, MCP6V28-I/P is the recommended dual-package option.
+- For a single-channel prototype, use OPA277PA.
+- For the 4-channel build, use four OPA277PA parts; OPA4227PA is the stocked quad alternative if you want one 14-pin package.
+- The stocked THT fallback parts I verified in Poland are OPA277PA, OPA227PA, and OPA4227PA; none of them are true rail-to-rail substitutes.
+- If exact 0 V / 5 V rail-to-rail behavior matters, keep the SMD RRIO part and mount it on a DIP adapter instead.

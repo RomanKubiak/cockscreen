@@ -54,8 +54,8 @@
   <path class="wire" d="M 685 480 L 685 1090"/>
 
   <rect class="green" x="940" y="220" width="390" height="260"/>
-  <text class="label" x="1135" y="256" text-anchor="middle">U3A MCP6V28-I/P</text>
-  <text class="small" x="1135" y="284" text-anchor="middle">zero-drift RRIO op-amp, DIP-8</text>
+  <text class="label" x="1135" y="256" text-anchor="middle">U3A OPA277PA</text>
+  <text class="small" x="1135" y="284" text-anchor="middle">precision low-noise op-amp, DIP-8</text>
   <text class="tiny" x="1135" y="318" text-anchor="middle">non-inverting gain stage with precision trim</text>
   <text class="tiny" x="1135" y="340" text-anchor="middle">R2 10k to GND, R3 9.76k feedback</text>
   <text class="tiny" x="1135" y="362" text-anchor="middle">TRIM1 3296W-1-501 for final endpoint calibration</text>

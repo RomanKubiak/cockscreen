@@ -188,7 +188,7 @@ Each output channel uses the same element set:
 - `Jx` CV output jack
 - `R1` `1k` series resistor from the DAC node
 - `C1` `10 nF` C0G reconstruction capacitor to ground
-- `U1A` `MCP6V28-I/P` zero-drift RRIO op-amp in a gain-of-2 stage, with `MCP6V27-I/P` as the single-channel equivalent
+- `U1A` `OPA277PA` precision low-noise op-amp in a gain-of-2 stage
 - `R2` `10k` 0.1% metal film resistor to ground
 - `R3` `9.76k` 0.1% metal film resistor in the feedback network
 - `TRIM1` `3296W-1-501` multiturn trimmer for fine gain trim
