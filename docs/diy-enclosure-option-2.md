@@ -27,6 +27,8 @@ This is the plywood-shell plus aluminum-top-panel version of the desktop enclosu
 
 Pots, jacks, and sliders are not to scale here. The point is zone placement and spacing.
 
+For a visual rough sketch, see [docs/diy-enclosure-option-2-rough.svg](docs/diy-enclosure-option-2-rough.svg).
+
 ```text
 Rear / top
 +--------------------------------------------------------------------------------+
