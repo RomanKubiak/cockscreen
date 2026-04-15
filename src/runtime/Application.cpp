@@ -124,6 +124,16 @@ int Application::run(int argc, char *argv[])
     support::apply_scene_to_settings(scene, &settings_);
     settings_.shader_directory = support::effective_shader_directory(scene, settings_);
 
+    if (const auto missing_shaders = support::missing_scene_shaders(scene, settings_); !missing_shaders.empty())
+    {
+        for (const auto &message : missing_shaders)
+        {
+            std::cerr << message << '\n';
+        }
+        std::cerr << "Refusing to start due to missing scene shader files.\n";
+        return 2;
+    }
+
     if (!validate_render_path(settings_))
     {
         return 2;
@@ -303,11 +313,7 @@ int Application::run(int argc, char *argv[])
         std::cout << "Video format: " << window.capture_format_label().toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-        std::cout << "Shader directory: " << settings_.shader_directory << '\n';
           std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
-        std::cout << "Shader file: " << (settings_.shader_file.empty() ? "<default>" : settings_.shader_file) << '\n';
-        std::cout << "Screen shader file: "
-              << (settings_.screen_shader_file.empty() ? "<default>" : settings_.screen_shader_file) << '\n';
         std::cout << "Shader loaded: " << shader_label.toStdString() << '\n';
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "DMABUF export: " << (window.dmabuf_export_supported() ? "available" : "unavailable") << '\n';
@@ -427,10 +433,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-        std::cout << "Shader directory: " << settings_.shader_directory << '\n';
-        std::cout << "Shader file: " << (settings_.shader_file.empty() ? "<default>" : settings_.shader_file) << '\n';
-        std::cout << "Screen shader file: "
-                  << (settings_.screen_shader_file.empty() ? "<default>" : settings_.screen_shader_file) << '\n';
         std::cout << "Scene file: " << (settings_.scene_file.empty() ? "<none>" : settings_.scene_file) << '\n';
         std::cout << "Top layer: " << (video_on_top ? "video" : "screen") << '\n';
         std::cout << "Top layer opacity: " << settings_.top_layer_opacity << '\n';
@@ -545,12 +547,8 @@ int Application::run(int argc, char *argv[])
     std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
     std::cout << "Audio device: " << settings_.audio_device << '\n';
     std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-    std::cout << "Shader directory: " << settings_.shader_directory << '\n';
       std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
-    std::cout << "Shader file: " << (settings_.shader_file.empty() ? "<default>" : settings_.shader_file) << '\n';
     std::cout << "Playback file: " << (scene.playback_input.file.empty() ? "<none>" : scene.playback_input.file) << '\n';
-    std::cout << "Screen shader file: "
-              << (settings_.screen_shader_file.empty() ? "<default>" : settings_.screen_shader_file) << '\n';
     std::cout << "Video shader loaded: " << video_shader_label.toStdString() << '\n';
     std::cout << "Screen shader loaded: " << screen_shader_label.toStdString() << '\n';
     std::cout << "Top layer: " << (video_on_top ? "video" : "screen") << '\n';

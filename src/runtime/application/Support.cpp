@@ -3,9 +3,44 @@
 #include "cockscreen/runtime/RuntimeHelpers.hpp"
 
 #include <filesystem>
+#include <vector>
 
 namespace cockscreen::runtime::application_support
 {
+
+namespace
+{
+
+void collect_missing_layer_shaders(const char *layer_name, const SceneLayer &layer, const std::string &shader_directory,
+                                   std::vector<std::string> *missing_shaders)
+{
+    if (missing_shaders == nullptr)
+    {
+        return;
+    }
+
+    for (const auto &shader_file : layer.shaders)
+    {
+        if (shader_file.empty())
+        {
+            continue;
+        }
+
+        std::filesystem::path shader_path{shader_file};
+        if (!shader_path.is_absolute())
+        {
+            shader_path = std::filesystem::path{shader_directory} / shader_path;
+        }
+
+        if (!resolve_relative_path(shader_path).has_value())
+        {
+            missing_shaders->push_back("Missing scene shader [" + std::string(layer_name) + "]: " + shader_file +
+                                       " (expected at " + shader_path.string() + ")");
+        }
+    }
+}
+
+} // namespace
 
 std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem::path &path)
 {
@@ -68,6 +103,16 @@ std::string effective_shader_directory(const SceneDefinition &scene, const Appli
     }
 
     return settings.executable_directory;
+}
+
+std::vector<std::string> missing_scene_shaders(const SceneDefinition &scene, const ApplicationSettings &settings)
+{
+    std::vector<std::string> missing_shaders;
+    const auto shader_directory = effective_shader_directory(scene, settings);
+    collect_missing_layer_shaders("video", scene.video_layer, shader_directory, &missing_shaders);
+    collect_missing_layer_shaders("playback", scene.playback_layer, shader_directory, &missing_shaders);
+    collect_missing_layer_shaders("screen", scene.screen_layer, shader_directory, &missing_shaders);
+    return missing_shaders;
 }
 
 std::pair<int, int> requested_video_dimensions(const SceneDefinition &scene)
