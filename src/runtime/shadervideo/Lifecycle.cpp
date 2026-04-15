@@ -24,10 +24,10 @@ void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
         return;
     }
 
-    const int overlay_width = std::max(widget->width() * 3 / 10, 1);
+    const int overlay_width = std::max(widget->width() * 9 / 20, 1);
     const int overlay_x = std::max(widget->width() - overlay_width, 0);
-    const int overlay_y = widget->height() / 10;
-    const int overlay_height = widget->height() * 8 / 10;
+    const int overlay_y = widget->height() / 12;
+    const int overlay_height = widget->height() * 10 / 12;
     overlay->setGeometry(overlay_x, overlay_y, overlay_width, overlay_height);
 }
 

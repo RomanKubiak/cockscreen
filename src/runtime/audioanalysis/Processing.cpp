@@ -20,8 +20,7 @@ namespace cockscreen::runtime
 
 void AudioAnalysisWindow::start_audio_capture()
 {
-    if (settings_.audio_device == "@default_output_monitor@" || settings_.audio_device == "@DEFAULT_OUTPUT_MONITOR@" ||
-        settings_.audio_device == "@DEFAULT_MONITOR@")
+    if (is_default_output_monitor_token(settings_.audio_device))
     {
         start_monitor_capture();
         return;
@@ -50,7 +49,8 @@ void AudioAnalysisWindow::start_audio_capture()
     }
 
     QObject::connect(audio_io_, &QIODevice::readyRead, this, &AudioAnalysisWindow::process_audio_chunk);
-    set_status_message(QStringLiteral("Input: %1").arg(device_label_.isEmpty() ? audio_device_.description() : device_label_));
+    set_status_message(
+        QStringLiteral("Opened input: %1").arg(device_label_.isEmpty() ? audio_device_.description() : device_label_));
 }
 
 void AudioAnalysisWindow::start_monitor_capture()
@@ -69,16 +69,23 @@ void AudioAnalysisWindow::start_monitor_capture()
     }
 
     audio_format_ = wasapi_loopback_->format();
-    set_status_message(QStringLiteral("Input: default output monitor (WASAPI loopback)"));
+    set_status_message(QStringLiteral("Opened monitor: default output monitor (WASAPI loopback)"));
 #else
+    const auto monitor_source_name = default_output_monitor_source_name();
+    if (!monitor_source_name.has_value())
+    {
+        set_status_message(QStringLiteral("Default output monitor could not be resolved"));
+        return;
+    }
+
     using_external_capture_ = true;
     audio_format_.setChannelCount(2);
     audio_format_.setSampleRate(48000);
     audio_format_.setSampleFormat(QAudioFormat::Int16);
 
     audio_process_.setProgram(QStringLiteral("parec"));
-    audio_process_.setArguments({QStringLiteral("-r"), QStringLiteral("-d"), QStringLiteral("@DEFAULT_MONITOR@"),
-                                 QStringLiteral("--raw"), QStringLiteral("--format=s16"),
+    audio_process_.setArguments({QStringLiteral("-r"), QStringLiteral("-d"), *monitor_source_name, QStringLiteral("--raw"),
+                                 QStringLiteral("--format=s16"),
                                  QStringLiteral("--channels=2"), QStringLiteral("--rate=48000"),
                                  QStringLiteral("-")});
 
@@ -96,7 +103,7 @@ void AudioAnalysisWindow::start_monitor_capture()
     }
 
     audio_io_ = &audio_process_;
-    set_status_message(QStringLiteral("Input: default output monitor"));
+    set_status_message(QStringLiteral("Opened monitor: %1").arg(*monitor_source_name));
 #endif
 }
 

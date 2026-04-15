@@ -61,7 +61,7 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "smoke.glsl"
+            "wireframe_plane.glsl"
         ]
     },
     "midi_cc_mappings": [

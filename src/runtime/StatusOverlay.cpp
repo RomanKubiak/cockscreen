@@ -58,8 +58,7 @@ void StatusOverlay::paintEvent(QPaintEvent *)
     painter.setRenderHint(QPainter::TextAntialiasing, true);
 
     QFont status_font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    status_font.setPointSize(10);
-    status_font.setBold(true);
+    status_font.setPointSize(8);
     painter.setFont(status_font);
     painter.setPen(Qt::white);
 

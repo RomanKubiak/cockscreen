@@ -48,6 +48,8 @@ class SystemMetricsSampler final
 };
 
 std::optional<std::pair<int, int>> parse_capture_mode_dimensions(std::string_view mode);
+bool is_default_output_monitor_token(std::string_view device);
+std::optional<QString> default_output_monitor_source_name();
 std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settings, QString *selected_label = nullptr);
 std::optional<QCameraDevice> select_video_input(const ApplicationSettings &settings, QString *selected_label);
 std::optional<QCameraFormat> select_camera_format(const QCameraDevice &device, int requested_width, int requested_height);

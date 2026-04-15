@@ -14,6 +14,15 @@ namespace
 
 #ifndef _WIN32
 
+bool is_default_output_monitor_token_name(const QString &device)
+{
+    return device == QStringLiteral("@default_output_monitor@") ||
+           device == QStringLiteral("@DEFAULT_OUTPUT_MONITOR@") ||
+           device == QStringLiteral("@DEFAULT_MONITOR@") ||
+           device == QStringLiteral("@default_monitor_output@") ||
+           device == QStringLiteral("@DEFAULT_MONITOR_OUTPUT@");
+}
+
 std::optional<QString> detect_default_output_monitor_source_name()
 {
     QProcess info_process;
@@ -98,6 +107,20 @@ int camera_format_priority(QVideoFrameFormat::PixelFormat pixel_format)
 
 } // namespace
 
+bool is_default_output_monitor_token(std::string_view device)
+{
+    return is_default_output_monitor_token_name(QString::fromUtf8(device.data(), static_cast<qsizetype>(device.size())));
+}
+
+std::optional<QString> default_output_monitor_source_name()
+{
+#ifdef _WIN32
+    return std::nullopt;
+#else
+    return detect_default_output_monitor_source_name();
+#endif
+}
+
 std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settings, QString *selected_label)
 {
     const auto audio_inputs = QMediaDevices::audioInputs();
@@ -122,8 +145,7 @@ std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settin
         requested.clear();
     }
 
-    if (requested == QStringLiteral("@default_output_monitor@") ||
-        requested == QStringLiteral("@DEFAULT_OUTPUT_MONITOR@") || requested == QStringLiteral("@DEFAULT_MONITOR@"))
+    if (is_default_output_monitor_token_name(requested))
     {
         if (selected_label != nullptr)
         {
@@ -155,7 +177,7 @@ std::optional<QAudioDevice> select_audio_input(const ApplicationSettings &settin
 #ifndef _WIN32
     if (!is_pi_target())
     {
-        if (const auto monitor_source_name = detect_default_output_monitor_source_name(); monitor_source_name.has_value())
+        if (const auto monitor_source_name = default_output_monitor_source_name(); monitor_source_name.has_value())
         {
             const QByteArray monitor_id = monitor_source_name->toUtf8();
             for (const auto &device : audio_inputs)
