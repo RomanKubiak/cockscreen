@@ -200,21 +200,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 
     set(_cockscreen_deploy_dir "${CMAKE_BINARY_DIR}/deploy")
 
-    # Generate a cockscreen.ini with paths relative to the deploy folder root.
-    # (scene_file and shader_directory sit beside the exe, not one level up)
-    set(_cockscreen_deploy_ini "${CMAKE_BINARY_DIR}/cockscreen-deploy.ini")
-    file(WRITE "${_cockscreen_deploy_ini}"
-        "; Cockscreen defaults for Windows 10 64-bit\n"
-        "[runtime]\n"
-        "render_path=qt-shader\n"
-        "window_title=cockscreen\n"
-        "width=1024\n"
-        "height=600\n"
-        "frame_rate=30\n"
-        "scene_file=scenes/windows.scene.json\n"
-        "shader_directory=shaders\n"
-    )
-
     # Include in ALL only for Release so it doesn't slow down debug iterations.
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         set(_cockscreen_package_in_all ALL)
@@ -244,10 +229,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${_cockscreen_mingw_runtime_dlls}
                 "${_cockscreen_deploy_dir}/"
-        # Copy cockscreen.ini next to the exe so double-clicking works out of the box.
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${_cockscreen_deploy_ini}"
-                "${_cockscreen_deploy_dir}/cockscreen.ini"
         # Copy runtime asset directories.
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/shaders"   "${_cockscreen_deploy_dir}/shaders"

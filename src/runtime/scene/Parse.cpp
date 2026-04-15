@@ -51,6 +51,20 @@ SceneColor parse_color(const QJsonValue &value)
     return color;
 }
 
+SceneGeometry parse_geometry(const QJsonValue &value)
+{
+    SceneGeometry geometry;
+    if (!value.isObject())
+    {
+        return geometry;
+    }
+
+    const auto object = value.toObject();
+    geometry.width = std::max(1, json_int(object, "width", geometry.width));
+    geometry.height = std::max(1, json_int(object, "height", geometry.height));
+    return geometry;
+}
+
 BackgroundImagePlacement parse_background_image_placement(const std::string &placement)
 {
     const QString normalized = QString::fromStdString(placement).trimmed().toLower();
@@ -195,9 +209,24 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         }
     }
 
+    if (const auto geometry = root.value(QStringLiteral("geometry")); geometry.isObject())
+    {
+        scene.geometry = parse_geometry(geometry);
+    }
+    else
+    {
+        scene.geometry.width = std::max(1, json_int(root, "width", scene.geometry.width));
+        scene.geometry.height = std::max(1, json_int(root, "height", scene.geometry.height));
+    }
+
     if (const auto show_status_overlay = root.value(QStringLiteral("show_status_overlay")); show_status_overlay.isBool())
     {
         scene.show_status_overlay = show_status_overlay.toBool();
+    }
+
+    if (const auto render_path = root.value(QStringLiteral("render_path")); render_path.isString())
+    {
+        scene.render_path = render_path.toString().toStdString();
     }
 
     if (const auto shader_directory = root.value(QStringLiteral("shader_directory")); shader_directory.isString())

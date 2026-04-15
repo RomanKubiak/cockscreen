@@ -30,32 +30,58 @@ namespace support = application_support;
 namespace
 {
 
-QString limit_overlay_line(QString text, int max_chars)
+QStringList wrap_overlay_line(const QString &text, int preferred_chars)
 {
-    if (max_chars <= 0 || text.size() <= max_chars)
+    if (preferred_chars <= 0 || text.size() <= preferred_chars)
     {
-        return text;
+        return {text};
     }
 
-    return text.left(std::max(max_chars - 3, 0)) + QStringLiteral("...");
+    const QStringList segments = text.split(QStringLiteral(" | "));
+    if (segments.size() <= 1)
+    {
+        return {text};
+    }
+
+    QStringList wrapped_lines;
+    QString current_line;
+    for (const QString &segment : segments)
+    {
+        const QString candidate = current_line.isEmpty() ? segment : current_line + QStringLiteral(" | ") + segment;
+        if (current_line.isEmpty() || candidate.size() <= preferred_chars)
+        {
+            current_line = candidate;
+            continue;
+        }
+
+        wrapped_lines << current_line;
+        current_line = segment;
+    }
+
+    if (!current_line.isEmpty())
+    {
+        wrapped_lines << current_line;
+    }
+
+    return wrapped_lines.isEmpty() ? QStringList{text} : wrapped_lines;
 }
 
 QString build_overlay_text(const QString &fps_line, const QString &device_line, const QString &audio_line,
                            const QString &metrics_line, const QString &midi_line, const QString &osc_line,
                            const QString &extra_line = QString{})
 {
-    constexpr int kMaxCharsPerLine{40};
+    constexpr int kPreferredCharsPerLine{58};
 
     QStringList lines;
-    lines << limit_overlay_line(fps_line, kMaxCharsPerLine)
-          << limit_overlay_line(metrics_line, kMaxCharsPerLine)
-          << limit_overlay_line(device_line, kMaxCharsPerLine)
-          << limit_overlay_line(audio_line, kMaxCharsPerLine)
-          << limit_overlay_line(midi_line, kMaxCharsPerLine)
-          << limit_overlay_line(osc_line, kMaxCharsPerLine);
+    lines << wrap_overlay_line(fps_line, kPreferredCharsPerLine)
+          << wrap_overlay_line(metrics_line, kPreferredCharsPerLine)
+          << wrap_overlay_line(device_line, kPreferredCharsPerLine)
+          << wrap_overlay_line(audio_line, kPreferredCharsPerLine)
+          << wrap_overlay_line(midi_line, kPreferredCharsPerLine)
+          << wrap_overlay_line(osc_line, kPreferredCharsPerLine);
     if (!extra_line.isEmpty())
     {
-        lines << limit_overlay_line(extra_line, kMaxCharsPerLine);
+        lines << wrap_overlay_line(extra_line, kPreferredCharsPerLine);
     }
 
     return lines.join('\n');
@@ -71,6 +97,32 @@ int Application::run(int argc, char *argv[])
     {
         return 1;
     }
+
+    if (settings_.scene_file.empty())
+    {
+        std::cerr << "Scene file not specified. Pass --scene-file PATH or place a default scene beside the executable.\n";
+        return 2;
+    }
+
+    const auto scene_path = support::resolve_relative_path(std::filesystem::path{settings_.scene_file});
+    if (!scene_path.has_value())
+    {
+        std::cerr << "Scene file not found: " << settings_.scene_file << '\n';
+        return 2;
+    }
+
+    std::string scene_error;
+    const auto loaded_scene = load_scene_definition(*scene_path, &scene_error);
+    if (!loaded_scene.has_value())
+    {
+        std::cerr << scene_error << '\n';
+        return 2;
+    }
+
+    SceneDefinition scene = *loaded_scene;
+    settings_.scene_file = scene.source_path.string();
+    support::apply_scene_to_settings(scene, &settings_);
+    settings_.shader_directory = support::effective_shader_directory(scene, settings_);
 
     if (!validate_render_path(settings_))
     {
@@ -117,31 +169,6 @@ int Application::run(int argc, char *argv[])
     {
         QApplication::setOverrideCursor(Qt::BlankCursor);
     }
-
-    SceneDefinition scene = support::default_scene_for_settings(settings_);
-    if (!settings_.scene_file.empty())
-    {
-        const auto scene_path = support::resolve_relative_path(std::filesystem::path{settings_.scene_file});
-        if (!scene_path.has_value())
-        {
-            std::cerr << "Scene file not found: " << settings_.scene_file << '\n';
-            return 2;
-        }
-
-        std::string scene_error;
-        const auto loaded_scene = load_scene_definition(*scene_path, &scene_error);
-        if (!loaded_scene.has_value())
-        {
-            std::cerr << scene_error << '\n';
-            return 2;
-        }
-
-        scene = std::move(*loaded_scene);
-        settings_.scene_file = scene.source_path.string();
-    }
-
-    support::apply_scene_to_settings(scene, &settings_);
-    settings_.shader_directory = support::effective_shader_directory(scene, settings_);
 
     QString audio_label;
     select_audio_input(settings_, &audio_label);
@@ -308,7 +335,7 @@ int Application::run(int argc, char *argv[])
     {
         QString selected_video_label;
         const auto video_device = select_video_input(settings_, &selected_video_label);
-        const auto [requested_width, requested_height] = support::requested_video_dimensions(scene, settings_);
+        const auto [requested_width, requested_height] = support::requested_video_dimensions(scene);
         const auto selected_format = video_device.has_value()
                                          ? select_camera_format(*video_device, requested_width, requested_height)
                                          : std::nullopt;

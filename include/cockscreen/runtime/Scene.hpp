@@ -42,6 +42,12 @@ struct SceneBackgroundImage
     BackgroundImagePlacement placement{BackgroundImagePlacement::Center};
 };
 
+struct SceneGeometry
+{
+    int width{1024};
+    int height{600};
+};
+
 struct SceneLayer
 {
     bool enabled{true};
@@ -88,7 +94,9 @@ struct SceneDefinition
     std::filesystem::path source_path;
     SceneColor background_color;
     SceneBackgroundImage background_image;
+    SceneGeometry geometry;
     bool show_status_overlay{true};
+    std::string render_path{"qt-shader"};
     std::string shader_directory;
     std::filesystem::path resources_directory;
     std::string note_font_file;

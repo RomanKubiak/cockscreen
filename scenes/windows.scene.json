@@ -6,6 +6,11 @@
         "placement": "centered"
     },
     "shader_directory": "../shaders/",
+    "render_path": "qt-shader",
+    "geometry": {
+        "width": 1024,
+        "height": 600
+    },
     "inputs": {
         "video": {
             "enabled": false,

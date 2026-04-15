@@ -16,49 +16,47 @@ A Qt6 / OpenGL ES shader pipeline for Raspberry Pi Zero 2 W and x86_64 Linux. It
 ssh://atom@192.168.41.190
 ```
 
-Local x86_64 builds open a 1024×600 Qt6 window. Pi Zero 2 W builds use `eglfs` directly on DRM/KMS without a compositor.
+Local x86_64 scenes default to a 1024×600 Qt6 window. Pi Zero 2 W builds use `eglfs` directly on DRM/KMS without a compositor.
 
 ---
 
-## Configuration
+## Startup
 
-### INI file
+Runtime startup is scene-driven. Launch with `--scene-file <path>` or place the platform scene in `scenes/` next to the executable so `cockscreen` can auto-detect it.
 
-Runtime defaults live in `config/x86_64-linux.ini` (desktop) or `config/pi-zero2w.ini` (Pi). Format is Qt `QSettings` INI.
+The only supported CLI options are:
 
-```ini
-[runtime]
-render_path=qt-shader          ; qt-shader | v4l2-dmabuf-egl
-window_title=cockscreen
-width=1024
-height=600
-frame_rate=30
-scene_file=../scenes/x86_64-linux.scene.json
-shader_directory=../shaders    ; default shader search path (overridden by scene)
-```
-
-Config file lookup order:
-1. `--config-file <path>` CLI argument
-2. `cockscreen.ini` next to the executable
-3. `%APPDATA%\cockscreen\config.ini` (Windows)
-4. `$HOME/.config/cockscreen/config.ini` (Linux)
+- `--help`
+- `--list-devices`
+- `--scene-file <path>`
 
 ---
 
 ## Scene file
 
-A scene JSON file controls every visual aspect of a run. Pass it via `scene_file` in the INI or `--scene-file` on the command line.
+A scene JSON file controls every visual aspect of a run, including the render backend and window geometry.
 
 ### Top-level fields
 
 | Field | Type | Description |
 |---|---|---|
+| `render_path` | string | Render backend: `qt`, `qt-shader`, or `v4l2-dmabuf-egl` (Linux only). |
+| `geometry` | object | Window size, e.g. `{ "width": 1024, "height": 600 }`. |
 | `resources_directory` | string | Path (relative to scene file) where fonts, textures, videos, etc. are stored. |
 | `shader_directory` | string | Path (relative to scene file) where GLSL shader files are resolved. |
 | `note_font_file` | string | Font file (relative to `resources_directory`) used to render MIDI note labels in the atlas. Supports any TTF/OTF loaded by Qt. |
 | `show_status_overlay` | bool | Show the diagnostic HUD overlay (FPS, MIDI, audio). Default `false`. |
 | `background_color` | object | `{ "r": 0, "g": 0, "b": 0, "a": 1 }` — clear colour between frames. |
 | `background_image` | object | See below. |
+
+### `geometry`
+
+```json
+"geometry": {
+    "width": 1024,
+    "height": 600
+}
+```
 
 ### `background_image`
 
@@ -162,7 +160,7 @@ Map MIDI note activity to a shader uniform:
 ]
 ```
 
-The OSC server listens on the port set by `osc_endpoint` in the INI file (e.g. `osc_endpoint=0.0.0.0:9000`). Values arriving on a mapped address are clamped to `[0, 1]`, exponent-mapped, then scaled to `[min, max]` before being set as the uniform.
+The OSC server currently listens on `0.0.0.0:9000`. Values arriving on a mapped address are clamped to `[0, 1]`, exponent-mapped, then scaled to `[min, max]` before being set as the uniform.
 
 ### Analog front end
 
@@ -355,7 +353,7 @@ No MIDI/audio mappable uniforms — the change rate can be adjusted by editing `
 ```bash
 cmake --preset local-x86_64-debug
 cmake --build --preset local-x86_64-debug
-./out/build/local-x86_64-debug/cockscreen --config-file config/x86_64-linux.ini
+./out/build/local-x86_64-debug/cockscreen --scene-file scenes/x86_64-linux.scene.json
 ```
 
 ### Pi Zero 2 W native build (via SSH)
@@ -405,22 +403,22 @@ cmake --build --preset windows-x86_64-release
 ## Layout
 
 ```
-config/          runtime INI files per platform
-scenes/          scene JSON files
+scenes/          scene JSON files and runtime render settings
 shaders/         GLSL fragment shaders
 resources/
   fonts/         TTF/OTF fonts (note labels, icon atlas)
   textures/      background images
   videos/        playback clips
 include/cockscreen/
-  app/           CLI and config headers
+    app/           CLI and startup helpers
   core/          ControlFrame, ModulationBus
   runtime/       Application, ShaderVideoWindow, Scene, etc.
 src/
-  app/           Arguments, Config, DeviceDiscovery
+    app/           Arguments, startup path helpers, DeviceDiscovery
   core/          ModulationBus
   runtime/       Application, Scene, shader pipeline
 cmake/           toolchain files
 scripts/         bootstrap scripts
 ```
+scripts/         bootstrap scripts
 

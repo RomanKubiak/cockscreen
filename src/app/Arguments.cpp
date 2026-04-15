@@ -1,14 +1,8 @@
 #include "cockscreen/app/CliSupport.hpp"
 
-#ifndef _WIN32
-
-#include "cockscreen/runtime/V4l2Capture.hpp"
-#endif
-
 #include <QAudioDevice>
 #include <QCameraDevice>
 #include <QMediaDevices>
-#include <QVideoFrameFormat>
 
 #include <iostream>
 
@@ -76,40 +70,9 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         {
             result.list_devices_requested = true;
         }
-        else if (argument == "--list-capture-modes")
-        {
-            result.list_capture_modes_requested = true;
-        }
-        else if (argument == "--window-title")
-        {
-            result.settings.window_title = std::string(next_value(index, argc, argv));
-        }
         else if (argument == "--scene-file")
         {
             result.settings.scene_file = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--config-file")
-        {
-            if (next_value(index, argc, argv).empty())
-            {
-                result.help_requested = true;
-            }
-        }
-        else if (argument == "--render-path")
-        {
-            result.settings.render_path = std::string(next_value(index, argc, argv));
-        }
-        else if (argument == "--width")
-        {
-            result.settings.width = std::stoi(std::string(next_value(index, argc, argv)));
-        }
-        else if (argument == "--height")
-        {
-            result.settings.height = std::stoi(std::string(next_value(index, argc, argv)));
-        }
-        else if (argument == "--frame-rate")
-        {
-            result.settings.frame_rate = std::stoi(std::string(next_value(index, argc, argv)));
         }
         else
         {
@@ -124,88 +87,9 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
 void print_help()
 {
     std::cout << "Usage: cockscreen [options]\n"
-              << "  --config-file PATH\n"
               << "  --list-devices\n"
-              << "  --list-capture-modes (uses inputs.video.device from scene_file)\n"
-              << "  --window-title TEXT\n"
               << "  --scene-file FILE\n"
-#ifdef _WIN32
-              << "  --render-path qt|qt-shader  (v4l2-dmabuf-egl redirects to qt-shader)\n"
-#else
-              << "  --render-path qt|qt-shader|v4l2-dmabuf-egl\n"
-#endif
-              << "  --width N\n"
-              << "  --height N\n"
-              << "  --frame-rate N\n";
-}
-
-void print_capture_modes(const runtime::ApplicationSettings &settings)
-{
-#ifndef _WIN32
-    const auto modes = runtime::V4l2Capture::enumerate_supported_modes(settings.video_device);
-    std::cout << "Capture modes for " << settings.video_device << "\n";
-    if (modes.empty())
-    {
-        std::cout << "  <no device enumeration available>\n";
-    }
-    else
-    {
-        for (const auto &mode : modes)
-        {
-            std::cout << "  - " << mode << "\n";
-        }
-    }
-#else
-    // On Windows enumerate via Qt Multimedia (Media Foundation back-end).
-    const QString requested_id = QString::fromStdString(settings.video_device);
-    QCameraDevice selected_device;
-    for (const auto &device : QMediaDevices::videoInputs())
-    {
-        if (device.id() == requested_id.toUtf8() ||
-            device.description().compare(requested_id, Qt::CaseInsensitive) == 0)
-        {
-            selected_device = device;
-            break;
-        }
-    }
-    if (selected_device.isNull())
-    {
-        // Fall back to the default camera if no match found.
-        selected_device = QMediaDevices::defaultVideoInput();
-    }
-
-    if (selected_device.isNull())
-    {
-        std::cout << "No video capture device found.\n";
-    }
-    else
-    {
-        std::cout << "Capture modes for " << selected_device.description().toStdString() << "\n";
-        const auto formats = selected_device.videoFormats();
-        if (formats.isEmpty())
-        {
-            std::cout << "  <no format information available>\n";
-        }
-        else
-        {
-            for (const auto &fmt : formats)
-            {
-                const QSize res = fmt.resolution();
-                std::cout << "  - " << res.width() << "x" << res.height()
-                          << " @ " << fmt.minFrameRate() << "-" << fmt.maxFrameRate() << " fps"
-                          << "  pixel-format=" << static_cast<int>(fmt.pixelFormat()) << "\n";
-            }
-        }
-    }
-#endif
-
-    std::cout << "Static presets:\n";
-    std::cout << "  - qvga (320x240)\n";
-    std::cout << "  - vga (640x480)\n";
-    std::cout << "  - svga (800x600)\n";
-    std::cout << "  - xga (1024x768)\n";
-    std::cout << "  - 720p (1280x720)\n";
-    std::cout << "  - 1080p (1920x1080)\n";
+              << "  --help\n";
 }
 
 void print_device_list()
