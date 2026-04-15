@@ -20,11 +20,11 @@ A good orderable desktop enclosure for this layout is the Hammond 1456WL3BKBK sl
 - 20.26 x 11.61 x 3.21 in overall size
 - wide enough for eight manual pots, one NeoSlider, and two motorized faders without going to a rack chassis
 - if you want a steeper layout, the Hammond 1456WK4BKBK is the 30 degree alternate
-- if you want a DIY build, see [docs/diy-enclosure-option-2.md](docs/diy-enclosure-option-2.md) for a plywood-shell and aluminum-top-panel rough cut/layout
+- if you want a DIY build, see [diy-enclosure-option-2.md](diy-enclosure-option-2.md) for a plywood-shell and aluminum-top-panel rough cut/layout
 
 ## Detailed Proposed Schematic
 
-The preferred front-end is drawn in [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg). It shows the direct CV blocks, the control-surface layout, the NeoSlider module, the motorized faders, and the gate inputs in one board-level diagram.
+The preferred front-end is drawn in [analog-front-end-detailed.svg](analog-front-end-detailed.svg). It shows the direct CV blocks, the control-surface layout, the NeoSlider module, the motorized faders, and the gate inputs in one board-level diagram.
 
 The short version is:
 
@@ -88,11 +88,11 @@ Each direct CV input uses the same element set:
 
 ### Direct CV Conditioning Block Diagram
 
-![Direct CV conditioning block diagram](docs/analog-cv-input.svg)
+![Direct CV conditioning block diagram](analog-cv-input.svg)
 
 ### Direct CV Conditioning Schematic
 
-![Direct CV conditioning schematic](docs/analog-cv-conditioning-schematic.svg)
+![Direct CV conditioning schematic](analog-cv-conditioning-schematic.svg)
 
 ## Pot Mux On `AD0`
 
@@ -131,7 +131,7 @@ Wire each manual potentiometer or motorized-fader feedback track with one outer 
 
 ### Pot Mux Schematic
 
-The pot mux is shown in the board-level schematic above. It is the `AD0` section of [docs/analog-front-end-detailed.svg](docs/analog-front-end-detailed.svg).
+The pot mux is shown in the board-level schematic above. It is the `AD0` section of [analog-front-end-detailed.svg](analog-front-end-detailed.svg).
 
 ## Motorized Faders
 
@@ -195,11 +195,11 @@ Suggested front-end channel:
 
 ### Gate Input Schematic
 
-![Gate input schematic](docs/analog-gate-input.svg)
+![Gate input schematic](analog-gate-input.svg)
 
 ### Gate Conditioning Schematic
 
-![Gate conditioning schematic](docs/analog-gate-conditioning-schematic.svg)
+![Gate conditioning schematic](analog-gate-conditioning-schematic.svg)
 
 ## Power And CV Outputs
 
@@ -209,7 +209,7 @@ The CV output path is designed for microtuning stability. The board exposes four
 
 ### Power Input And Distribution
 
-The detailed drawing is in [docs/cv-power-input-stage.svg](docs/cv-power-input-stage.svg).
+The detailed drawing is in [cv-power-input-stage.svg](cv-power-input-stage.svg).
 
 | Stage | Parts |
 |---|---|
@@ -247,7 +247,7 @@ Each output channel uses the same element set:
 
 ### Output Schematic
 
-The detailed drawing is in [docs/cv-output-stage.svg](docs/cv-output-stage.svg).
+The detailed drawing is in [cv-output-stage.svg](cv-output-stage.svg).
 
 ## Runtime Output
 

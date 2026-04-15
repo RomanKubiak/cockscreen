@@ -164,9 +164,9 @@ The OSC server currently listens on `0.0.0.0:9000`. Values arriving on a mapped 
 
 ### Analog front end
 
-The Pi AARCH64 analog wiring, mux pinout, gate inputs, power distribution, and precision CV output stage now live in [ANALOG.md](ANALOG.md).
+The Pi AARCH64 analog wiring, mux pinout, gate inputs, power distribution, and precision CV output stage now live in [docs/ANALOG.md](docs/ANALOG.md).
 The split schematics are [docs/cv-power-input-stage.svg](docs/cv-power-input-stage.svg) and [docs/cv-output-stage.svg](docs/cv-output-stage.svg).
-The matching hardware bill of materials is in [BOM.md](BOM.md).
+The matching hardware bill of materials is in [docs/BOM.md](docs/BOM.md).
 
 ---
 

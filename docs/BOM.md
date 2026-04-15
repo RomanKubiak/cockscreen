@@ -60,7 +60,7 @@ Repeat the parts below three times, once for each gate input.
 
 All rails for the project come from a 12 V wall PSU. The Pi is fed from a regulated 5 V rail, and the precision analog section gets its own filtered 5 V_A branch.
 
-The detailed power distribution schematic is in [docs/cv-power-input-stage.svg](docs/cv-power-input-stage.svg).
+The detailed power distribution schematic is in [cv-power-input-stage.svg](cv-power-input-stage.svg).
 
 | Qty | Part | Notes |
 |---|---|---|
@@ -83,7 +83,7 @@ The detailed power distribution schematic is in [docs/cv-power-input-stage.svg](
 
 This section is the DAC output conditioning path used for microtuning CVs. The board exposes four DAC channels (DAC0-DAC3). Each high-resolution DAC output around 0-2.5 V is then filtered, buffered, and scaled to a stable 0-5 V jack output.
 
-The detailed output schematic is in [docs/cv-output-stage.svg](docs/cv-output-stage.svg).
+The detailed output schematic is in [cv-output-stage.svg](cv-output-stage.svg).
 
 | Qty | Part | Notes |
 |---|---|---|

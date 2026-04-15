@@ -152,19 +152,14 @@ int Application::run(int argc, char *argv[])
     }
 #endif
 
-    if (is_pi_target())
+    if (is_pi_target() && qgetenv("QT_QPA_PLATFORM").isEmpty())
     {
         qputenv("QT_QPA_PLATFORM", "eglfs");
     }
-#ifndef _WIN32
-    else
-    {
-        qputenv("QT_QPA_PLATFORM", "wayland-egl");
-    }
-#endif
 
     QApplication application{argc, argv};
     application.setApplicationName(QStringLiteral("cockscreen"));
+    const auto qt_platform_name = application.platformName().toStdString();
     if (is_pi_target())
     {
         QApplication::setOverrideCursor(Qt::BlankCursor);
@@ -317,7 +312,7 @@ int Application::run(int argc, char *argv[])
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "DMABUF export: " << (window.dmabuf_export_supported() ? "available" : "unavailable") << '\n';
         std::cout << "Window mode: direct V4L2/EGL" << '\n';
-        std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
+        std::cout << "Qt platform: " << qt_platform_name << '\n';
 
         if (!window.status_message().isEmpty())
         {
@@ -441,7 +436,7 @@ int Application::run(int argc, char *argv[])
         std::cout << "Top layer opacity: " << settings_.top_layer_opacity << '\n';
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "Window mode: Qt6 windowed" << '\n';
-        std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
+        std::cout << "Qt platform: " << qt_platform_name << '\n';
 
         const auto startup_frame = modulation_bus_.snapshot();
         std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
@@ -561,7 +556,7 @@ int Application::run(int argc, char *argv[])
     std::cout << "Top layer: " << (video_on_top ? "video" : "screen") << '\n';
     std::cout << "Render path: " << settings_.render_path << '\n';
     std::cout << "Window mode: Qt6 windowed" << '\n';
-    std::cout << "Qt platform: " << (is_pi_target() ? "eglfs" : "wayland-egl") << '\n';
+    std::cout << "Qt platform: " << qt_platform_name << '\n';
 
     const auto startup_frame = modulation_bus_.snapshot();
     std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
