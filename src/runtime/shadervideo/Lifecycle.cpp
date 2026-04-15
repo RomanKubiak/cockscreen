@@ -41,7 +41,6 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     : QOpenGLWidget{parent}, settings_{settings}, scene_{std::move(scene)}, video_label_{std::move(video_label)},
       video_on_top_{video_on_top}, show_status_overlay_{show_status_overlay}, camera_format_label_{std::move(format_label)}
 {
-    setWindowTitle(QString::fromStdString(settings_.window_title));
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
     setAutoFillBackground(false);

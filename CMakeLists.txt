@@ -45,7 +45,7 @@ add_library(cockscreen::core ALIAS cockscreen_core)
 target_sources(cockscreen_core
     PRIVATE
         src/app/Arguments.cpp
-        src/app/Config.cpp
+        src/app/StartupPaths.cpp
         src/app/DeviceDiscovery.cpp
         src/runtime/audioanalysis/Processing.cpp
         src/runtime/audioanalysis/UI.cpp

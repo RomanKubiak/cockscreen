@@ -38,7 +38,6 @@ VideoWindow::VideoWindow(const ApplicationSettings &settings, QCameraDevice vide
     : QWidget{parent}, settings_{settings}, video_label_{std::move(video_label)}, shader_label_{std::move(shader_label)},
     camera_format_label_{std::move(format_label)}, show_status_overlay_{show_status_overlay}
 {
-    setWindowTitle(QString::fromStdString(settings_.window_title));
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
     setAutoFillBackground(false);

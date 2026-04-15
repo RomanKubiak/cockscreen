@@ -21,7 +21,6 @@ struct ApplicationSettings
     std::string top_layer{"screen"};
     double top_layer_opacity{0.75};
     std::string render_path{"qt"};
-    std::string window_title{"cockscreen"};
     int width{1024};
     int height{600};
     int frame_rate{30};

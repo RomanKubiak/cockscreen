@@ -37,7 +37,6 @@ DirectVideoWindow::DirectVideoWindow(const ApplicationSettings &settings, QStrin
     : QOpenGLWidget{parent}, settings_{settings}, shader_label_{std::move(shader_label)},
       show_status_overlay_{show_status_overlay}
 {
-    setWindowTitle(QString::fromStdString(settings_.window_title));
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
     setAutoFillBackground(false);

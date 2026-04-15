@@ -164,7 +164,7 @@ int Application::run(int argc, char *argv[])
 #endif
 
     QApplication application{argc, argv};
-    application.setApplicationName(QString::fromStdString(settings_.window_title));
+    application.setApplicationName(QStringLiteral("cockscreen"));
     if (is_pi_target())
     {
         QApplication::setOverrideCursor(Qt::BlankCursor);
