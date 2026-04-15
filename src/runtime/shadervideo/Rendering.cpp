@@ -543,6 +543,9 @@ void ShaderVideoWindow::build_render_stages()
                 !stage.program->link())
             {
                 const auto log = stage.program->log();
+                record_fatal_render_error(
+                    QStringLiteral("Shader stage initialization failed for layer '%1' shader '%2':\n%3")
+                        .arg(layer_name, stage.label, log.isEmpty() ? QStringLiteral("<no shader log>") : log));
                 if (!log.isEmpty())
                 {
                     if (status_message_.isEmpty())

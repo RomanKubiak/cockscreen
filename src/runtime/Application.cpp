@@ -14,6 +14,7 @@
 
 #include <QApplication>
 #include <QCursor>
+#include <QSurfaceFormat>
 #include <QTimer>
 
 #include <chrono>
@@ -165,6 +166,15 @@ int Application::run(int argc, char *argv[])
     if (is_pi_target() && qgetenv("QT_QPA_PLATFORM").isEmpty())
     {
         qputenv("QT_QPA_PLATFORM", "eglfs");
+    }
+
+    if (!is_pi_target())
+    {
+        QSurfaceFormat format;
+        format.setRenderableType(QSurfaceFormat::OpenGL);
+        format.setVersion(2, 1);
+        format.setProfile(QSurfaceFormat::CompatibilityProfile);
+        QSurfaceFormat::setDefaultFormat(format);
     }
 
     QApplication application{argc, argv};
@@ -354,6 +364,13 @@ int Application::run(int argc, char *argv[])
         else
         {
             window.show();
+        }
+
+        application.processEvents();
+        if (!window.fatal_render_error().isEmpty())
+        {
+            std::cerr << window.fatal_render_error().toStdString() << '\n';
+            return 2;
         }
 
         QObject::connect(&timer, &QTimer::timeout, [&]() {

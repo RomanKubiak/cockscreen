@@ -198,6 +198,28 @@ QString ShaderVideoWindow::status_message() const
     return status_message_;
 }
 
+QString ShaderVideoWindow::fatal_render_error() const
+{
+    return fatal_render_error_;
+}
+
+void ShaderVideoWindow::record_fatal_render_error(QString text)
+{
+    if (text.isEmpty())
+    {
+        return;
+    }
+
+    if (fatal_render_error_.isEmpty())
+    {
+        fatal_render_error_ = std::move(text);
+        return;
+    }
+
+    fatal_render_error_ += QStringLiteral("\n");
+    fatal_render_error_ += text;
+}
+
 void ShaderVideoWindow::set_status_overlay_text(QString text)
 {
     status_overlay_text_ = std::move(text);
@@ -239,6 +261,7 @@ void ShaderVideoWindow::initializeGL()
         !blit_program_.link())
     {
         status_message_ = blit_program_.log();
+        record_fatal_render_error(QStringLiteral("Blit shader initialization failed:\n%1").arg(blit_program_.log()));
     }
 
     ensure_blank_texture();

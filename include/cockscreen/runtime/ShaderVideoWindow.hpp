@@ -46,6 +46,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] double processing_fps() const;
     [[nodiscard]] double render_fps() const;
     [[nodiscard]] QString status_message() const;
+    [[nodiscard]] QString fatal_render_error() const;
 
     void set_status_overlay_text(QString text);
 
@@ -82,6 +83,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void upload_latest_frame();
     void upload_latest_playback_frame();
     QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const;
+    void record_fatal_render_error(QString text);
     void build_render_stages();
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
@@ -108,6 +110,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QImage latest_playback_frame_;
     QString camera_format_label_{QStringLiteral("unknown")};
     QString status_message_;
+    QString fatal_render_error_;
     QString status_overlay_text_;
     QOpenGLShaderProgram video_program_;
     QOpenGLShaderProgram screen_program_;

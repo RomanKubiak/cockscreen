@@ -336,6 +336,15 @@ void ShaderVideoWindow::ensure_scene_fbos()
     playback_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
     screen_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
     screen_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
+
+    if (!video_scene_fbo_->isValid() || !video_scene_fbo_alt_->isValid() || !playback_scene_fbo_->isValid() ||
+        !playback_scene_fbo_alt_->isValid() || !screen_scene_fbo_->isValid() || !screen_scene_fbo_alt_->isValid())
+    {
+        record_fatal_render_error(QStringLiteral("Scene framebuffer initialization failed for viewport %1x%2")
+                                      .arg(target_width)
+                                      .arg(target_height));
+    }
+
     scene_fbo_width_ = target_width;
     scene_fbo_height_ = target_height;
     scene_fbo_dirty_ = false;
