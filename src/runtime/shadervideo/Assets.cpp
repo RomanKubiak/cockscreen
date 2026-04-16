@@ -213,6 +213,9 @@ void ShaderVideoWindow::ensure_background_image_texture()
 {
     if (scene_.background_image.file.empty())
     {
+        background_image_texture_width_ = 0;
+        background_image_texture_height_ = 0;
+        background_image_texture_dirty_ = false;
         return;
     }
 
@@ -230,6 +233,8 @@ void ShaderVideoWindow::ensure_background_image_texture()
     if (!background_path.has_value())
     {
         status_message_ = QStringLiteral("Background image not found");
+        background_image_texture_width_ = 0;
+        background_image_texture_height_ = 0;
         background_image_texture_dirty_ = false;
         return;
     }
@@ -238,6 +243,8 @@ void ShaderVideoWindow::ensure_background_image_texture()
     if (image.isNull())
     {
         status_message_ = QStringLiteral("Background image could not be loaded");
+        background_image_texture_width_ = 0;
+        background_image_texture_height_ = 0;
         background_image_texture_dirty_ = false;
         return;
     }

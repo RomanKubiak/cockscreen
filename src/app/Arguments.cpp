@@ -74,6 +74,10 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         {
             result.settings.scene_file = std::string(next_value(index, argc, argv));
         }
+        else if (argument == "--enable-web-server")
+        {
+            result.settings.web_server_bind_url = std::string(next_value(index, argc, argv));
+        }
         else
         {
             std::cerr << "Unknown argument: " << argument << '\n';
@@ -89,6 +93,7 @@ void print_help()
     std::cout << "Usage: cockscreen [options]\n"
               << "  --list-devices\n"
               << "  --scene-file FILE\n"
+              << "  --enable-web-server URL\n"
               << "  --help\n";
 }
 

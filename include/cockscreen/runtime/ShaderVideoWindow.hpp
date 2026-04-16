@@ -20,6 +20,7 @@
 #include <QStringList>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QVector2D>
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
@@ -48,6 +49,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] QString status_message() const;
     [[nodiscard]] QString fatal_render_error() const;
 
+    void apply_scene_update(SceneDefinition scene);
     void set_status_overlay_text(QString text);
 
     void set_frame(const core::ControlFrame &frame);
@@ -86,10 +88,12 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void record_fatal_render_error(QString text);
     void build_render_stages();
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
+    void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
+                   int frame_index, const QVector2D &channel0_resolution) const;
     void apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     void apply_scene_osc_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     GLuint render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
-              float elapsed_seconds);
+              float elapsed_seconds, float frame_delta_seconds, int frame_index);
 
     ApplicationSettings settings_;
     SceneDefinition scene_;
@@ -112,6 +116,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString status_message_;
     QString fatal_render_error_;
     QString status_overlay_text_;
+    StatusOverlay *fatal_error_overlay_{nullptr};
     QOpenGLShaderProgram video_program_;
     QOpenGLShaderProgram screen_program_;
     QOpenGLShaderProgram blit_program_;
@@ -150,6 +155,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     bool background_image_texture_dirty_{false};
     std::vector<RenderStage> render_stages_;
     int render_stage_index_{0};
+    int render_frame_index_{0};
     std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};
     std::chrono::steady_clock::time_point last_frame_time_{};
     std::chrono::steady_clock::time_point last_profile_report_{};

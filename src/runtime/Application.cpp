@@ -10,12 +10,18 @@
 #include "../../include/cockscreen/runtime/ShaderVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/RuntimeHelpers.hpp"
 #include "../../include/cockscreen/runtime/application/Support.hpp"
+#include "../../include/cockscreen/runtime/web/SceneControlServer.hpp"
 #include "../../include/cockscreen/runtime/VideoWindow.hpp"
 
 #include <QApplication>
 #include <QCursor>
+#include <QFont>
+#include <QFontDatabase>
+#include <QHostAddress>
+#include <QPainter>
 #include <QSurfaceFormat>
 #include <QTimer>
+#include <QUrl>
 
 #include <chrono>
 #include <filesystem>
@@ -30,6 +36,57 @@ namespace support = application_support;
 
 namespace
 {
+
+class FatalErrorWindow final : public QWidget
+{
+  public:
+    explicit FatalErrorWindow(QString message, QWidget *parent = nullptr)
+        : QWidget{parent}, message_{std::move(message)}
+    {
+        setWindowTitle(QStringLiteral("cockscreen error"));
+        resize(1024, 600);
+        setMinimumSize(640, 360);
+        setAutoFillBackground(false);
+    }
+
+  protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter{this};
+        painter.fillRect(rect(), Qt::black);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+        QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+        font.setPointSize(11);
+        painter.setFont(font);
+        painter.setPen(Qt::white);
+        painter.drawText(rect().adjusted(24, 24, -24, -24), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                         message_);
+    }
+
+  private:
+    QString message_;
+};
+
+int show_fatal_error_window(QApplication *application, QString message)
+{
+    if (application == nullptr)
+    {
+        return 2;
+    }
+
+    FatalErrorWindow window{std::move(message)};
+    if (is_pi_target())
+    {
+        window.showFullScreen();
+    }
+    else
+    {
+        window.show();
+    }
+
+    return application->exec();
+}
 
 QStringList wrap_overlay_line(const QString &text, int preferred_chars)
 {
@@ -88,6 +145,53 @@ QString build_overlay_text(const QString &fps_line, const QString &device_line, 
     return lines.join('\n');
 }
 
+struct WebServerBindConfig
+{
+    QHostAddress address;
+    quint16 port{0};
+    QString display_url;
+};
+
+std::optional<WebServerBindConfig> parse_web_server_bind_url(const std::string &bind_url, QString *error_message)
+{
+    if (bind_url.empty())
+    {
+        return std::nullopt;
+    }
+
+    const QUrl url{QString::fromStdString(bind_url)};
+    if (!url.isValid() || url.scheme().isEmpty() || url.host().isEmpty() || url.port() <= 0)
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Invalid web server URL. Expected a full URL such as http://127.0.0.1:8080");
+        }
+        return std::nullopt;
+    }
+
+    QHostAddress address;
+    const QString host = url.host();
+    if (host == QStringLiteral("localhost"))
+    {
+        address = QHostAddress::LocalHost;
+    }
+    else if (host == QStringLiteral("0.0.0.0"))
+    {
+        address = QHostAddress::Any;
+    }
+    else if (!address.setAddress(host))
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Unsupported web server host '%1'. Use localhost, 0.0.0.0, or a numeric IP address.")
+                                 .arg(host);
+        }
+        return std::nullopt;
+    }
+
+    return WebServerBindConfig{address, static_cast<quint16>(url.port()), url.toString()};
+}
+
 } // namespace
 
 Application::Application(ApplicationSettings settings) : settings_{std::move(settings)} {}
@@ -97,47 +201,6 @@ int Application::run(int argc, char *argv[])
     if (!print_startup_preflight())
     {
         return 1;
-    }
-
-    if (settings_.scene_file.empty())
-    {
-        std::cerr << "Scene file not specified. Pass --scene-file PATH or place a default scene beside the executable.\n";
-        return 2;
-    }
-
-    const auto scene_path = support::resolve_relative_path(std::filesystem::path{settings_.scene_file});
-    if (!scene_path.has_value())
-    {
-        std::cerr << "Scene file not found: " << settings_.scene_file << '\n';
-        return 2;
-    }
-
-    std::string scene_error;
-    const auto loaded_scene = load_scene_definition(*scene_path, &scene_error);
-    if (!loaded_scene.has_value())
-    {
-        std::cerr << scene_error << '\n';
-        return 2;
-    }
-
-    SceneDefinition scene = *loaded_scene;
-    settings_.scene_file = scene.source_path.string();
-    support::apply_scene_to_settings(scene, &settings_);
-    settings_.shader_directory = support::effective_shader_directory(scene, settings_);
-
-    if (const auto missing_shaders = support::missing_scene_shaders(scene, settings_); !missing_shaders.empty())
-    {
-        for (const auto &message : missing_shaders)
-        {
-            std::cerr << message << '\n';
-        }
-        std::cerr << "Refusing to start due to missing scene shader files.\n";
-        return 2;
-    }
-
-    if (!validate_render_path(settings_))
-    {
-        return 2;
     }
 
 #if defined(__linux__) && defined(__aarch64__)
@@ -183,6 +246,57 @@ int Application::run(int argc, char *argv[])
     if (is_pi_target())
     {
         QApplication::setOverrideCursor(Qt::BlankCursor);
+    }
+
+    if (settings_.scene_file.empty())
+    {
+        return show_fatal_error_window(
+            &application,
+            QStringLiteral("Scene file not specified. Pass --scene-file PATH or place a default scene beside the executable."));
+    }
+
+    const auto scene_path = support::resolve_relative_path(std::filesystem::path{settings_.scene_file});
+    if (!scene_path.has_value())
+    {
+        return show_fatal_error_window(
+            &application, QStringLiteral("Scene file not found: %1").arg(QString::fromStdString(settings_.scene_file)));
+    }
+
+    std::string scene_error;
+    const auto loaded_scene = load_scene_definition(*scene_path, &scene_error);
+    if (!loaded_scene.has_value())
+    {
+        return show_fatal_error_window(&application, QString::fromStdString(scene_error));
+    }
+
+    SceneDefinition scene = *loaded_scene;
+    settings_.scene_file = scene.source_path.string();
+    support::apply_scene_to_settings(scene, &settings_);
+    settings_.shader_directory = support::effective_shader_directory(scene, settings_);
+
+    if (const auto missing_shaders = support::missing_scene_shaders(scene, settings_); !missing_shaders.empty())
+    {
+        QStringList lines;
+        for (const auto &message : missing_shaders)
+        {
+            lines.push_back(QString::fromStdString(message));
+        }
+        lines.push_back(QStringLiteral("Refusing to start due to missing scene shader files."));
+        return show_fatal_error_window(&application, lines.join('\n'));
+    }
+
+    if (!validate_render_path(settings_))
+    {
+        return show_fatal_error_window(
+            &application,
+            QStringLiteral("Invalid render path: %1").arg(QString::fromStdString(settings_.render_path)));
+    }
+
+    QString web_server_error;
+    const auto web_server_bind = parse_web_server_bind_url(settings_.web_server_bind_url, &web_server_error);
+    if (!settings_.web_server_bind_url.empty() && !web_server_bind.has_value())
+    {
+        return show_fatal_error_window(&application, web_server_error);
     }
 
     QString audio_label;
@@ -357,6 +471,28 @@ int Application::run(int argc, char *argv[])
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
                      camera_format_text, video_on_top, show_status_overlay};
+        SceneControlDeviceInfo web_device_info;
+        web_device_info.opened_video = selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label;
+        web_device_info.opened_audio = audio_label.isEmpty() ? QStringLiteral("<none>") : audio_label;
+        web_device_info.opened_midi = settings_.midi_input.empty() ? QStringLiteral("<none>")
+                                                                   : QString::fromStdString(settings_.midi_input);
+        SceneControlServer control_server{&scene,
+                                          &window,
+                                          scene.source_path,
+                                          scene.resources_directory,
+                                          std::filesystem::path{settings_.shader_directory},
+                                          web_device_info};
+        if (web_server_bind.has_value())
+        {
+            if (control_server.start(web_server_bind->address, web_server_bind->port))
+            {
+                std::cout << "Web control: " << web_server_bind->display_url.toStdString() << '\n';
+            }
+            else
+            {
+                std::cerr << "Web control server could not start at " << web_server_bind->display_url.toStdString() << '\n';
+            }
+        }
         if (is_pi_target())
         {
             window.showFullScreen();
@@ -370,10 +506,15 @@ int Application::run(int argc, char *argv[])
         if (!window.fatal_render_error().isEmpty())
         {
             std::cerr << window.fatal_render_error().toStdString() << '\n';
-            return 2;
+            return application.exec();
         }
 
         QObject::connect(&timer, &QTimer::timeout, [&]() {
+            if (!window.fatal_render_error().isEmpty())
+            {
+                return;
+            }
+
             auto frame = modulation_bus_.snapshot();
             refresh_frame(&frame);
             modulation_bus_.update(frame);

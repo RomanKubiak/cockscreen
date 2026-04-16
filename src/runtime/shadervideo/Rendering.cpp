@@ -4,10 +4,13 @@
 #include "cockscreen/runtime/shadervideo/Support.hpp"
 
 #include <QColor>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QOpenGLFramebufferObject>
 #include <QRectF>
 #include <QVector2D>
+#include <QVector3D>
+#include <QVector4D>
 
 #include <algorithm>
 #include <chrono>
@@ -79,6 +82,16 @@ void ShaderVideoWindow::paintGL()
     QElapsedTimer render_timer;
     render_timer.start();
 
+    if (!fatal_render_error_.isEmpty())
+    {
+        glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        render_fps_ = render_timer.nsecsElapsed() > 0 ? 1.0e9 / static_cast<double>(render_timer.nsecsElapsed())
+                                                      : render_fps_;
+        return;
+    }
+
     const QColor clear_color = helper::scene_clear_color(scene_.background_color);
 
     glClearColor(clear_color.redF(), clear_color.greenF(), clear_color.blueF(), clear_color.alphaF());
@@ -93,9 +106,11 @@ void ShaderVideoWindow::paintGL()
 
     const auto now = std::chrono::steady_clock::now();
     const float elapsed_seconds = std::chrono::duration<float>(now - start_time_).count();
+    const float frame_delta_seconds = last_frame_time_ == std::chrono::steady_clock::time_point{}
+                                          ? 0.0F
+                                          : std::chrono::duration<float>(now - last_frame_time_).count();
+    const int frame_index = render_frame_index_;
     const GLfloat top_layer_opacity = static_cast<GLfloat>(std::clamp(settings_.top_layer_opacity, 0.0, 1.0));
-    const auto screen_pixels = static_cast<long long>(width()) * static_cast<long long>(height());
-
     const GLuint camera_texture = texture_id_ != 0 ? texture_id_ : blank_texture_id_;
     const bool camera_valid = texture_id_ != 0;
     const GLuint playback_texture = playback_texture_id_ != 0 ? playback_texture_id_ : blank_texture_id_;
@@ -220,7 +235,8 @@ void ShaderVideoWindow::paintGL()
                 continue;
             }
 
-            current_texture = render_stage(&stage, current_texture, current_valid, false, elapsed_seconds);
+            current_texture = render_stage(&stage, current_texture, current_valid, false, elapsed_seconds,
+                                           frame_delta_seconds, frame_index);
             current_valid = true;
             ++render_stage_index_;
         }
@@ -262,6 +278,7 @@ void ShaderVideoWindow::paintGL()
         }
     }
     last_frame_time_ = now;
+    ++render_frame_index_;
 
     render_fps_ = render_timer.nsecsElapsed() > 0 ? 1.0e9 / static_cast<double>(render_timer.nsecsElapsed()) : render_fps_;
 }
@@ -385,8 +402,49 @@ void ShaderVideoWindow::apply_scene_osc_mappings(QOpenGLShaderProgram *program, 
     }
 }
 
+void ShaderVideoWindow::bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds,
+                                                float frame_delta_seconds, int frame_index,
+                                                const QVector2D &channel0_resolution) const
+{
+    if (program == nullptr)
+    {
+        return;
+    }
+
+    const float frame_rate = frame_delta_seconds > 0.0F ? 1.0F / frame_delta_seconds : 0.0F;
+    const auto local_time = QDateTime::currentDateTime();
+    const auto date = local_time.date();
+    const auto time = local_time.time();
+    const float seconds_since_midnight = static_cast<float>(time.hour() * 3600 + time.minute() * 60 + time.second()) +
+                                         static_cast<float>(time.msec()) / 1000.0F;
+    const QVector3D channel_resolutions[4] = {
+        QVector3D{channel0_resolution.x(), channel0_resolution.y(), 1.0F},
+        QVector3D{},
+        QVector3D{},
+        QVector3D{},
+    };
+    const GLfloat channel_times[4] = {elapsed_seconds, 0.0F, 0.0F, 0.0F};
+
+    program->setUniformValue("iTime", elapsed_seconds);
+    program->setUniformValue("iTimeDelta", frame_delta_seconds);
+    program->setUniformValue("iFrameRate", frame_rate);
+    program->setUniformValue("iSampleRate", 44100.0F);
+    program->setUniformValue("iFrame", frame_index);
+    program->setUniformValue("iResolution", QVector3D{static_cast<float>(width()), static_cast<float>(height()), 1.0F});
+    program->setUniformValue("iMouse", QVector4D{});
+    program->setUniformValue(
+        "iDate", QVector4D{static_cast<float>(date.year()), static_cast<float>(date.month()),
+                             static_cast<float>(date.day()), seconds_since_midnight});
+    program->setUniformValue("iChannel0", 0);
+    program->setUniformValue("iChannel1", 3);
+    program->setUniformValue("iChannel2", 4);
+    program->setUniformValue("iChannel3", 5);
+    program->setUniformValueArray("iChannelResolution", channel_resolutions, 4);
+    program->setUniformValueArray("iChannelTime", channel_times, 4, 1);
+}
+
 GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
-                                       float elapsed_seconds)
+                                       float elapsed_seconds, float frame_delta_seconds, int frame_index)
 {
     if (stage == nullptr || stage->program == nullptr || !stage->program->isLinked())
     {
@@ -453,6 +511,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     stage->program->setUniformValue("u_status_bar_height", static_cast<float>(kStatusBarHeight));
     stage->program->setUniformValue("u_texture", 0);
     bind_stage_common_uniforms(stage->program.get(), *stage, elapsed_seconds);
+    bind_shadertoy_uniforms(stage->program.get(), elapsed_seconds, frame_delta_seconds, frame_index, video_size);
     apply_scene_midi_mappings(stage->program.get(), *stage);
     apply_scene_osc_mappings(stage->program.get(), *stage);
 
@@ -470,6 +529,13 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         glBindTexture(GL_TEXTURE_2D, icon_atlas_texture_id_);
         glActiveTexture(GL_TEXTURE0);
     }
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+    glActiveTexture(GL_TEXTURE0);
     quad_vertex_buffer_.bind();
     quad_vertex_buffer_.allocate(kVertices, static_cast<int>(sizeof(kVertices)));
     stage->program->enableAttributeArray("a_position");
@@ -493,6 +559,13 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
     }
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
     stage->program->release();
 
     if (target_fbo != nullptr)
@@ -535,9 +608,20 @@ void ShaderVideoWindow::build_render_stages()
 
             stage.program = std::make_unique<QOpenGLShaderProgram>();
             const auto fragment_source = load_fragment_shader_source(shader_path, false);
+            const auto unsupported_reason = helper::shadertoy_unsupported_reason(fragment_source);
+            if (!unsupported_reason.isEmpty())
+            {
+                record_fatal_render_error(
+                    QStringLiteral("ShaderToy import failed for layer '%1' shader '%2':\n- %3")
+                        .arg(layer_name, stage.label, unsupported_reason));
+                labels.push_back(stage.label);
+                render_stages_.push_back(std::move(stage));
+                continue;
+            }
+            const auto runtime_fragment = helper::adapt_fragment_shader_source(fragment_source);
             const auto effective_fragment = helper::shader_source_for_current_context(
-                fragment_source.isEmpty() ? QString::fromUtf8(helper::passthrough_fragment_shader_source())
-                                         : fragment_source);
+                runtime_fragment.isEmpty() ? QString::fromUtf8(helper::passthrough_fragment_shader_source())
+                                          : runtime_fragment);
             if (!stage.program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader_source) ||
                 !stage.program->addShaderFromSourceCode(QOpenGLShader::Fragment, effective_fragment) ||
                 !stage.program->link())

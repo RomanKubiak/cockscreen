@@ -18,6 +18,7 @@ struct ApplicationSettings
     std::string executable_directory{};
     std::string shader_file{};
     std::string screen_shader_file{};
+    std::string web_server_bind_url{};
     std::string top_layer{"screen"};
     double top_layer_opacity{0.75};
     std::string render_path{"qt"};

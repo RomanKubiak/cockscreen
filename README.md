@@ -29,6 +29,36 @@ The only supported CLI options are:
 - `--help`
 - `--list-devices`
 - `--scene-file <path>`
+- `--enable-web-server <url>`
+
+### Web control
+
+The Qt shader runtime can expose a small live-control server for scene tweaks while the app is running.
+
+Example:
+
+```bash
+./out/build/local-x86_64-debug/cockscreen \
+    --scene-file scenes/x86_64-linux.scene.json \
+    --enable-web-server http://0.0.0.0:8080
+```
+
+Supported bind hosts are `localhost`, `0.0.0.0`, or a numeric IP address. The server stays disabled unless `--enable-web-server` is provided.
+
+Available endpoints:
+
+- `/` mobile-friendly control page for background and shader-chain edits
+- `/api/state` current scene/device state as JSON
+- `/api/apply` live scene updates via JSON `POST`
+
+The current web UI supports:
+
+- enabling or disabling the `video`, `playback`, and `screen` layers
+- editing each layer's ordered shader chain
+- background colour and background image selection
+- viewing opened and available devices
+
+Device reopening is still read-only in this first version.
 
 ---
 
@@ -200,6 +230,10 @@ Every shader receives these automatically — no mapping needed:
 
 ## Shaders
 
+Single-pass ShaderToy image shaders are also supported through a compatibility wrapper when the shader defines `mainImage(...)` and does not define its own `main()`. The runtime injects `iTime`, `iTimeDelta`, `iFrame`, `iFrameRate`, `iResolution`, `iMouse`, `iDate`, `iChannel0..3`, `iChannelResolution`, `iChannelTime`, and `iSampleRate`.
+
+Current limits: only the `Image` pass shape is emulated. `iChannel0` is the current stage input texture, `iChannel1..3` are blank textures, and ShaderToy multipass buffers / cubemaps / keyboard / sound inputs are not implemented.
+
 ### `passthrough.glsl`
 Copies `u_texture` unchanged. Useful as a no-op placeholder in a chain.
 
@@ -343,6 +377,21 @@ Requires `Font Awesome 7 Free-Solid-900.otf` in `resources/fonts/`. The icon atl
 **Uniforms used:** `u_icon_atlas`, `u_icon_grid`, `u_time`
 
 No MIDI/audio mappable uniforms — the change rate can be adjusted by editing `kChangeHz` in the shader (default 10 per second).
+
+### `toy_shader.glsl`
+First pass of a native two-stage port of a vaporwave-style logo effect. It shifts the input image horizontally through a scanning band and stamps a procedural monochrome logo mask into the frame.
+
+**Uniforms used:** `u_texture`, `u_time`
+
+### `toy_shader_image.glsl`
+Second pass for the vaporwave port. It recombines colour channels, restores the image through a matrix transform, and adds scanline/static treatment.
+
+**Uniforms used:** `u_texture`, `u_time`, `u_resolution`
+
+### `toy_synthwave.glsl`
+Single-pass ShaderToy-style synthwave horizon and grid effect. This shader uses the ShaderToy compatibility wrapper, so it keeps its `mainImage(...)` entrypoint and reads the previous stage through `iChannel0`.
+
+**ShaderToy uniforms used:** `iTime`, `iResolution`, `iChannel0`, `iChannelResolution[0]`
 
 ---
 

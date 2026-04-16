@@ -6,6 +6,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLShaderProgram>
 #include <QPainter>
+#include <QRegularExpression>
 #include <QRawFont>
 
 #include <algorithm>
@@ -48,6 +49,103 @@ QString note_label_for_midi_note(int note_number)
     const int pitch_class = normalized % 12;
     const int octave = normalized / 12 - 1;
     return QStringLiteral("%1%2").arg(QString::fromUtf8(kPitchClasses[pitch_class])).arg(octave);
+}
+
+bool shader_uses_shadertoy_entrypoint(const QString &source)
+{
+    static const QRegularExpression main_image_pattern{QStringLiteral("\\bmainImage\\s*\\(")};
+    static const QRegularExpression main_pattern{QStringLiteral("\\bmain\\s*\\(")};
+    return source.contains(main_image_pattern) && !source.contains(main_pattern);
+}
+
+bool source_contains_pattern(const QString &source, const char *pattern)
+{
+    return source.contains(QRegularExpression{QString::fromUtf8(pattern)});
+}
+
+int shadertoy_insert_line_index(const QStringList &lines)
+{
+    bool in_block_comment = false;
+    int insert_index = 0;
+
+    for (int index = 0; index < lines.size(); ++index)
+    {
+        const QString trimmed = lines[index].trimmed();
+        if (in_block_comment)
+        {
+            insert_index = index + 1;
+            if (trimmed.contains(QStringLiteral("*/")))
+            {
+                in_block_comment = false;
+            }
+            continue;
+        }
+
+        if (trimmed.isEmpty() || trimmed.startsWith(QStringLiteral("//")))
+        {
+            insert_index = index + 1;
+            continue;
+        }
+
+        if (trimmed.startsWith(QStringLiteral("/*")))
+        {
+            insert_index = index + 1;
+            if (!trimmed.contains(QStringLiteral("*/")))
+            {
+                in_block_comment = true;
+            }
+            continue;
+        }
+
+        if (trimmed.startsWith(QLatin1Char('#')) || trimmed.startsWith(QStringLiteral("precision ")))
+        {
+            insert_index = index + 1;
+            continue;
+        }
+
+        break;
+    }
+
+    return insert_index;
+}
+
+QString shadertoy_compatibility_block(bool needs_precision)
+{
+    QString block;
+    if (needs_precision)
+    {
+        block += QStringLiteral("#ifdef GL_ES\nprecision mediump float;\n#endif\n");
+    }
+
+    block += QStringLiteral(R"(
+#if __VERSION__ < 130
+#define texture texture2D
+#endif
+
+uniform float iTime;
+uniform float iTimeDelta;
+uniform float iFrameRate;
+uniform float iSampleRate;
+uniform int iFrame;
+uniform vec3 iResolution;
+uniform vec4 iMouse;
+uniform vec4 iDate;
+uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;
+uniform sampler2D iChannel2;
+uniform sampler2D iChannel3;
+uniform vec3 iChannelResolution[4];
+uniform float iChannelTime[4];
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord);
+
+void main()
+{
+    mainImage(gl_FragColor, gl_FragCoord.xy);
+}
+)");
+
+    return block;
 }
 
 } // namespace
@@ -102,6 +200,65 @@ const char *passthrough_fragment_shader_source()
         gl_FragColor = vec4(color.rgb, color.a * u_opacity);
     }
 )";
+}
+
+QString shadertoy_unsupported_reason(const QString &source)
+{
+    if (!shader_uses_shadertoy_entrypoint(source))
+    {
+        return {};
+    }
+
+    QStringList reasons;
+    if (source_contains_pattern(source, "\\biChannel[1-3]\\b"))
+    {
+        reasons.push_back(
+            QStringLiteral("uses iChannel1..3, but the current ShaderToy adapter only supports iChannel0 in single-pass mode"));
+    }
+    if (source_contains_pattern(source, "\\btexelFetch\\s*\\("))
+    {
+        reasons.push_back(
+            QStringLiteral("uses texelFetch(), which this GLSL 110 single-pass ShaderToy adapter does not emulate"));
+    }
+    if (source_contains_pattern(source, "\\b(range|LOAD|STORE)\\s*\\("))
+    {
+        reasons.push_back(QStringLiteral(
+            "uses helper macros/functions that usually come from ShaderToy Common or Buffer passes, which are not implemented"));
+    }
+    if (source_contains_pattern(source, "\\b(ch0|ch1|ch2|ch3|BufferA|BufferB|BufferC|BufferD)\\b"))
+    {
+        reasons.push_back(QStringLiteral(
+            "references multipass buffer identifiers, but only single-pass Image shaders are supported right now"));
+    }
+
+    return reasons.join(QStringLiteral("\n- "));
+}
+
+QString adapt_fragment_shader_source(QString source)
+{
+    if (!shader_uses_shadertoy_entrypoint(source))
+    {
+        return source;
+    }
+
+    const QStringList lines = source.split(QLatin1Char('\n'));
+    const int insert_index = shadertoy_insert_line_index(lines);
+    const bool has_precision = source.contains(QStringLiteral("precision "));
+    const QString compatibility = shadertoy_compatibility_block(!has_precision);
+
+    QStringList rewritten;
+    rewritten.reserve(lines.size() + 2);
+    for (int index = 0; index < insert_index; ++index)
+    {
+        rewritten.push_back(lines[index]);
+    }
+    rewritten.push_back(compatibility.trimmed());
+    for (int index = insert_index; index < lines.size(); ++index)
+    {
+        rewritten.push_back(lines[index]);
+    }
+
+    return rewritten.join(QLatin1Char('\n'));
 }
 
 QString shader_source_for_current_context(QString source)

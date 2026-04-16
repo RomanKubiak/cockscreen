@@ -4,6 +4,7 @@
 #include "cockscreen/runtime/scene/Parse.hpp"
 
 #include <QJsonDocument>
+#include <QJsonParseError>
 #include <QJsonObject>
 
 namespace cockscreen::runtime
@@ -21,7 +22,18 @@ std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path
         return std::nullopt;
     }
 
-    const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(*text));
+    QJsonParseError parse_error;
+    const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(*text), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError)
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = "Scene JSON parse error in " + path.string() + ": " +
+                             parse_error.errorString().toStdString();
+        }
+        return std::nullopt;
+    }
+
     if (!document.isObject())
     {
         if (error_message != nullptr)

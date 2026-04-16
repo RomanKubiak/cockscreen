@@ -26,7 +26,7 @@ FetchContent_Declare(pffft
 )
 FetchContent_MakeAvailable(pffft)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia OpenGLWidgets OpenGL)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia OpenGLWidgets OpenGL Network)
 
 if(NOT WIN32)
     find_library(EGL_LIBRARY NAMES EGL REQUIRED)
@@ -63,6 +63,7 @@ target_sources(cockscreen_core
         src/runtime/shadervideo/Rendering.cpp
         src/runtime/shadervideo/Support.cpp
         src/runtime/StatusOverlay.cpp
+        src/runtime/web/SceneControlServer.cpp
         src/runtime/VideoWindow.cpp
 )
 
@@ -126,6 +127,7 @@ target_link_libraries(cockscreen_core
     Qt6::Multimedia
     Qt6::OpenGLWidgets
     Qt6::OpenGL
+    Qt6::Network
     PFFFT::PFFFT
 )
 

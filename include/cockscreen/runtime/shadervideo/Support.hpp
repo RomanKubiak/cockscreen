@@ -32,6 +32,8 @@ const char *vertex_shader_source();
 const char *fullscreen_vertex_shader_source();
 const char *passthrough_fragment_shader_source();
 
+QString shadertoy_unsupported_reason(const QString &source);
+QString adapt_fragment_shader_source(QString source);
 QString shader_source_for_current_context(QString source);
 void set_midi_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &frame);
 void set_audio_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &frame);

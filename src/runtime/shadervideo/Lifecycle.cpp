@@ -203,6 +203,39 @@ QString ShaderVideoWindow::fatal_render_error() const
     return fatal_render_error_;
 }
 
+void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
+{
+    scene_ = std::move(scene);
+    status_message_.clear();
+    fatal_render_error_.clear();
+
+    if (fatal_error_overlay_ != nullptr)
+    {
+        fatal_error_overlay_->hide();
+    }
+
+    if (status_overlay_ != nullptr)
+    {
+        status_overlay_->show();
+        status_overlay_->raise();
+    }
+
+    background_texture_dirty_ = true;
+    background_image_texture_dirty_ = true;
+    note_label_atlas_texture_dirty_ = true;
+    icon_atlas_texture_dirty_ = true;
+    scene_fbo_dirty_ = true;
+
+    if (context() != nullptr)
+    {
+        makeCurrent();
+        build_render_stages();
+        doneCurrent();
+    }
+
+    update();
+}
+
 void ShaderVideoWindow::record_fatal_render_error(QString text)
 {
     if (text.isEmpty())
@@ -218,11 +251,33 @@ void ShaderVideoWindow::record_fatal_render_error(QString text)
 
     fatal_render_error_ += QStringLiteral("\n");
     fatal_render_error_ += text;
+
+    if (status_overlay_ != nullptr)
+    {
+        status_overlay_->hide();
+    }
+
+    if (fatal_error_overlay_ == nullptr)
+    {
+        fatal_error_overlay_ = new StatusOverlay{this};
+        fatal_error_overlay_->setGeometry(rect());
+    }
+
+    fatal_error_overlay_->set_status_overlay_text(fatal_render_error_);
+    fatal_error_overlay_->show();
+    fatal_error_overlay_->raise();
+
+    update();
 }
 
 void ShaderVideoWindow::set_status_overlay_text(QString text)
 {
     status_overlay_text_ = std::move(text);
+    if (!fatal_render_error_.isEmpty())
+    {
+        return;
+    }
+
     if (status_overlay_ != nullptr)
     {
         status_overlay_->set_status_overlay_text(status_overlay_text_);
@@ -285,6 +340,11 @@ void ShaderVideoWindow::resizeEvent(QResizeEvent *event)
         place_status_overlay(this, status_overlay_);
         status_overlay_->raise();
     }
+    if (fatal_error_overlay_ != nullptr)
+    {
+        fatal_error_overlay_->setGeometry(rect());
+        fatal_error_overlay_->raise();
+    }
 }
 
 QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const
@@ -300,10 +360,19 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
         const auto resolved_shader_path = helper::resolve_relative_path(shader_path);
         if (!resolved_shader_path.has_value())
         {
+            const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
+                QStringLiteral("Shader import failed: could not resolve '%1'").arg(QString::fromStdString(shader_path.string())));
             return {};
         }
 
-        return helper::read_text_file_qstring(*resolved_shader_path);
+        const auto source = helper::read_text_file_qstring(*resolved_shader_path);
+        if (source.isEmpty())
+        {
+            const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
+                QStringLiteral("Shader import failed: could not read '%1'")
+                    .arg(QString::fromStdString(resolved_shader_path->string())));
+        }
+        return source;
     }
 
     if (!allow_directory_scan)
