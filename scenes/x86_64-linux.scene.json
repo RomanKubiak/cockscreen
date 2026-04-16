@@ -2,6 +2,10 @@
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     "shader_directory": "/home/atom/devel/cockscreen/shaders/",
+    "background_image": {
+        "file": "textures/masazer.jpg",
+        "placement": "centered"
+    },
     "render_path": "qt-shader",
     "geometry": {
         "width": 1024,
@@ -10,8 +14,8 @@
     "inputs": {
         "video": {
             "enabled": false,
-            "device": "/dev/video1",
-            "format": "qvga",
+            "device": "/dev/video0",
+            "format": "vga",
             "scale": 0.25,
             "on_top": false,
             "position": {
@@ -36,7 +40,7 @@
             "a": 1.0
         },
         "audio": {
-            "enabled": true,
+            "enabled": false,
             "device": "PCM2902 Audio Codec Analog Stereo"
         },
         "midi": {
@@ -48,8 +52,7 @@
     "video": {
         "enabled": false,
         "shaders": [
-            "pink_key.glsl",
-            "video_sphere.glsl"
+            "pink_key.glsl"
         ]
     },
     "playback": {
@@ -61,7 +64,7 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "wireframe_plane.glsl"
+            "toy_synthwave.glsl"
         ]
     },
     "midi_cc_mappings": [
