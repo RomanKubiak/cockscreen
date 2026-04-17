@@ -194,6 +194,7 @@
   <text class="tiny" x="1510" y="700">motors -> SN754410NE</text>
   <text class="tiny" x="1510" y="720">logic: BCM23, BCM24, BCM25, BCM21</text>
   <text class="tiny" x="1510" y="740">EN pins tied high to 3V3 for first-pass build</text>
+  <text class="tiny" x="1510" y="760">PWM plan: BCM12 for F1 EN, BCM18 for F2 EN after ADS1256 reset moves</text>
 
   <text class="tiny" x="950" y="736">Recommended enclosure: Hammond 1456WL3BKBK sloped console, 15 degree slope, 20.26 x 11.61 x 3.21 in.</text>
   <text class="tiny" x="950" y="758">Use the 20-inch desktop console instead of a rack case; it gives enough front-panel width for the sliders and knob spacing.</text>
@@ -204,8 +205,8 @@
   <text class="tiny" x="90" y="964">Direct CV: AD1, AD2, AD3</text>
   <text class="tiny" x="90" y="986">Control surface: eight manual pots, one NeoSlider, and two motorized faders</text>
   <text class="tiny" x="90" y="1008">Motor drive GPIO: BCM23, BCM24, BCM25, BCM21 with SN754410NE enables tied high</text>
-  <text class="tiny" x="90" y="1030">Gate inputs: BCM16, BCM19, BCM20</text>
-  <text class="tiny" x="90" y="1052">Common power: Waveshare board 3V3 and GND rails</text>
-  <text class="tiny" x="90" y="1074">Runtime: Linux AARCH64 only</text>
-  <text class="tiny" x="90" y="1096">If a source can go negative or above the ADC range, attenuate and clamp first</text>
+  <text class="tiny" x="90" y="1030">PWM upgrade: BCM12 now, BCM18 after moving ADS1256 reset from BCM18 to BCM4</text>
+  <text class="tiny" x="90" y="1052">Gate inputs: BCM16, BCM19, BCM20</text>
+  <text class="tiny" x="90" y="1074">Common power: Waveshare board 3V3 and GND rails</text>
+  <text class="tiny" x="90" y="1096">Runtime: Linux AARCH64 only</text>
 </svg>

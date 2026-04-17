@@ -151,8 +151,8 @@
   <text class="small" x="1260" y="658">BCM25 -> `3A` / `F2_IN_A`</text>
   <text class="pin" x="1205" y="684">pin 40</text>
   <text class="small" x="1260" y="684">BCM21 -> `4A` / `F2_IN_B`</text>
-  <text class="tiny" x="1355" y="718" text-anchor="middle">Tie `1,2EN` and `3,4EN` to `3V3` for the initial build</text>
-  <text class="tiny" x="1355" y="736" text-anchor="middle">Use GPIO logic only for direction and brake/coast states</text>
+  <text class="tiny" x="1355" y="718" text-anchor="middle">Initial build: tie `1,2EN` and `3,4EN` to `3V3`</text>
+  <text class="tiny" x="1355" y="736" text-anchor="middle">PWM upgrade: BCM12 / pin 32 for `1,2EN`; BCM18 / pin 12 for `3,4EN` after moving ADS1256 reset</text>
 
   <rect class="panel" x="1140" y="910" width="700" height="380"/>
   <text class="label" x="1170" y="950">Power map</text>
@@ -262,9 +262,10 @@
   <text class="tiny" x="100" y="1028">5 V_DIG comes from the power board into the Pi header. 3V3 is then available on the Pi header for the control logic side.</text>
   <text class="tiny" x="100" y="1048">All control-surface grounds, the mux ground, the NeoSlider ground, the Pi ground, and the motor-driver ground must remain common.</text>
 
-  <rect class="callout" x="1120" y="910" width="720" height="150"/>
+  <rect class="callout" x="1120" y="910" width="720" height="190"/>
   <text class="small" x="1140" y="944">First-pass motor logic</text>
   <text class="tiny" x="1140" y="968">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four SN754410NE direction inputs.</text>
   <text class="tiny" x="1140" y="988">With `EN` tied high, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
-  <text class="tiny" x="1140" y="1008">That is enough to build and test the motion logic before adding any PWM speed control.</text>
+  <text class="tiny" x="1140" y="1008">PWM upgrade path: move `1,2EN` to BCM12 / pin 32 and move `3,4EN` to BCM18 / pin 12.</text>
+  <text class="tiny" x="1140" y="1028">Because ADS1256 reset currently uses BCM18, that second PWM lane requires moving ADS1256 `RESET` to BCM4 / pin 7 first.</text>
 </svg>

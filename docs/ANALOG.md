@@ -185,7 +185,22 @@ Assuming the relevant `EN` pin is held high:
 | `0` | `1` | drive opposite direction |
 | `1` | `1` | brake |
 
-If you later need speed control instead of simple on/off direction control, move `1,2EN` and `3,4EN` from fixed `3V3` to dedicated PWM-capable outputs and update the wiring map to match.
+### PWM Upgrade Plan
+
+If you want variable fader speed instead of fixed full-speed drive, use hardware-PWM-capable header pins for the two `EN` inputs. On the current Pi header budget, one such pin is already free and the second one only becomes available if the ADS1256 reset line is moved off `BCM18`.
+
+| Driver signal | `SN754410NE` input | Pi BCM | Physical pin | Status |
+|---|---|---|---|---|
+| `F1_EN_PWM` | `1,2EN` | `12` | `32` | free now, suitable for PWM |
+| `F2_EN_PWM` | `3,4EN` | `18` | `12` | only available after moving ADS1256 `RESET` elsewhere |
+
+Recommended prerequisite for the second PWM lane:
+
+| Existing function | Current Pi BCM | New Pi BCM | Physical pin |
+|---|---|---|---|
+| ADS1256 `RESET` | `18` | `4` | `7` |
+
+That keeps both H-bridge enable lines on hardware-PWM-capable GPIOs while preserving the current mux, gate, and I2C assignments.
 
 ### Control-Surface Wiring Map
 
