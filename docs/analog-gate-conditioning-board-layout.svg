@@ -1,0 +1,383 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2100" height="1600" viewBox="0 0 2100 1600" role="img" aria-label="Three-channel gate conditioning perfboard placement map on a square 2.54 pitch grid">
+  <defs>
+    <style>
+      .bg { fill: #f6f3ea; }
+      .panel { fill: #fffdf8; stroke: #202020; stroke-width: 2.5; rx: 20; ry: 20; }
+      .board { fill: #3b7b4a; stroke: #21492a; stroke-width: 2.5; rx: 18; ry: 18; }
+      .pad { fill: #d7a44a; stroke: #7b5320; stroke-width: 1; }
+      .title { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 30px; font-weight: 700; }
+      .subtitle { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 17px; }
+      .note { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .tiny { fill: #555; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      .legend { fill: #f6f1e4; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; }
+      .coord { fill: #34452d; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; }
+      .pinlabel { fill: #173454; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; }
+      .passive { fill: #fff8e8; stroke: #8a5b00; stroke-width: 2; rx: 8; ry: 8; }
+      .callout { fill: #fffdf8; opacity: 0.95; stroke: #a89a82; stroke-width: 1.1; rx: 8; ry: 8; }
+      .net3 { stroke: #a11; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netg { stroke: #1f1f1f; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netsig { stroke: #2366a8; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netout { stroke: #27632a; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .table-head { fill: #ebe3d2; stroke: #b9a98d; stroke-width: 1.2; }
+      .table-cell { fill: #fffdf8; stroke: #d1c5b1; stroke-width: 1; }
+    </style>
+
+    <pattern id="perf-pad-grid" patternUnits="userSpaceOnUse" x="165" y="265" width="50" height="50">
+      <circle class="pad" cx="25" cy="25" r="7.5"/>
+    </pattern>
+
+    <g id="dip14">
+      <rect x="0" y="0" width="110" height="350" rx="10" ry="10" fill="#eef9ee" stroke="#27632a" stroke-width="2.2"/>
+      <path d="M 38 0 Q 55 -14 72 0" fill="none" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="25" x2="-20" y2="25" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="75" x2="-20" y2="75" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="125" x2="-20" y2="125" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="175" x2="-20" y2="175" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="225" x2="-20" y2="225" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="275" x2="-20" y2="275" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="0" y1="325" x2="-20" y2="325" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="25" x2="130" y2="25" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="75" x2="130" y2="75" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="125" x2="130" y2="125" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="175" x2="130" y2="175" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="225" x2="130" y2="225" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="275" x2="130" y2="275" stroke="#27632a" stroke-width="2.2"/>
+      <line x1="110" y1="325" x2="130" y2="325" stroke="#27632a" stroke-width="2.2"/>
+    </g>
+
+    <g id="res-10k-body">
+      <rect x="0" y="0" width="80" height="18" rx="4" ry="4" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.3"/>
+      <rect x="12" y="0" width="5" height="18" fill="#8b5a2b"/>
+      <rect x="25" y="0" width="5" height="18" fill="#111"/>
+      <rect x="38" y="0" width="5" height="18" fill="#f57c00"/>
+      <rect x="51" y="0" width="5" height="18" fill="#d4af37"/>
+      <rect x="64" y="0" width="5" height="18" fill="#8b5a2b"/>
+    </g>
+
+    <g id="res-100k-body">
+      <rect x="0" y="0" width="80" height="18" rx="4" ry="4" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.3"/>
+      <rect x="12" y="0" width="5" height="18" fill="#8b5a2b"/>
+      <rect x="25" y="0" width="5" height="18" fill="#111"/>
+      <rect x="38" y="0" width="5" height="18" fill="#f2c94c"/>
+      <rect x="51" y="0" width="5" height="18" fill="#d4af37"/>
+      <rect x="64" y="0" width="5" height="18" fill="#8b5a2b"/>
+    </g>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="2100" height="1600"/>
+
+  <text class="title" x="60" y="56">Gate conditioning perfboard placement map</text>
+  <text class="subtitle" x="60" y="86">Three gate channels on one square 2.54-style perfboard build. One SN74LVC14AN DIP-14 handles GATE0, GATE1, and GATE2 with the first three inverter sections; the remaining inputs must be tied to a defined level.</text>
+
+  <rect class="panel" x="50" y="120" width="1520" height="900"/>
+  <text class="note" x="80" y="162">Main placement on square pad grid</text>
+  <text class="small" x="80" y="188">Top rail is 3V3 on row A. Bottom rail is GND on row L. Each channel uses a 10k series resistor, a 100k pull-down, a 1N4148 clamp pair, and one inverter section inside U2. The three outputs go to BCM16, BCM19, and BCM20.</text>
+
+  <rect class="board" x="140" y="230" width="1260" height="680"/>
+  <rect x="165" y="265" width="1200" height="600" fill="url(#perf-pad-grid)"/>
+
+  <g>
+    <text class="coord" x="185" y="252">1</text>
+    <text class="coord" x="235" y="252">2</text>
+    <text class="coord" x="285" y="252">3</text>
+    <text class="coord" x="335" y="252">4</text>
+    <text class="coord" x="385" y="252">5</text>
+    <text class="coord" x="435" y="252">6</text>
+    <text class="coord" x="485" y="252">7</text>
+    <text class="coord" x="535" y="252">8</text>
+    <text class="coord" x="585" y="252">9</text>
+    <text class="coord" x="635" y="252">10</text>
+    <text class="coord" x="685" y="252">11</text>
+    <text class="coord" x="735" y="252">12</text>
+    <text class="coord" x="785" y="252">13</text>
+    <text class="coord" x="835" y="252">14</text>
+    <text class="coord" x="885" y="252">15</text>
+    <text class="coord" x="935" y="252">16</text>
+    <text class="coord" x="985" y="252">17</text>
+    <text class="coord" x="1035" y="252">18</text>
+    <text class="coord" x="1085" y="252">19</text>
+    <text class="coord" x="1135" y="252">20</text>
+    <text class="coord" x="1185" y="252">21</text>
+    <text class="coord" x="1235" y="252">22</text>
+    <text class="coord" x="1285" y="252">23</text>
+    <text class="coord" x="1335" y="252">24</text>
+
+    <text class="coord" x="146" y="294">A</text>
+    <text class="coord" x="146" y="344">B</text>
+    <text class="coord" x="146" y="394">C</text>
+    <text class="coord" x="146" y="444">D</text>
+    <text class="coord" x="146" y="494">E</text>
+    <text class="coord" x="146" y="544">F</text>
+    <text class="coord" x="146" y="594">G</text>
+    <text class="coord" x="146" y="644">H</text>
+    <text class="coord" x="146" y="694">I</text>
+    <text class="coord" x="146" y="744">J</text>
+    <text class="coord" x="146" y="794">K</text>
+    <text class="coord" x="146" y="844">L</text>
+  </g>
+
+  <g>
+    <path class="net3" d="M 190 290 L 1340 290"/>
+    <path class="netg" d="M 190 840 L 1340 840"/>
+    <text class="legend" x="1210" y="282">3V3 rail A1-A24</text>
+    <text class="legend" x="1188" y="832">GND rail L1-L24</text>
+
+    <path class="netsig" d="M 190 340 L 240 340"/>
+    <path class="netsig" d="M 320 340 L 490 340"/>
+    <path class="netsig" d="M 490 340 L 840 340"/>
+    <path class="netg" d="M 490 340 L 490 840"/>
+    <path class="net3" d="M 540 290 L 540 340"/>
+    <path class="netg" d="M 590 840 L 590 340"/>
+    <path class="netout" d="M 840 390 L 1180 390"/>
+    <path class="netout" d="M 1180 390 L 1340 390"/>
+
+    <path class="netsig" d="M 190 440 L 240 440"/>
+    <path class="netsig" d="M 320 440 L 490 440"/>
+    <path class="netsig" d="M 490 440 L 840 440"/>
+    <path class="netg" d="M 490 440 L 490 840"/>
+    <path class="net3" d="M 540 290 L 540 440"/>
+    <path class="netg" d="M 590 840 L 590 440"/>
+    <path class="netout" d="M 840 490 L 1180 490"/>
+    <path class="netout" d="M 1180 490 L 1340 490"/>
+
+    <path class="netsig" d="M 190 540 L 240 540"/>
+    <path class="netsig" d="M 320 540 L 490 540"/>
+    <path class="netsig" d="M 490 540 L 840 540"/>
+    <path class="netg" d="M 490 540 L 490 840"/>
+    <path class="net3" d="M 540 290 L 540 540"/>
+    <path class="netg" d="M 590 840 L 590 540"/>
+    <path class="netout" d="M 840 590 L 1180 590"/>
+    <path class="netout" d="M 1180 590 L 1340 590"/>
+
+    <path class="net3" d="M 970 290 L 990 290 L 990 340"/>
+    <path class="netg" d="M 840 640 L 840 840"/>
+  </g>
+
+  <g>
+    <path class="netsig" d="M 190 340 L 120 340 L 120 310 L 158 310"/>
+    <path class="netg" d="M 190 840 L 102 840 L 102 326 L 158 326"/>
+    <rect class="callout" x="58" y="292" width="100" height="52"/>
+    <text class="tiny" x="70" y="312">J2 GATE0</text>
+    <text class="tiny" x="70" y="328">tip: B1</text>
+    <text class="tiny" x="70" y="344">sleeve: L1</text>
+
+    <use href="#res-10k-body" x="240" y="331"/>
+    <line x1="240" y1="340" x2="230" y2="340" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="320" y1="340" x2="490" y2="340" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="280" y="322" text-anchor="middle">R5A 10k</text>
+    <text class="tiny" x="280" y="366" text-anchor="middle">B2-B3</text>
+
+    <line x1="490" y1="340" x2="490" y2="755" stroke="#7a5a28" stroke-width="2"/>
+    <use href="#res-100k-body" x="450" y="621" transform="rotate(90 490 630)"/>
+    <text class="small" x="518" y="648">R6A 100k</text>
+    <text class="tiny" x="518" y="664">B7-L7</text>
+
+    <line x1="540" y1="290" x2="540" y2="313" stroke="#333" stroke-width="3"/>
+    <rect x="530" y="313" width="20" height="24" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="530" y="313" width="20" height="7" fill="#111"/>
+    <line x1="540" y1="337" x2="540" y2="340" stroke="#333" stroke-width="3"/>
+    <rect class="passive" x="556" y="310" width="68" height="26"/>
+    <text class="tiny" x="570" y="328">D1A 1N4148</text>
+
+    <line x1="590" y1="840" x2="590" y2="367" stroke="#333" stroke-width="3"/>
+    <rect x="580" y="343" width="20" height="24" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="580" y="360" width="20" height="7" fill="#111"/>
+    <line x1="590" y1="343" x2="590" y2="340" stroke="#333" stroke-width="3"/>
+    <rect class="passive" x="606" y="340" width="68" height="26"/>
+    <text class="tiny" x="620" y="358">D2A 1N4148</text>
+
+    <path class="netsig" d="M 190 440 L 120 440 L 120 410 L 158 410"/>
+    <rect class="callout" x="58" y="392" width="100" height="52"/>
+    <text class="tiny" x="70" y="412">J3 GATE1</text>
+    <text class="tiny" x="70" y="428">tip: D1</text>
+    <text class="tiny" x="70" y="444">sleeve: L1</text>
+
+    <use href="#res-10k-body" x="240" y="431"/>
+    <line x1="240" y1="440" x2="230" y2="440" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="320" y1="440" x2="490" y2="440" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="280" y="422" text-anchor="middle">R5B 10k</text>
+    <text class="tiny" x="280" y="466" text-anchor="middle">D2-D3</text>
+
+    <line x1="490" y1="440" x2="490" y2="755" stroke="#7a5a28" stroke-width="2"/>
+    <use href="#res-100k-body" x="450" y="671" transform="rotate(90 490 680)"/>
+    <text class="small" x="518" y="698">R6B 100k</text>
+    <text class="tiny" x="518" y="714">D7-L7</text>
+
+    <line x1="540" y1="290" x2="540" y2="413" stroke="#333" stroke-width="3"/>
+    <rect x="530" y="413" width="20" height="24" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="530" y="413" width="20" height="7" fill="#111"/>
+    <line x1="540" y1="437" x2="540" y2="440" stroke="#333" stroke-width="3"/>
+    <rect class="passive" x="556" y="410" width="68" height="26"/>
+    <text class="tiny" x="570" y="428">D1B 1N4148</text>
+
+    <line x1="590" y1="840" x2="590" y2="467" stroke="#333" stroke-width="3"/>
+    <rect x="580" y="443" width="20" height="24" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="580" y="460" width="20" height="7" fill="#111"/>
+    <line x1="590" y1="443" x2="590" y2="440" stroke="#333" stroke-width="3"/>
+    <rect class="passive" x="606" y="440" width="68" height="26"/>
+    <text class="tiny" x="620" y="458">D2B 1N4148</text>
+
+    <path class="netsig" d="M 190 540 L 120 540 L 120 510 L 158 510"/>
+    <rect class="callout" x="58" y="492" width="100" height="52"/>
+    <text class="tiny" x="70" y="512">J4 GATE2</text>
+    <text class="tiny" x="70" y="528">tip: F1</text>
+    <text class="tiny" x="70" y="544">sleeve: L1</text>
+
+    <use href="#res-10k-body" x="240" y="531"/>
+    <line x1="240" y1="540" x2="230" y2="540" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="320" y1="540" x2="490" y2="540" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="280" y="522" text-anchor="middle">R5C 10k</text>
+    <text class="tiny" x="280" y="566" text-anchor="middle">F2-F3</text>
+
+    <line x1="490" y1="540" x2="490" y2="755" stroke="#7a5a28" stroke-width="2"/>
+    <use href="#res-100k-body" x="450" y="721" transform="rotate(90 490 730)"/>
+    <text class="small" x="518" y="748">R6C 100k</text>
+    <text class="tiny" x="518" y="764">F7-L7</text>
+
+    <line x1="540" y1="290" x2="540" y2="513" stroke="#333" stroke-width="3"/>
+    <rect x="530" y="513" width="20" height="24" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="530" y="513" width="20" height="7" fill="#111"/>
+    <line x1="540" y1="537" x2="540" y2="540" stroke="#333" stroke-width="3"/>
+    <rect class="passive" x="556" y="510" width="68" height="26"/>
+    <text class="tiny" x="570" y="528">D1C 1N4148</text>
+
+    <line x1="590" y1="840" x2="590" y2="567" stroke="#333" stroke-width="3"/>
+    <rect x="580" y="543" width="20" height="24" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="580" y="560" width="20" height="7" fill="#111"/>
+    <line x1="590" y1="543" x2="590" y2="540" stroke="#333" stroke-width="3"/>
+    <rect class="passive" x="606" y="540" width="68" height="26"/>
+    <text class="tiny" x="620" y="558">D2C 1N4148</text>
+
+    <use href="#dip14" x="860" y="315"/>
+    <text class="small" x="915" y="382" text-anchor="middle">U2</text>
+    <text class="tiny" x="915" y="400" text-anchor="middle">SN74LVC14AN</text>
+    <text class="tiny" x="915" y="418" text-anchor="middle">B15-H15 / B18-H18</text>
+    <text class="pinlabel" x="802" y="344">pin 1 1A B15</text>
+    <text class="pinlabel" x="802" y="394">pin 2 1Y C15</text>
+    <text class="pinlabel" x="802" y="444">pin 3 2A D15</text>
+    <text class="pinlabel" x="802" y="494">pin 4 2Y E15</text>
+    <text class="pinlabel" x="802" y="544">pin 5 3A F15</text>
+    <text class="pinlabel" x="802" y="594">pin 6 3Y G15</text>
+    <text class="pinlabel" x="802" y="644">pin 7 GND H15</text>
+    <text class="pinlabel" x="998" y="344">pin 14 VCC B18</text>
+
+    <rect class="callout" x="880" y="710" width="300" height="110"/>
+    <text class="tiny" x="898" y="736">Unused SN74LVC14AN inputs must not float.</text>
+    <text class="tiny" x="898" y="754">Tie pins 9, 11, and 13 to GND or 3V3.</text>
+    <text class="tiny" x="898" y="772">Leave the matching outputs 8, 10, and 12 unconnected.</text>
+    <text class="tiny" x="898" y="790">This map uses only channels 1, 2, and 3.</text>
+
+    <path class="netout" d="M 1340 390 L 1460 390 L 1460 618"/>
+    <path class="netout" d="M 1340 490 L 1500 490 L 1500 688"/>
+    <path class="netout" d="M 1340 590 L 1540 590 L 1540 758"/>
+    <path class="netg" d="M 1340 840 L 1430 840 L 1430 634 L 1460 634"/>
+    <path class="netg" d="M 1340 840 L 1430 840 L 1430 704 L 1500 704"/>
+    <path class="netg" d="M 1340 840 L 1430 840 L 1430 774 L 1540 774"/>
+    <rect class="callout" x="1460" y="602" width="110" height="48"/>
+    <text class="tiny" x="1474" y="621">GATE0 OUT</text>
+    <text class="tiny" x="1474" y="637">BCM16 / C24</text>
+    <rect class="callout" x="1500" y="672" width="110" height="48"/>
+    <text class="tiny" x="1514" y="691">GATE1 OUT</text>
+    <text class="tiny" x="1514" y="707">BCM19 / E24</text>
+    <rect class="callout" x="1540" y="742" width="110" height="48"/>
+    <text class="tiny" x="1554" y="761">GATE2 OUT</text>
+    <text class="tiny" x="1554" y="777">BCM20 / G24</text>
+  </g>
+
+  <rect class="panel" x="1620" y="120" width="430" height="390"/>
+  <text class="note" x="1650" y="162">Inset: build summary</text>
+  <text class="small" x="1650" y="188">This is the full 3-channel gate board, not a one-channel repeat block.</text>
+  <rect class="callout" x="1650" y="220" width="370" height="250"/>
+  <text class="small" x="1676" y="252">1. One chip, three gates</text>
+  <text class="tiny" x="1676" y="274">Use U2 pin pairs 1/2, 3/4, and 5/6 for GATE0, GATE1, and GATE2.</text>
+  <text class="small" x="1676" y="306">2. Shared rails</text>
+  <text class="tiny" x="1676" y="328">Row A carries 3V3 for U2 and the upper clamp diodes. Row L carries GND, the pull-down returns, and the jack sleeves.</text>
+  <text class="small" x="1676" y="360">3. Protection first</text>
+  <text class="tiny" x="1676" y="382">Each jack passes through 10k before the node reaches the clamp pair or the IC input.</text>
+  <text class="small" x="1676" y="414">4. Stable idle state</text>
+  <text class="tiny" x="1676" y="436">Each 100k pull-down holds the input low when the patch cable is absent or the source is open.</text>
+
+  <rect class="panel" x="50" y="1060" width="2000" height="480"/>
+  <text class="note" x="80" y="1102">Hole-by-hole placement table</text>
+  <text class="small" x="80" y="1128">Coordinates below follow the board above. J2, J3, and J4 are off-board panel jacks. The perfboard carries the resistors, clamp diodes, the SN74LVC14AN, and the GPIO header connections.</text>
+
+  <rect class="table-head" x="80" y="1160" width="170" height="40"/>
+  <rect class="table-head" x="250" y="1160" width="220" height="40"/>
+  <rect class="table-head" x="470" y="1160" width="260" height="40"/>
+  <rect class="table-head" x="730" y="1160" width="260" height="40"/>
+  <rect class="table-head" x="990" y="1160" width="1020" height="40"/>
+  <text class="small" x="100" y="1185">Part</text>
+  <text class="small" x="276" y="1185">Pads</text>
+  <text class="small" x="492" y="1185">Function</text>
+  <text class="small" x="752" y="1185">Net</text>
+  <text class="small" x="1012" y="1185">Notes</text>
+
+  <rect class="table-cell" x="80" y="1200" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1200" width="220" height="38"/>
+  <rect class="table-cell" x="470" y="1200" width="260" height="38"/>
+  <rect class="table-cell" x="730" y="1200" width="260" height="38"/>
+  <rect class="table-cell" x="990" y="1200" width="1020" height="38"/>
+  <text class="tiny" x="98" y="1224">J2, J3, J4</text>
+  <text class="tiny" x="268" y="1224">B1/L1, D1/L1, F1/L1</text>
+  <text class="tiny" x="488" y="1224">panel inputs and returns</text>
+  <text class="tiny" x="748" y="1224">external gate sources</text>
+  <text class="tiny" x="1008" y="1224">Use three mono jacks. Tips land at B1, D1, and F1. All sleeves return to the shared ground rail on row L.</text>
+
+  <rect class="table-cell" x="80" y="1238" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1238" width="220" height="38"/>
+  <rect class="table-cell" x="470" y="1238" width="260" height="38"/>
+  <rect class="table-cell" x="730" y="1238" width="260" height="38"/>
+  <rect class="table-cell" x="990" y="1238" width="1020" height="38"/>
+  <text class="tiny" x="98" y="1262">R5A, R5B, R5C</text>
+  <text class="tiny" x="268" y="1262">B2-B3, D2-D3, F2-F3</text>
+  <text class="tiny" x="488" y="1262">series input resistors</text>
+  <text class="tiny" x="748" y="1262">jack tips to clamp nodes</text>
+  <text class="tiny" x="1008" y="1262">These are the first parts after the jacks. Keep them near the left edge so cable transients hit the resistor before anything else.</text>
+
+  <rect class="table-cell" x="80" y="1276" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1276" width="220" height="38"/>
+  <rect class="table-cell" x="470" y="1276" width="260" height="38"/>
+  <rect class="table-cell" x="730" y="1276" width="260" height="38"/>
+  <rect class="table-cell" x="990" y="1276" width="1020" height="38"/>
+  <text class="tiny" x="98" y="1300">R6A, R6B, R6C</text>
+  <text class="tiny" x="268" y="1300">B7-L7, D7-L7, F7-L7</text>
+  <text class="tiny" x="488" y="1300">pull-down resistors</text>
+  <text class="tiny" x="748" y="1300">input nodes to GND</text>
+  <text class="tiny" x="1008" y="1300">All three pull-downs share the same lower rail. That is fine because the gate channels only meet again at ground.</text>
+
+  <rect class="table-cell" x="80" y="1314" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1314" width="220" height="38"/>
+  <rect class="table-cell" x="470" y="1314" width="260" height="38"/>
+  <rect class="table-cell" x="730" y="1314" width="260" height="38"/>
+  <rect class="table-cell" x="990" y="1314" width="1020" height="38"/>
+  <text class="tiny" x="98" y="1338">D1A-D2C</text>
+  <text class="tiny" x="268" y="1338">rail-to-node clamp positions</text>
+  <text class="tiny" x="488" y="1338">clamp pairs</text>
+  <text class="tiny" x="748" y="1338">nodes to 3V3 and GND</text>
+  <text class="tiny" x="1008" y="1338">Use six 1N4148 diodes total. For each channel, one diode clamps upward to 3V3 and one clamps downward to GND.</text>
+
+  <rect class="table-cell" x="80" y="1352" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1352" width="220" height="38"/>
+  <rect class="table-cell" x="470" y="1352" width="260" height="38"/>
+  <rect class="table-cell" x="730" y="1352" width="260" height="38"/>
+  <rect class="table-cell" x="990" y="1352" width="1020" height="38"/>
+  <text class="tiny" x="98" y="1376">U2 SN74LVC14AN</text>
+  <text class="tiny" x="268" y="1376">B15-H15 and B18-H18</text>
+  <text class="tiny" x="488" y="1376">Schmitt-trigger buffer</text>
+  <text class="tiny" x="748" y="1376">three cleaned gate outputs</text>
+  <text class="tiny" x="1008" y="1376">Use pin pairs 1/2, 3/4, and 5/6. Pin 14 goes to 3V3 and pin 7 goes to GND. Tie the spare inputs 9, 11, and 13 to a fixed level.</text>
+
+  <rect class="table-cell" x="80" y="1390" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1390" width="220" height="38"/>
+  <rect class="table-cell" x="470" y="1390" width="260" height="38"/>
+  <rect class="table-cell" x="730" y="1390" width="260" height="38"/>
+  <rect class="table-cell" x="990" y="1390" width="1020" height="38"/>
+  <text class="tiny" x="98" y="1414">GPIO header wires</text>
+  <text class="tiny" x="268" y="1414">C24, E24, G24 and L24</text>
+  <text class="tiny" x="488" y="1414">Pi-side outputs and return</text>
+  <text class="tiny" x="748" y="1414">BCM16, BCM19, BCM20</text>
+  <text class="tiny" x="1008" y="1414">Route the three signal wires off-board to the Pi header or the Waveshare header adapter, with one shared ground return from row L.</text>
+
+  <text class="tiny" x="80" y="1480">Net summary: GATE0 uses pins 1 and 2, GATE1 uses pins 3 and 4, GATE2 uses pins 5 and 6. All three channels share U2 pin 14 for 3V3 and pin 7 for GND.</text>
+</svg>
