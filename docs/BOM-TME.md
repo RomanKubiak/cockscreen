@@ -2,7 +2,7 @@
 
 This is the TME-focused sourcing list for the current project.
 
-Mechanical and panel-only items are intentionally omitted here: enclosure, standoffs, screws, panel hardware, knobs, manual pots, motorized faders, NeoSlider module, wire, perfboard, jacks, barrel jack, GPIO header, and switches.
+Mechanical and panel-only items are intentionally omitted here: enclosure, standoffs, screws, panel hardware, knobs, manual pots, motorized faders, NeoSlider module, L9110 motor-driver module, wire, perfboard, jacks, barrel jack, GPIO header, and switches.
 
 The goal is to keep this BOM to the PCB-level electronics that can be checked on TME.
 
@@ -16,7 +16,6 @@ The goal is to keep this BOM to the PCB-level electronics that can be checked on
 | 1 | 5 V buck regulator | LM2596T-5.0-TT | TME substitute, in stock | TAEJIN / HTC Korea THT TO-220-5; 684 in TME stock |
 | 1 | Buck catch diode | 1N5822-ST | exact, in stock | THT DO201AD Schottky; 4220 in TME stock |
 | 1 | 33 uH buck inductor | DPU033A3 / DPO-3.0-33 | exact, in stock | THT toroidal inductor; 745 in TME stock |
-| 1 | H-bridge driver | SN754410NE | exact, in stock | DIP16; 291 in TME stock |
 | 1 | Gate inverter | SN74HCT14N | exact, in stock | DIP14 Schmitt-trigger inverter; 46 in TME stock |
 | 4 | CV output op amp | OPA277PA | exact, in stock | DIP8 precision op amp; 332 in TME stock |
 | 0-3 | Optional bipolar input op amp | MCP6002-I/P | exact, in stock | DIP8 dual RRIO op amp; 1714 in TME stock |

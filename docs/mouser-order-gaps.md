@@ -52,4 +52,3 @@ Recommended enclosure:
 | 1 | DC barrel jack | 485-610 | Panel mount 2.1 mm barrel jack |
 | 10 | Mono jack | 502-35RAPC2AHN2 | 3.5 mm mono jack for CV and gate I/O |
 | 3 | Toggle switch | 633-D22013LP | ON-OFF-ON panel toggle switch |
-| 1 | H-bridge driver | 595-SN754410NE | Dual driver for the two motorized faders |

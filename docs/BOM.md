@@ -31,14 +31,14 @@ Repeat the parts below three times, once for each direct CV input on AD1, AD2, a
 
 ## Control Surface On AD0 And I2C
 
-The manual pots are user-supplied and are not listed as purchase items. The NeoSlider is an I2C module. The motorized-fader feedback wipers can share the AD0 mux; their motors need a dual H-bridge driver.
+The manual pots are user-supplied and are not listed as purchase items. The NeoSlider is an I2C module. The motorized-fader feedback wipers can share the AD0 mux; their motors need one two-channel motor-driver module.
 
 | Qty | Part | Notes |
 |---|---|---|
 | 1 | CD74HC4067E | 16-channel analog multiplexer, DIP-24 THT |
 | 2 | COM-10976 motorized fader | 10k linear motorized slide pot; feedback wiper to AD0 mux, motor leads to driver |
 | 1 | Adafruit NeoSlider | I2C 75 mm slide pot module |
-| 1 | SN754410NE | Dual H-bridge driver for the two motorized faders |
+| 1 | L9110 dual motor driver module | One two-channel module, one motor channel per fader |
 | 1 | 1k resistor | Series protection at mux output |
 | 2 | 1N4148 diode | Clamp pair at mux output |
 | 0-10 | 100 nF capacitor | Optional smoothing capacitor per manual pot or fader feedback channel |

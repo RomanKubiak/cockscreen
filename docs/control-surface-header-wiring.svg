@@ -77,12 +77,12 @@
   <rect x="360" y="320" width="170" height="100" rx="10" ry="10" fill="#fff" stroke="#8a5b00" stroke-width="2"/>
   <text class="small" x="445" y="352" text-anchor="middle">F1</text>
   <text class="tiny" x="445" y="376" text-anchor="middle">feedback wiper -> mux C8</text>
-  <text class="tiny" x="445" y="394" text-anchor="middle">motor leads -> SN754410NE 1Y / 2Y</text>
+  <text class="tiny" x="445" y="394" text-anchor="middle">motor leads -> L9110 channel A outputs</text>
   <text class="tiny" x="445" y="412" text-anchor="middle">track ends -> 3V3 and GND</text>
   <rect x="360" y="455" width="170" height="100" rx="10" ry="10" fill="#fff" stroke="#8a5b00" stroke-width="2"/>
   <text class="small" x="445" y="487" text-anchor="middle">F2</text>
   <text class="tiny" x="445" y="511" text-anchor="middle">feedback wiper -> mux C9</text>
-  <text class="tiny" x="445" y="529" text-anchor="middle">motor leads -> SN754410NE 3Y / 4Y</text>
+  <text class="tiny" x="445" y="529" text-anchor="middle">motor leads -> L9110 channel B outputs</text>
   <text class="tiny" x="445" y="547" text-anchor="middle">track ends -> 3V3 and GND</text>
   <text class="tiny" x="445" y="604" text-anchor="middle">touch pins, if present, stay optional</text>
   <text class="tiny" x="445" y="622" text-anchor="middle">and are not required for motion control</text>
@@ -107,14 +107,13 @@
   <rect class="warn" x="670" y="580" width="420" height="300"/>
   <text class="label" x="700" y="620">Motor driver block</text>
   <rect class="warn" x="700" y="650" width="360" height="170"/>
-  <text class="label" x="880" y="686" text-anchor="middle">SN754410NE</text>
-  <text class="small" x="880" y="714" text-anchor="middle">One dual H-bridge for both fader motors</text>
-  <text class="tiny" x="880" y="746" text-anchor="middle">VCC1 -> 3V3 logic rail</text>
-  <text class="tiny" x="880" y="764" text-anchor="middle">VCC2 -> 5 V_DIG motor rail</text>
-  <text class="tiny" x="880" y="782" text-anchor="middle">1Y / 2Y -> F1 motor</text>
-  <text class="tiny" x="880" y="800" text-anchor="middle">3Y / 4Y -> F2 motor</text>
-  <text class="tiny" x="880" y="818" text-anchor="middle">1A/2A/3A/4A take four dedicated Pi outputs</text>
-  <text class="tiny" x="880" y="846" text-anchor="middle">1,2EN and 3,4EN are tied high to 3V3 for first-pass full-speed drive</text>
+  <text class="label" x="880" y="686" text-anchor="middle">L9110 dual motor module</text>
+  <text class="small" x="880" y="714" text-anchor="middle">One two-channel driver for both fader motors</text>
+  <text class="tiny" x="880" y="746" text-anchor="middle">VCC -> 5 V_DIG motor rail</text>
+  <text class="tiny" x="880" y="764" text-anchor="middle">channel A outputs -> F1 motor</text>
+  <text class="tiny" x="880" y="782" text-anchor="middle">channel B outputs -> F2 motor</text>
+  <text class="tiny" x="880" y="800" text-anchor="middle">IA / IB inputs take four dedicated Pi outputs</text>
+  <text class="tiny" x="880" y="846" text-anchor="middle">no separate EN pins; PWM later goes on the active IA or IB input</text>
 
   <rect class="panel" x="1140" y="120" width="430" height="760"/>
   <text class="label" x="1170" y="160">Pi Zero 2 W 40-pin header</text>
@@ -144,15 +143,15 @@
   <rect class="warn" x="1175" y="530" width="360" height="220"/>
   <text class="label" x="1355" y="566" text-anchor="middle">Motor logic pins</text>
   <text class="pin" x="1205" y="606">pin 16</text>
-  <text class="small" x="1260" y="606">BCM23 -> `1A` / `F1_IN_A`</text>
+  <text class="small" x="1260" y="606">BCM23 -> channel A `IA` / `F1_IA`</text>
   <text class="pin" x="1205" y="632">pin 18</text>
-  <text class="small" x="1260" y="632">BCM24 -> `2A` / `F1_IN_B`</text>
+  <text class="small" x="1260" y="632">BCM24 -> channel A `IB` / `F1_IB`</text>
   <text class="pin" x="1205" y="658">pin 22</text>
-  <text class="small" x="1260" y="658">BCM25 -> `3A` / `F2_IN_A`</text>
+  <text class="small" x="1260" y="658">BCM25 -> channel B `IA` / `F2_IA`</text>
   <text class="pin" x="1205" y="684">pin 40</text>
-  <text class="small" x="1260" y="684">BCM21 -> `4A` / `F2_IN_B`</text>
-  <text class="tiny" x="1355" y="718" text-anchor="middle">Initial build: tie `1,2EN` and `3,4EN` to `3V3`</text>
-  <text class="tiny" x="1355" y="736" text-anchor="middle">Optional shared PWM: tie both EN pins together and drive from BCM12 / pin 32</text>
+  <text class="small" x="1260" y="684">BCM21 -> channel B `IB` / `F2_IB`</text>
+  <text class="tiny" x="1355" y="718" text-anchor="middle">Initial build: plain digital IA / IB control at full speed</text>
+  <text class="tiny" x="1355" y="736" text-anchor="middle">Optional speed control later: PWM the active IA or IB line for that motor</text>
 
   <rect class="panel" x="1140" y="910" width="700" height="380"/>
   <text class="label" x="1170" y="950">Power map</text>
@@ -167,7 +166,7 @@
   <text class="label" x="1510" y="1056" text-anchor="middle">Power board</text>
   <text class="tiny" x="1510" y="1086" text-anchor="middle">5 V_DIG out -> Pi pin 2 / pin 4</text>
   <text class="tiny" x="1510" y="1106" text-anchor="middle">GND -> common return</text>
-  <text class="tiny" x="1510" y="1126" text-anchor="middle">5 V_DIG also feeds SN754410NE VCC2</text>
+  <text class="tiny" x="1510" y="1126" text-anchor="middle">5 V_DIG also feeds the L9110 motor-driver module</text>
 
   <rect class="chip" x="1650" y="1020" width="150" height="160"/>
   <text class="label" x="1725" y="1056" text-anchor="middle">Pi 40-pin</text>
@@ -264,8 +263,8 @@
 
   <rect class="callout" x="1120" y="910" width="720" height="190"/>
   <text class="small" x="1140" y="944">First-pass motor logic</text>
-  <text class="tiny" x="1140" y="968">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four SN754410NE direction inputs.</text>
-  <text class="tiny" x="1140" y="988">With `EN` tied high, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
-  <text class="tiny" x="1140" y="1008">No-board-modification PWM option: tie both enable pins together and drive them from BCM12 / pin 32.</text>
-  <text class="tiny" x="1140" y="1028">That gives one shared speed control lane, so firmware should move only one fader motor at a time.</text>
+  <text class="tiny" x="1140" y="968">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four L9110 `IA` / `IB` inputs.</text>
+  <text class="tiny" x="1140" y="988">Per channel, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
+  <text class="tiny" x="1140" y="1008">The module has no separate enable pins, so later speed control must use PWM on the active `IA` or `IB` line.</text>
+  <text class="tiny" x="1140" y="1028">The current four-GPIO layout remains valid for forward, reverse, coast, and brake control without hardware changes.</text>
 </svg>

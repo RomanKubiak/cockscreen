@@ -7,7 +7,6 @@ Qty,Manufacturer Part Number,Status,Notes
 1,652-2100LL-330-H-RC,verified,33 uH THT toroidal power inductor
 4,71-RN55C9761BRE5,verified,9.76k 0.1% feedback resistor
 4,652-3296W-1-501,verified,Trim pot for output gain calibration
-1,595-SN754410NE,verified,Dual H-bridge driver for the two fader motors
 22,512-1N4148,verified,Clamp diodes across CV, gate, mux, and output paths
 4,595-OPA277PA,verified,Precision op amp for CV outputs
 1,584-AD780ANZ,verified,2.5 V reference

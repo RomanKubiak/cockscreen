@@ -36,7 +36,7 @@ The short version is:
 - Pot mux series protection: `1k`.
 - Pot mux clamp: two `1N4148` diodes to `0 V` and `3V3`.
 - Control surface: eight user-supplied manual pots, one NeoSlider I2C slider module, and two motorized faders.
-- Motorized fader drive: `SN754410NE` dual H-bridge, one chip for both faders.
+- Motorized fader drive: one `L9110` two-channel motor-driver module, one channel per fader.
 - Gate series resistor: `10k`.
 - Gate pull-down: `100k`.
 - Gate clamp: two `1N4148` diodes to `0 V` and `3V3`.
@@ -142,43 +142,41 @@ The pot mux is shown in the board-level schematic above. It is the `AD0` section
 The two COM-10976 motorized faders are panel controls with a 10k linear position pot and a small motor. Treat each one as two subsystems:
 
 - a position wiper sampled on `AD0` through a spare mux channel
-- a motor driven by an `SN754410NE` dual H-bridge
+- a motor driven by one channel of an `L9110` two-channel driver module
 
 ### Power And Wiring
 
 | Fader pin | Connect to |
 |---|---|
 | `WIPER` | One of the spare mux channels |
-| `MOTOR+` / `MOTOR-` | `SN754410NE` outputs |
+| `MOTOR+` / `MOTOR-` | `L9110` channel output pair |
 | `VCC` / motor rail | `5 V_DIG` or a separate motor rail sized to the fader datasheet |
 | `GND` | Shared ground |
 | `TOUCH` if exposed | Optional spare Pi GPIO |
 
 ### Driver Rules
 
-- One `SN754410NE` can drive both motorized faders.
+- One two-channel `L9110` module can drive both motorized faders.
 - Keep the driver and motor-supply decoupling close to the panel harness.
 - The firmware needs to compare the sampled fader position against the target position before moving the motor.
 - The Adafruit NeoSlider module is separate on I2C and does not use the mux.
 
 ### Proposed Motor Logic Pins
 
-For a first-pass wiring that does not collide with the current ADS1256, mux, gate, or I2C assignments, use four dedicated Pi outputs for the H-bridge direction inputs and tie both enable pins high to `3V3`.
+For a first-pass wiring that does not collide with the current ADS1256, mux, gate, or I2C assignments, use four dedicated Pi outputs for the `L9110` input pins, two per fader motor channel.
 
-| Driver signal | `SN754410NE` input | Pi BCM | Physical pin | Purpose |
+| Driver signal | `L9110` input | Pi BCM | Physical pin | Purpose |
 |---|---|---|---|---|
-| `F1_IN_A` | `1A` | `23` | `16` | motorized fader 1 direction leg A |
-| `F1_IN_B` | `2A` | `24` | `18` | motorized fader 1 direction leg B |
-| `F2_IN_A` | `3A` | `25` | `22` | motorized fader 2 direction leg A |
-| `F2_IN_B` | `4A` | `21` | `40` | motorized fader 2 direction leg B |
-| `F1_EN` | `1,2EN` | tie high | n/a | keep enabled for initial full-speed drive |
-| `F2_EN` | `3,4EN` | tie high | n/a | keep enabled for initial full-speed drive |
+| `F1_IA` | channel A `IA` | `23` | `16` | motorized fader 1 control input A |
+| `F1_IB` | channel A `IB` | `24` | `18` | motorized fader 1 control input B |
+| `F2_IA` | channel B `IA` | `25` | `22` | motorized fader 2 control input A |
+| `F2_IB` | channel B `IB` | `21` | `40` | motorized fader 2 control input B |
 
 ### Motor Logic Truth Table
 
-Assuming the relevant `EN` pin is held high:
+For each L9110 motor channel:
 
-| `IN_A` | `IN_B` | Result |
+| `IA` | `IB` | Result |
 |---|---|---|
 | `0` | `0` | coast |
 | `1` | `0` | drive one direction |
@@ -187,17 +185,17 @@ Assuming the relevant `EN` pin is held high:
 
 ### PWM Upgrade Plan
 
-Because the Waveshare ADS1256 board hard-wires its own control pins, the earlier idea of freeing `BCM18` for a second hardware-PWM lane is not practical on this stack.
+The L9110 module does not expose separate enable pins. If variable speed is needed later, PWM must be applied on the active `IA` or `IB` line for that motor channel.
 
-That leaves three realistic options without modifying the ADS1256 board:
+That leaves three realistic options on the current header plan:
 
 | Option | Wiring | Tradeoff |
 |---|---|---|
-| Keep full-speed drive | tie `1,2EN` and `3,4EN` to `3V3` | simplest and already matches the first-pass plan |
-| Shared PWM speed control | tie both enable pins together and drive them from `BCM12` / physical pin `32` | both H-bridges share one PWM duty cycle, so only one motor should move at a time |
-| Software PWM fallback | keep separate enable pins on spare GPIOs and bit-bang PWM in software | possible, but Linux timing jitter makes it less clean than hardware PWM |
+| Keep full-speed drive | use plain digital `IA` / `IB` switching only | simplest and already matches the first-pass plan |
+| Software PWM on the active input | apply PWM to whichever `IA` or `IB` line is asserting the active direction | possible, but Linux timing jitter makes it less clean than hardware PWM |
+| Later pin-budget redesign | reassign one or more motor control lines to hardware-PWM-capable GPIOs | cleaner speed control, but requires a deliberate GPIO remap later |
 
-The practical no-board-modification recommendation is to keep the initial full-speed design, or, if variable speed is required later, use one shared hardware-PWM line on `BCM12` and ensure the firmware never drives both faders simultaneously.
+The practical no-implementation-change recommendation is to keep the initial full-speed design for now. If variable speed is required later, use PWM on the active `IA` / `IB` line for one motor at a time or revisit the GPIO budget before implementation.
 
 ### Control-Surface Wiring Map
 
