@@ -152,7 +152,7 @@
   <text class="pin" x="1205" y="684">pin 40</text>
   <text class="small" x="1260" y="684">BCM21 -> `4A` / `F2_IN_B`</text>
   <text class="tiny" x="1355" y="718" text-anchor="middle">Initial build: tie `1,2EN` and `3,4EN` to `3V3`</text>
-  <text class="tiny" x="1355" y="736" text-anchor="middle">PWM upgrade: BCM12 / pin 32 for `1,2EN`; BCM18 / pin 12 for `3,4EN` after moving ADS1256 reset</text>
+  <text class="tiny" x="1355" y="736" text-anchor="middle">Optional shared PWM: tie both EN pins together and drive from BCM12 / pin 32</text>
 
   <rect class="panel" x="1140" y="910" width="700" height="380"/>
   <text class="label" x="1170" y="950">Power map</text>
@@ -266,6 +266,6 @@
   <text class="small" x="1140" y="944">First-pass motor logic</text>
   <text class="tiny" x="1140" y="968">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four SN754410NE direction inputs.</text>
   <text class="tiny" x="1140" y="988">With `EN` tied high, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
-  <text class="tiny" x="1140" y="1008">PWM upgrade path: move `1,2EN` to BCM12 / pin 32 and move `3,4EN` to BCM18 / pin 12.</text>
-  <text class="tiny" x="1140" y="1028">Because ADS1256 reset currently uses BCM18, that second PWM lane requires moving ADS1256 `RESET` to BCM4 / pin 7 first.</text>
+  <text class="tiny" x="1140" y="1008">No-board-modification PWM option: tie both enable pins together and drive them from BCM12 / pin 32.</text>
+  <text class="tiny" x="1140" y="1028">That gives one shared speed control lane, so firmware should move only one fader motor at a time.</text>
 </svg>

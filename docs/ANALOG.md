@@ -187,20 +187,17 @@ Assuming the relevant `EN` pin is held high:
 
 ### PWM Upgrade Plan
 
-If you want variable fader speed instead of fixed full-speed drive, use hardware-PWM-capable header pins for the two `EN` inputs. On the current Pi header budget, one such pin is already free and the second one only becomes available if the ADS1256 reset line is moved off `BCM18`.
+Because the Waveshare ADS1256 board hard-wires its own control pins, the earlier idea of freeing `BCM18` for a second hardware-PWM lane is not practical on this stack.
 
-| Driver signal | `SN754410NE` input | Pi BCM | Physical pin | Status |
-|---|---|---|---|---|
-| `F1_EN_PWM` | `1,2EN` | `12` | `32` | free now, suitable for PWM |
-| `F2_EN_PWM` | `3,4EN` | `18` | `12` | only available after moving ADS1256 `RESET` elsewhere |
+That leaves three realistic options without modifying the ADS1256 board:
 
-Recommended prerequisite for the second PWM lane:
+| Option | Wiring | Tradeoff |
+|---|---|---|
+| Keep full-speed drive | tie `1,2EN` and `3,4EN` to `3V3` | simplest and already matches the first-pass plan |
+| Shared PWM speed control | tie both enable pins together and drive them from `BCM12` / physical pin `32` | both H-bridges share one PWM duty cycle, so only one motor should move at a time |
+| Software PWM fallback | keep separate enable pins on spare GPIOs and bit-bang PWM in software | possible, but Linux timing jitter makes it less clean than hardware PWM |
 
-| Existing function | Current Pi BCM | New Pi BCM | Physical pin |
-|---|---|---|---|
-| ADS1256 `RESET` | `18` | `4` | `7` |
-
-That keeps both H-bridge enable lines on hardware-PWM-capable GPIOs while preserving the current mux, gate, and I2C assignments.
+The practical no-board-modification recommendation is to keep the initial full-speed design, or, if variable speed is required later, use one shared hardware-PWM line on `BCM12` and ensure the firmware never drives both faders simultaneously.
 
 ### Control-Surface Wiring Map
 
