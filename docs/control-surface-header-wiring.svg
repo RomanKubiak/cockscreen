@@ -1,0 +1,270 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1380" viewBox="0 0 1900 1380" role="img" aria-label="Control-surface wiring map for Pi 40-pin header and power rails">
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .panel { fill: #ffffff; stroke: #202020; stroke-width: 2.4; rx: 18; ry: 18; }
+      .chip { fill: #eef3ff; stroke: #1d3b66; stroke-width: 2.4; rx: 16; ry: 16; }
+      .green { fill: #eef9ee; stroke: #27632a; stroke-width: 2.4; rx: 16; ry: 16; }
+      .yellow { fill: #fff8e8; stroke: #8a5b00; stroke-width: 2.4; rx: 16; ry: 16; }
+      .warn { fill: #fff0e8; stroke: #a64b00; stroke-width: 2.4; rx: 16; ry: 16; }
+      .callout { fill: #fffdf8; stroke: #b7aa96; stroke-width: 1.2; rx: 10; ry: 10; }
+      .title { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 30px; font-weight: 700; }
+      .subtitle { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
+      .label { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 700; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .tiny { fill: #555; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      .pin { fill: #173454; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; }
+      .rail5 { stroke: #27632a; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .rail3 { stroke: #a11; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .railg { stroke: #222; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .sig { stroke: #2366a8; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .i2c { stroke: #7a4f00; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .motor { stroke: #8e24aa; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .note { stroke-dasharray: 9 7; }
+      .dot5 { fill: #27632a; }
+      .dot3 { fill: #a11; }
+      .dotg { fill: #222; }
+      .dots { fill: #2366a8; }
+      .doti { fill: #7a4f00; }
+      .dotm { fill: #8e24aa; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f2f2f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1900" height="1380"/>
+
+  <text class="title" x="60" y="56">Control-surface wiring to Pi 40-pin header and power rails</text>
+  <text class="subtitle" x="60" y="84">This map focuses on the eight manual pots, the AD0 mux, one NeoSlider I2C module, and two motorized faders. Exact mux and I2C header pins come from the current repo docs. The motor-driver logic now has a first-pass pin assignment that avoids the already-used ADS1256, mux, gate, and I2C lines.</text>
+
+  <rect class="panel" x="50" y="120" width="560" height="760"/>
+  <text class="label" x="80" y="160">Panel elements</text>
+  <text class="small" x="80" y="186">All panel controls share the same GND. Pot and fader feedback tracks use the 3V3 analog-control rail. Fader motors use 5 V_DIG.</text>
+
+  <rect class="panel" x="90" y="220" width="210" height="270"/>
+  <text class="label" x="195" y="256" text-anchor="middle">Manual pots P1-P8</text>
+  <text class="small" x="195" y="286" text-anchor="middle">10k user-supplied pots</text>
+  <text class="tiny" x="195" y="320" text-anchor="middle">outer legs -> 3V3 and GND</text>
+  <text class="tiny" x="195" y="342" text-anchor="middle">wipers -> CD74HC4067E C0-C7</text>
+  <circle cx="140" cy="390" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="195" cy="390" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="250" cy="390" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="140" cy="445" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="195" cy="445" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="250" cy="445" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="112" cy="418" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <circle cx="278" cy="418" r="18" fill="#eef3ff" stroke="#1d3b66" stroke-width="2"/>
+  <text class="tiny" x="140" y="396" text-anchor="middle">P1</text>
+  <text class="tiny" x="195" y="396" text-anchor="middle">P2</text>
+  <text class="tiny" x="250" y="396" text-anchor="middle">P3</text>
+  <text class="tiny" x="140" y="451" text-anchor="middle">P4</text>
+  <text class="tiny" x="195" y="451" text-anchor="middle">P5</text>
+  <text class="tiny" x="250" y="451" text-anchor="middle">P6</text>
+  <text class="tiny" x="112" y="424" text-anchor="middle">P7</text>
+  <text class="tiny" x="278" y="424" text-anchor="middle">P8</text>
+
+  <rect class="green" x="90" y="525" width="210" height="130"/>
+  <text class="label" x="195" y="562" text-anchor="middle">NeoSlider</text>
+  <text class="small" x="195" y="590" text-anchor="middle">Adafruit I2C module</text>
+  <text class="tiny" x="195" y="620" text-anchor="middle">SDA -> BCM2 / pin 3</text>
+  <text class="tiny" x="195" y="640" text-anchor="middle">SCL -> BCM3 / pin 5</text>
+  <text class="tiny" x="195" y="660" text-anchor="middle">power -> 3V3, common GND</text>
+
+  <rect class="yellow" x="330" y="220" width="230" height="435"/>
+  <text class="label" x="445" y="256" text-anchor="middle">Motorized faders F1 and F2</text>
+  <text class="small" x="445" y="284" text-anchor="middle">COM-10976 style split wiring</text>
+  <rect x="360" y="320" width="170" height="100" rx="10" ry="10" fill="#fff" stroke="#8a5b00" stroke-width="2"/>
+  <text class="small" x="445" y="352" text-anchor="middle">F1</text>
+  <text class="tiny" x="445" y="376" text-anchor="middle">feedback wiper -> mux C8</text>
+  <text class="tiny" x="445" y="394" text-anchor="middle">motor leads -> SN754410NE 1Y / 2Y</text>
+  <text class="tiny" x="445" y="412" text-anchor="middle">track ends -> 3V3 and GND</text>
+  <rect x="360" y="455" width="170" height="100" rx="10" ry="10" fill="#fff" stroke="#8a5b00" stroke-width="2"/>
+  <text class="small" x="445" y="487" text-anchor="middle">F2</text>
+  <text class="tiny" x="445" y="511" text-anchor="middle">feedback wiper -> mux C9</text>
+  <text class="tiny" x="445" y="529" text-anchor="middle">motor leads -> SN754410NE 3Y / 4Y</text>
+  <text class="tiny" x="445" y="547" text-anchor="middle">track ends -> 3V3 and GND</text>
+  <text class="tiny" x="445" y="604" text-anchor="middle">touch pins, if present, stay optional</text>
+  <text class="tiny" x="445" y="622" text-anchor="middle">and are not required for motion control</text>
+
+  <rect class="chip" x="670" y="120" width="420" height="430"/>
+  <text class="label" x="700" y="160">Signal concentrators</text>
+
+  <rect class="chip" x="700" y="210" width="360" height="180"/>
+  <text class="label" x="880" y="244" text-anchor="middle">CD74HC4067E on AD0</text>
+  <text class="small" x="880" y="272" text-anchor="middle">Manual pots and fader feedback only</text>
+  <text class="tiny" x="880" y="304" text-anchor="middle">C0-C7 <- P1-P8 wipers</text>
+  <text class="tiny" x="880" y="324" text-anchor="middle">C8 <- F1 feedback wiper</text>
+  <text class="tiny" x="880" y="344" text-anchor="middle">C9 <- F2 feedback wiper</text>
+  <text class="tiny" x="880" y="364" text-anchor="middle">COM / SIG -> Waveshare ADS1256 AD0</text>
+  <text class="tiny" x="880" y="384" text-anchor="middle">VCC -> 3V3, EN -> GND, VEE -> GND</text>
+
+  <rect class="green" x="700" y="430" width="360" height="90"/>
+  <text class="small" x="880" y="462" text-anchor="middle">Waveshare ADS1256 board</text>
+  <text class="tiny" x="880" y="484" text-anchor="middle">AD0 receives the mux COM signal</text>
+  <text class="tiny" x="880" y="504" text-anchor="middle">3V3 and GND are shared with the control surface</text>
+
+  <rect class="warn" x="670" y="580" width="420" height="300"/>
+  <text class="label" x="700" y="620">Motor driver block</text>
+  <rect class="warn" x="700" y="650" width="360" height="170"/>
+  <text class="label" x="880" y="686" text-anchor="middle">SN754410NE</text>
+  <text class="small" x="880" y="714" text-anchor="middle">One dual H-bridge for both fader motors</text>
+  <text class="tiny" x="880" y="746" text-anchor="middle">VCC1 -> 3V3 logic rail</text>
+  <text class="tiny" x="880" y="764" text-anchor="middle">VCC2 -> 5 V_DIG motor rail</text>
+  <text class="tiny" x="880" y="782" text-anchor="middle">1Y / 2Y -> F1 motor</text>
+  <text class="tiny" x="880" y="800" text-anchor="middle">3Y / 4Y -> F2 motor</text>
+  <text class="tiny" x="880" y="818" text-anchor="middle">1A/2A/3A/4A take four dedicated Pi outputs</text>
+  <text class="tiny" x="880" y="846" text-anchor="middle">1,2EN and 3,4EN are tied high to 3V3 for first-pass full-speed drive</text>
+
+  <rect class="panel" x="1140" y="120" width="430" height="760"/>
+  <text class="label" x="1170" y="160">Pi Zero 2 W 40-pin header</text>
+  <text class="small" x="1170" y="186">Only the pins relevant to the control surface are called out here. The ADS1256 stack still uses the SPI and ADC side separately.</text>
+
+  <rect class="chip" x="1175" y="225" width="360" height="260"/>
+  <text class="label" x="1355" y="260" text-anchor="middle">Defined control pins</text>
+  <text class="pin" x="1205" y="300">pin 1</text>
+  <text class="small" x="1260" y="300">3V3 rail out</text>
+  <text class="pin" x="1205" y="326">pin 2</text>
+  <text class="small" x="1260" y="326">5V input from power board</text>
+  <text class="pin" x="1205" y="352">pin 3</text>
+  <text class="small" x="1260" y="352">BCM2 / SDA1 -> NeoSlider SDA</text>
+  <text class="pin" x="1205" y="378">pin 5</text>
+  <text class="small" x="1260" y="378">BCM3 / SCL1 -> NeoSlider SCL</text>
+  <text class="pin" x="1205" y="404">pin 6</text>
+  <text class="small" x="1260" y="404">GND return</text>
+  <text class="pin" x="1205" y="430">pin 29</text>
+  <text class="small" x="1260" y="430">BCM5 -> mux S0</text>
+  <text class="pin" x="1205" y="456">pin 31</text>
+  <text class="small" x="1260" y="456">BCM6 -> mux S1</text>
+  <text class="pin" x="1205" y="482">pin 33</text>
+  <text class="small" x="1260" y="482">BCM13 -> mux S2</text>
+  <text class="pin" x="1205" y="508">pin 37</text>
+  <text class="small" x="1260" y="508">BCM26 -> mux S3</text>
+
+  <rect class="warn" x="1175" y="530" width="360" height="220"/>
+  <text class="label" x="1355" y="566" text-anchor="middle">Motor logic pins</text>
+  <text class="pin" x="1205" y="606">pin 16</text>
+  <text class="small" x="1260" y="606">BCM23 -> `1A` / `F1_IN_A`</text>
+  <text class="pin" x="1205" y="632">pin 18</text>
+  <text class="small" x="1260" y="632">BCM24 -> `2A` / `F1_IN_B`</text>
+  <text class="pin" x="1205" y="658">pin 22</text>
+  <text class="small" x="1260" y="658">BCM25 -> `3A` / `F2_IN_A`</text>
+  <text class="pin" x="1205" y="684">pin 40</text>
+  <text class="small" x="1260" y="684">BCM21 -> `4A` / `F2_IN_B`</text>
+  <text class="tiny" x="1355" y="718" text-anchor="middle">Tie `1,2EN` and `3,4EN` to `3V3` for the initial build</text>
+  <text class="tiny" x="1355" y="736" text-anchor="middle">Use GPIO logic only for direction and brake/coast states</text>
+
+  <rect class="panel" x="1140" y="910" width="700" height="380"/>
+  <text class="label" x="1170" y="950">Power map</text>
+  <text class="small" x="1170" y="976">The control surface depends on both the 5 V_DIG rail from the power board and the Pi-generated 3V3 rail. This section shows the power direction only.</text>
+
+  <rect class="yellow" x="1180" y="1020" width="180" height="160"/>
+  <text class="label" x="1270" y="1056" text-anchor="middle">12 V wall PSU</text>
+  <text class="tiny" x="1270" y="1086" text-anchor="middle">feeds power-entry board</text>
+  <text class="tiny" x="1270" y="1106" text-anchor="middle">not direct to control parts</text>
+
+  <rect class="green" x="1410" y="1020" width="200" height="160"/>
+  <text class="label" x="1510" y="1056" text-anchor="middle">Power board</text>
+  <text class="tiny" x="1510" y="1086" text-anchor="middle">5 V_DIG out -> Pi pin 2 / pin 4</text>
+  <text class="tiny" x="1510" y="1106" text-anchor="middle">GND -> common return</text>
+  <text class="tiny" x="1510" y="1126" text-anchor="middle">5 V_DIG also feeds SN754410NE VCC2</text>
+
+  <rect class="chip" x="1650" y="1020" width="150" height="160"/>
+  <text class="label" x="1725" y="1056" text-anchor="middle">Pi 40-pin</text>
+  <text class="tiny" x="1725" y="1086" text-anchor="middle">5 V in on pin 2 / 4</text>
+  <text class="tiny" x="1725" y="1106" text-anchor="middle">3V3 out on pin 1 / 17</text>
+  <text class="tiny" x="1725" y="1126" text-anchor="middle">common GND pins</text>
+
+  <path class="rail5" d="M 1360 1100 L 1410 1100"/>
+  <path class="rail5" d="M 1610 1100 L 1650 1100"/>
+  <path class="rail3" d="M 1725 1020 L 1725 980 L 880 980 L 880 210"/>
+  <path class="rail3" d="M 1725 980 L 195 980 L 195 220"/>
+  <path class="railg" d="M 1270 1180 L 1800 1180"/>
+
+  <circle class="dot5" cx="1385" cy="1100" r="5"/>
+  <circle class="dot5" cx="1630" cy="1100" r="5"/>
+  <circle class="dot3" cx="1725" cy="980" r="5"/>
+  <circle class="dotg" cx="1510" cy="1180" r="5"/>
+  <text class="tiny" x="1740" y="970">3V3 distribution</text>
+  <text class="tiny" x="1520" y="1172">common GND rail</text>
+
+  <path class="sig" d="M 300 355 L 700 355"/>
+  <path class="sig" d="M 530 370 L 700 370"/>
+  <path class="sig" d="M 300 600 L 700 600"/>
+  <path class="sig" d="M 530 620 L 700 620"/>
+  <path class="sig" d="M 1060 300 L 1175 430"/>
+  <path class="sig" d="M 1060 326 L 1175 456"/>
+  <path class="sig" d="M 1060 352 L 1175 482"/>
+  <path class="sig" d="M 1060 378 L 1175 508"/>
+  <path class="sig" d="M 1060 365 L 1105 365 L 1105 450 L 1175 450" opacity="0"/>
+
+  <path class="sig" d="M 1060 350 L 1105 350 L 1105 750 L 1140 750"/>
+  <path class="sig" d="M 530 375 L 700 375" opacity="0"/>
+
+  <path class="i2c" d="M 300 590 L 560 590 L 560 352 L 1175 352"/>
+  <path class="i2c" d="M 300 610 L 580 610 L 580 378 L 1175 378"/>
+
+  <path class="sig" d="M 300 335 L 580 335 L 580 304 L 700 304"/>
+  <path class="sig" d="M 530 395 L 580 395 L 580 324 L 700 324"/>
+  <path class="sig" d="M 530 530 L 620 530 L 620 344 L 700 344"/>
+  <path class="sig" d="M 530 550 L 640 550 L 640 364 L 700 364"/>
+
+  <path class="motor" d="M 560 392 L 700 700"/>
+  <path class="motor" d="M 560 412 L 700 720"/>
+  <path class="motor" d="M 560 527 L 700 740"/>
+  <path class="motor" d="M 560 547 L 700 760"/>
+  <path class="motor note" d="M 1090 735 L 1175 620"/>
+  <path class="motor note" d="M 1090 755 L 1175 646"/>
+  <path class="motor note" d="M 1090 775 L 1175 672"/>
+  <path class="motor note" d="M 1090 795 L 1175 698"/>
+
+  <path class="sig" d="M 1060 470 L 1120 470 L 1120 430 L 1175 430" opacity="0"/>
+  <path class="sig" d="M 1060 455 L 1120 455 L 1120 430 L 1175 430" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1110 364 L 1110 820 L 1175 820" opacity="0"/>
+
+  <path class="sig" d="M 1060 344 L 1110 344 L 1110 230 L 1175 230" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1120 364 L 1120 1030 L 1140 1030" opacity="0"/>
+
+  <path class="sig" d="M 1060 365 L 1110 365 L 1110 460 L 1175 460" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1105 364 L 1105 430 L 1175 430" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1110 364 L 1110 1020 L 1180 1020" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1140 364 L 1140 1010 L 1270 1010" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1110 364 L 1110 1175 L 1800 1175" opacity="0"/>
+
+  <path class="sig" d="M 1060 364 L 1120 364 L 1120 430 L 1175 430" opacity="0"/>
+
+  <path class="sig" d="M 1060 325 L 1095 325 L 1095 495 L 1175 495" opacity="0"/>
+
+  <path class="sig" d="M 1060 285 L 1100 285 L 1100 520 L 1175 520" opacity="0"/>
+
+  <circle class="dots" cx="700" cy="304" r="5"/>
+  <circle class="dots" cx="700" cy="324" r="5"/>
+  <circle class="dots" cx="700" cy="344" r="5"/>
+  <circle class="dots" cx="700" cy="364" r="5"/>
+  <circle class="doti" cx="1175" cy="352" r="5"/>
+  <circle class="doti" cx="1175" cy="378" r="5"/>
+  <circle class="dotm" cx="700" cy="700" r="5"/>
+  <circle class="dotm" cx="700" cy="720" r="5"/>
+  <circle class="dotm" cx="700" cy="740" r="5"/>
+  <circle class="dotm" cx="700" cy="760" r="5"/>
+
+  <rect class="callout" x="80" y="910" width="1020" height="180"/>
+  <text class="small" x="100" y="944">What is exact in the repo today</text>
+  <text class="tiny" x="100" y="968">Mux select lines: BCM5, BCM6, BCM13, BCM26 on physical pins 29, 31, 33, 37.</text>
+  <text class="tiny" x="100" y="988">NeoSlider I2C: BCM2 / pin 3 for SDA and BCM3 / pin 5 for SCL.</text>
+  <text class="tiny" x="100" y="1008">Pot bank and motorized-fader feedback tracks go through the CD74HC4067E into ADS1256 AD0.</text>
+  <text class="tiny" x="100" y="1028">5 V_DIG comes from the power board into the Pi header. 3V3 is then available on the Pi header for the control logic side.</text>
+  <text class="tiny" x="100" y="1048">All control-surface grounds, the mux ground, the NeoSlider ground, the Pi ground, and the motor-driver ground must remain common.</text>
+
+  <rect class="callout" x="1120" y="910" width="720" height="150"/>
+  <text class="small" x="1140" y="944">First-pass motor logic</text>
+  <text class="tiny" x="1140" y="968">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four SN754410NE direction inputs.</text>
+  <text class="tiny" x="1140" y="988">With `EN` tied high, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
+  <text class="tiny" x="1140" y="1008">That is enough to build and test the motion logic before adding any PWM speed control.</text>
+</svg>

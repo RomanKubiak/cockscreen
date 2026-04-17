@@ -161,6 +161,36 @@ The two COM-10976 motorized faders are panel controls with a 10k linear position
 - The firmware needs to compare the sampled fader position against the target position before moving the motor.
 - The Adafruit NeoSlider module is separate on I2C and does not use the mux.
 
+### Proposed Motor Logic Pins
+
+For a first-pass wiring that does not collide with the current ADS1256, mux, gate, or I2C assignments, use four dedicated Pi outputs for the H-bridge direction inputs and tie both enable pins high to `3V3`.
+
+| Driver signal | `SN754410NE` input | Pi BCM | Physical pin | Purpose |
+|---|---|---|---|---|
+| `F1_IN_A` | `1A` | `23` | `16` | motorized fader 1 direction leg A |
+| `F1_IN_B` | `2A` | `24` | `18` | motorized fader 1 direction leg B |
+| `F2_IN_A` | `3A` | `25` | `22` | motorized fader 2 direction leg A |
+| `F2_IN_B` | `4A` | `21` | `40` | motorized fader 2 direction leg B |
+| `F1_EN` | `1,2EN` | tie high | n/a | keep enabled for initial full-speed drive |
+| `F2_EN` | `3,4EN` | tie high | n/a | keep enabled for initial full-speed drive |
+
+### Motor Logic Truth Table
+
+Assuming the relevant `EN` pin is held high:
+
+| `IN_A` | `IN_B` | Result |
+|---|---|---|
+| `0` | `0` | coast |
+| `1` | `0` | drive one direction |
+| `0` | `1` | drive opposite direction |
+| `1` | `1` | brake |
+
+If you later need speed control instead of simple on/off direction control, move `1,2EN` and `3,4EN` from fixed `3V3` to dedicated PWM-capable outputs and update the wiring map to match.
+
+### Control-Surface Wiring Map
+
+For a header-and-power wiring view that shows the pot mux, NeoSlider I2C pins, and the current state of the motor-driver wiring, see [control-surface-header-wiring.svg](control-surface-header-wiring.svg).
+
 ## Gate Inputs
 
 Three gate inputs are read as digital GPIO states. These are intended for on/off modulation sources such as synth gates, sequencer gates, envelopes, and triggers.
