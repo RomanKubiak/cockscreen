@@ -1,0 +1,404 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2100" height="1620" viewBox="0 0 2100 1620" role="img" aria-label="Power input and distribution perfboard placement map on a square 2.54 pitch grid">
+  <defs>
+    <style>
+      .bg { fill: #f6f3ea; }
+      .panel { fill: #fffdf8; stroke: #202020; stroke-width: 2.5; rx: 20; ry: 20; }
+      .board { fill: #3b7b4a; stroke: #21492a; stroke-width: 2.5; rx: 18; ry: 18; }
+      .pad { fill: #d7a44a; stroke: #7b5320; stroke-width: 1; }
+      .title { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 30px; font-weight: 700; }
+      .subtitle { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 17px; }
+      .note { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .tiny { fill: #555; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      .legend { fill: #f6f1e4; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; }
+      .coord { fill: #34452d; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; }
+      .pinlabel { fill: #173454; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; }
+      .passive { fill: #fff8e8; stroke: #8a5b00; stroke-width: 2; rx: 8; ry: 8; }
+      .callout { fill: #fffdf8; opacity: 0.95; stroke: #a89a82; stroke-width: 1.1; rx: 8; ry: 8; }
+      .table-head { fill: #ebe3d2; stroke: #b9a98d; stroke-width: 1.2; }
+      .table-cell { fill: #fffdf8; stroke: #d1c5b1; stroke-width: 1; }
+      .net12 { stroke: #8a1c1c; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .net5d { stroke: #27632a; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .net5a { stroke: #8a4f00; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netg { stroke: #1f1f1f; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .dot12 { fill: #8a1c1c; }
+      .dot5d { fill: #27632a; }
+      .dot5a { fill: #8a4f00; }
+      .dotg { fill: #1f1f1f; }
+    </style>
+
+    <pattern id="perf-pad-grid" patternUnits="userSpaceOnUse" x="165" y="265" width="50" height="50">
+      <circle class="pad" cx="25" cy="25" r="7.5"/>
+    </pattern>
+
+    <g id="to220-5">
+      <rect x="0" y="0" width="126" height="126" rx="10" ry="10" fill="#eef3ff" stroke="#1d3b66" stroke-width="2.2"/>
+      <rect x="38" y="8" width="50" height="24" rx="4" ry="4" fill="#d7dde9" stroke="#667" stroke-width="1.2"/>
+      <line x1="18" y1="126" x2="18" y2="156" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="42" y1="126" x2="42" y2="156" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="66" y1="126" x2="66" y2="156" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="90" y1="126" x2="90" y2="156" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="114" y1="126" x2="114" y2="156" stroke="#1d3b66" stroke-width="2.2"/>
+    </g>
+
+    <g id="axial-body">
+      <rect x="0" y="0" width="80" height="18" rx="4" ry="4" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.3"/>
+    </g>
+
+    <g id="electrolytic">
+      <ellipse cx="16" cy="28" rx="16" ry="28" fill="#2b2b31" stroke="#111" stroke-width="1.5"/>
+      <line x1="16" y1="56" x2="16" y2="82" stroke="#666" stroke-width="2.2"/>
+      <line x1="16" y1="0" x2="16" y2="-26" stroke="#666" stroke-width="2.2"/>
+      <text class="tiny" x="24" y="8">+</text>
+    </g>
+
+    <g id="small-cap">
+      <rect x="0" y="0" width="22" height="38" rx="5" ry="5" fill="#caa76f" stroke="#7a5a28" stroke-width="1.2"/>
+      <line x1="11" y1="0" x2="11" y2="-20" stroke="#7a5a28" stroke-width="2"/>
+      <line x1="11" y1="38" x2="11" y2="58" stroke="#7a5a28" stroke-width="2"/>
+    </g>
+
+    <g id="diode-axial">
+      <rect x="0" y="0" width="54" height="16" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.2"/>
+      <rect x="38" y="0" width="6" height="16" fill="#111"/>
+    </g>
+
+    <g id="inductor-box">
+      <rect x="0" y="0" width="100" height="50" rx="8" ry="8" fill="#e5f2d8" stroke="#4d6d2d" stroke-width="2"/>
+      <path d="M 18 28 q 8 -16 16 0 q 8 -16 16 0 q 8 -16 16 0 q 8 -16 16 0" fill="none" stroke="#4d6d2d" stroke-width="2.2"/>
+    </g>
+
+    <g id="polyfuse">
+      <rect x="0" y="0" width="54" height="28" rx="7" ry="7" fill="#f6de61" stroke="#9f7a00" stroke-width="1.8"/>
+    </g>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="2100" height="1620"/>
+
+  <text class="title" x="60" y="56">Power input and distribution perfboard placement map</text>
+  <text class="subtitle" x="60" y="86">One square-pitch through-hole build for the 12 V entry path, LM2596T-5.0-TT buck stage, and the isolated 5 V_A branch. This follows the same board-map model as the CV and gate layouts: on-board part labels, off-board callouts, and a hole table.</text>
+
+  <rect class="panel" x="50" y="120" width="1520" height="900"/>
+  <text class="note" x="80" y="162">Main placement on square pad grid</text>
+  <text class="small" x="80" y="188">Top rail is 12 V_IN on row A. Middle rail is 5 V_DIG on row B. Bottom rail is GND on row L. The 5 V_A branch starts after RISO and stays local to the analog loads only.</text>
+
+  <rect class="board" x="140" y="230" width="1260" height="680"/>
+  <rect x="165" y="265" width="1200" height="600" fill="url(#perf-pad-grid)"/>
+
+  <g>
+    <text class="coord" x="185" y="252">1</text>
+    <text class="coord" x="235" y="252">2</text>
+    <text class="coord" x="285" y="252">3</text>
+    <text class="coord" x="335" y="252">4</text>
+    <text class="coord" x="385" y="252">5</text>
+    <text class="coord" x="435" y="252">6</text>
+    <text class="coord" x="485" y="252">7</text>
+    <text class="coord" x="535" y="252">8</text>
+    <text class="coord" x="585" y="252">9</text>
+    <text class="coord" x="635" y="252">10</text>
+    <text class="coord" x="685" y="252">11</text>
+    <text class="coord" x="735" y="252">12</text>
+    <text class="coord" x="785" y="252">13</text>
+    <text class="coord" x="835" y="252">14</text>
+    <text class="coord" x="885" y="252">15</text>
+    <text class="coord" x="935" y="252">16</text>
+    <text class="coord" x="985" y="252">17</text>
+    <text class="coord" x="1035" y="252">18</text>
+    <text class="coord" x="1085" y="252">19</text>
+    <text class="coord" x="1135" y="252">20</text>
+    <text class="coord" x="1185" y="252">21</text>
+    <text class="coord" x="1235" y="252">22</text>
+    <text class="coord" x="1285" y="252">23</text>
+    <text class="coord" x="1335" y="252">24</text>
+
+    <text class="coord" x="146" y="294">A</text>
+    <text class="coord" x="146" y="344">B</text>
+    <text class="coord" x="146" y="394">C</text>
+    <text class="coord" x="146" y="444">D</text>
+    <text class="coord" x="146" y="494">E</text>
+    <text class="coord" x="146" y="544">F</text>
+    <text class="coord" x="146" y="594">G</text>
+    <text class="coord" x="146" y="644">H</text>
+    <text class="coord" x="146" y="694">I</text>
+    <text class="coord" x="146" y="744">J</text>
+    <text class="coord" x="146" y="794">K</text>
+    <text class="coord" x="146" y="844">L</text>
+  </g>
+
+  <g>
+    <path class="net12" d="M 190 290 L 1340 290"/>
+    <path class="net5d" d="M 190 340 L 1090 340"/>
+    <path class="netg" d="M 190 840 L 1340 840"/>
+    <text class="legend" x="1186" y="282">12 V_IN rail A1-A24</text>
+    <text class="legend" x="935" y="332">5 V_DIG rail B1-B19</text>
+    <text class="legend" x="1190" y="832">GND rail L1-L24</text>
+
+    <path class="net12" d="M 190 440 L 240 440"/>
+    <path class="net12" d="M 294 440 L 390 440"/>
+    <path class="net12" d="M 390 440 L 390 290"/>
+
+    <path class="net12" d="M 390 440 L 490 440"/>
+    <path class="net12" d="M 544 440 L 640 440"/>
+    <path class="net12" d="M 640 440 L 640 290"/>
+
+    <path class="net12" d="M 640 440 L 840 440"/>
+    <path class="net12" d="M 840 440 L 840 540"/>
+
+    <path class="net5d" d="M 990 540 L 990 340"/>
+    <path class="net5d" d="M 990 540 L 1140 540"/>
+    <path class="net5d" d="M 1194 540 L 1240 540"/>
+
+    <path class="netg" d="M 740 840 L 740 490"/>
+    <path class="netg" d="M 1090 840 L 1090 590"/>
+    <path class="netg" d="M 1140 840 L 1140 690"/>
+    <path class="netg" d="M 1240 840 L 1240 690"/>
+
+    <path class="net5a" d="M 1240 540 L 1340 540"/>
+    <path class="net5a" d="M 1290 540 L 1290 440"/>
+    <path class="net5a" d="M 1290 440 L 1290 390 L 1340 390"/>
+  </g>
+
+  <g>
+    <path class="net12" d="M 190 290 L 120 290 L 120 306 L 158 306"/>
+    <path class="netg" d="M 190 840 L 100 840 L 100 322 L 158 322"/>
+    <rect class="callout" x="58" y="288" width="100" height="54"/>
+    <text class="tiny" x="70" y="308">J1 barrel</text>
+    <text class="tiny" x="70" y="324">tip: A1</text>
+    <text class="tiny" x="70" y="340">sleeve: L1</text>
+
+    <use href="#polyfuse" x="240" y="426"/>
+    <line x1="240" y1="440" x2="230" y2="440" stroke="#9f7a00" stroke-width="2"/>
+    <line x1="294" y1="440" x2="390" y2="440" stroke="#9f7a00" stroke-width="2"/>
+    <text class="small" x="267" y="418" text-anchor="middle">F1 MF-R110</text>
+    <text class="tiny" x="267" y="466" text-anchor="middle">D2-D3</text>
+
+    <use href="#diode-axial" x="490" y="432"/>
+    <line x1="490" y1="440" x2="480" y2="440" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="544" y1="440" x2="640" y2="440" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="517" y="418" text-anchor="middle">D1 1N5819-DIO</text>
+    <text class="tiny" x="517" y="466" text-anchor="middle">D7-D8</text>
+    <text class="tiny" x="516" y="482" text-anchor="middle">band toward regulator</text>
+
+    <line x1="740" y1="290" x2="740" y2="389" stroke="#333" stroke-width="3"/>
+    <use href="#electrolytic" x="724" y="389"/>
+    <line x1="740" y1="471" x2="740" y2="840" stroke="#333" stroke-width="3"/>
+    <circle class="dot12" cx="740" cy="290" r="6"/>
+    <circle class="dotg" cx="740" cy="840" r="6"/>
+    <text class="small" x="776" y="420">C1 470 uF</text>
+    <text class="tiny" x="776" y="438">A12 to E12</text>
+
+    <line x1="790" y1="290" x2="790" y2="403" stroke="#333" stroke-width="3"/>
+    <use href="#small-cap" x="779" y="403"/>
+    <line x1="790" y1="461" x2="790" y2="840" stroke="#333" stroke-width="3"/>
+    <text class="small" x="822" y="426">C2 100 nF</text>
+    <text class="tiny" x="822" y="444">A13 to D13</text>
+
+    <rect class="passive" x="812" y="520" width="84" height="52"/>
+    <text class="small" x="854" y="542" text-anchor="middle">D2</text>
+    <text class="tiny" x="854" y="560" text-anchor="middle">1.5KE15A</text>
+    <text class="tiny" x="854" y="576" text-anchor="middle">across A14/L14</text>
+    <path class="net12" d="M 840 440 L 840 520"/>
+    <path class="netg" d="M 840 572 L 840 840"/>
+
+    <use href="#to220-5" x="900" y="430"/>
+    <text class="small" x="963" y="418" text-anchor="middle">U1 LM2596T-5.0-TT</text>
+    <text class="tiny" x="963" y="578" text-anchor="middle">F16-J20</text>
+    <text class="pinlabel" x="876" y="608">pin 1 VIN F16</text>
+    <text class="pinlabel" x="876" y="628">pin 2 SW F17</text>
+    <text class="pinlabel" x="876" y="648">pin 3 GND F18</text>
+    <text class="pinlabel" x="876" y="668">pin 4 FB F19</text>
+    <text class="pinlabel" x="876" y="688">pin 5 ON/OFF F20</text>
+    <text class="tiny" x="1010" y="608">keep its high-current loop compact</text>
+
+    <use href="#inductor-box" x="1090" y="515"/>
+    <text class="small" x="1140" y="504" text-anchor="middle">L1 DPU033A3</text>
+    <text class="tiny" x="1140" y="584" text-anchor="middle">or DPO-3.0-33</text>
+    <text class="tiny" x="1140" y="600" text-anchor="middle">G20-I20</text>
+
+    <line x1="1090" y1="590" x2="1090" y2="840" stroke="#333" stroke-width="3"/>
+    <use href="#small-cap" x="1079" y="590"/>
+    <text class="small" x="1122" y="620">C4 100 nF</text>
+    <text class="tiny" x="1122" y="638">B20 to G20</text>
+
+    <line x1="1140" y1="540" x2="1140" y2="604" stroke="#333" stroke-width="3"/>
+    <use href="#diode-axial" x="1113" y="604" transform="rotate(90 1140 612)"/>
+    <line x1="1140" y1="658" x2="1140" y2="840" stroke="#333" stroke-width="3"/>
+    <text class="small" x="1172" y="626">D3 1N5822-ST</text>
+    <text class="tiny" x="1172" y="644">H21 to L21</text>
+
+    <line x1="1240" y1="540" x2="1240" y2="607" stroke="#333" stroke-width="3"/>
+    <use href="#electrolytic" x="1224" y="607"/>
+    <line x1="1240" y1="689" x2="1240" y2="840" stroke="#333" stroke-width="3"/>
+    <circle class="dot5d" cx="1240" cy="540" r="6"/>
+    <circle class="dotg" cx="1240" cy="840" r="6"/>
+    <text class="small" x="1276" y="638">C3 330 uF</text>
+    <text class="tiny" x="1276" y="656">G23 to L23</text>
+
+    <use href="#axial-body" x="1140" y="531"/>
+    <line x1="1140" y1="540" x2="1130" y2="540" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="1220" y1="540" x2="1240" y2="540" stroke="#7a5a28" stroke-width="2"/>
+    <rect x="1154" y="531" width="5" height="18" fill="#8b5a2b"/>
+    <rect x="1167" y="531" width="5" height="18" fill="#111"/>
+    <rect x="1180" y="531" width="5" height="18" fill="#111"/>
+    <rect x="1193" y="531" width="5" height="18" fill="#111"/>
+    <text class="small" x="1180" y="522" text-anchor="middle">RISO 10 ohm</text>
+    <text class="tiny" x="1180" y="566" text-anchor="middle">G21-G22</text>
+
+    <line x1="1290" y1="390" x2="1290" y2="307" stroke="#333" stroke-width="3"/>
+    <use href="#small-cap" x="1279" y="307"/>
+    <line x1="1290" y1="365" x2="1290" y2="390" stroke="#333" stroke-width="3"/>
+    <text class="small" x="1324" y="332">C6 100 nF C0G</text>
+    <text class="tiny" x="1324" y="350">A24 to C24</text>
+
+    <line x1="1340" y1="540" x2="1340" y2="607" stroke="#333" stroke-width="3"/>
+    <use href="#electrolytic" x="1324" y="607"/>
+    <line x1="1340" y1="689" x2="1340" y2="840" stroke="#333" stroke-width="3"/>
+    <circle class="dot5a" cx="1340" cy="540" r="6"/>
+    <circle class="dotg" cx="1340" cy="840" r="6"/>
+    <text class="small" x="1376" y="638">C5 470 uF</text>
+    <text class="tiny" x="1376" y="656">G24 to L24</text>
+
+    <path class="net5d" d="M 1090 340 L 1478 340 L 1478 608"/>
+    <path class="netg" d="M 1290 840 L 1458 840 L 1458 624 L 1478 624"/>
+    <rect class="callout" x="1478" y="592" width="116" height="58"/>
+    <text class="tiny" x="1490" y="612">5 V_DIG OUT</text>
+    <text class="tiny" x="1490" y="628">signal: B24</text>
+    <text class="tiny" x="1490" y="644">ground: L24</text>
+
+    <path class="net5a" d="M 1340 390 L 1478 390 L 1478 708"/>
+    <path class="netg" d="M 1410 840 L 1458 840 L 1458 724 L 1478 724"/>
+    <rect class="callout" x="1478" y="692" width="116" height="58"/>
+    <text class="tiny" x="1490" y="712">5 V_A OUT</text>
+    <text class="tiny" x="1490" y="728">signal: C24</text>
+    <text class="tiny" x="1490" y="744">ground: L24</text>
+  </g>
+
+  <rect class="panel" x="1610" y="120" width="440" height="420"/>
+  <text class="note" x="1640" y="162">Inset 1: build order</text>
+  <text class="small" x="1640" y="188">Wire the high-current loop first, then add the analog branch after 5 V_DIG is stable.</text>
+  <rect class="callout" x="1640" y="220" width="380" height="270"/>
+  <text class="small" x="1660" y="254">1. Input protection</text>
+  <text class="tiny" x="1660" y="276">Barrel jack -> F1 -> D1, with C1 and C2 across the input rail and D2 across 12 V_IN to GND.</text>
+  <text class="small" x="1660" y="316">2. Buck loop</text>
+  <text class="tiny" x="1660" y="338">Keep U1, L1, D3, C3, and C4 grouped tightly so the switching loop stays short.</text>
+  <text class="small" x="1660" y="378">3. Analog branch</text>
+  <text class="tiny" x="1660" y="400">Take 5 V_DIG through RISO into a separate 5 V_A node. Put C5 and C6 only on the analog side of RISO.</text>
+  <text class="small" x="1660" y="440">4. Star return</text>
+  <text class="tiny" x="1660" y="462">Bring the Pi, buck, and analog returns back to the same L-row ground rail and leave off-board wiring short.</text>
+
+  <rect class="panel" x="1610" y="570" width="440" height="450"/>
+  <text class="note" x="1640" y="612">Inset 2: wiring notes</text>
+  <rect class="callout" x="1640" y="644" width="380" height="330"/>
+  <text class="tiny" x="1660" y="672">Use heavy wire or solder bridges for the A, B, and L rail runs.</text>
+  <text class="tiny" x="1660" y="694">The LM2596T-5.0-TT tab area is large; leave airflow and avoid crowding tall electrolytics too close.</text>
+  <text class="tiny" x="1660" y="716">C1/C2 are the input decouplers before the buck regulator.</text>
+  <text class="tiny" x="1660" y="738">C3/C4 are the digital 5 V output decouplers after the buck loop.</text>
+  <text class="tiny" x="1660" y="760">C5/C6 are only for the analog 5 V_A branch used by the reference and CV-output stages.</text>
+  <text class="tiny" x="1660" y="782">If the Pi and motor loads share 5 V_DIG, keep their harness return separate until it reaches the ground rail.</text>
+  <text class="tiny" x="1660" y="804">The TVS D2 is a shunt part, so mount it directly across the 12 V and GND rails rather than in series.</text>
+  <text class="tiny" x="1660" y="826">D1 should be oriented so reverse input power is blocked before the regulator VIN node.</text>
+  <text class="tiny" x="1660" y="848">This is a practical prototyping map, not a replacement for a proper high-current PCB if the load grows.</text>
+
+  <rect class="panel" x="50" y="1060" width="2000" height="500"/>
+  <text class="note" x="80" y="1102">Hole-by-hole placement table</text>
+  <text class="small" x="80" y="1128">Coordinates below follow the main board above. Off-board parts are the 12 V jack and the two output harnesses. Everything else mounts on the perfboard grid.</text>
+
+  <rect class="table-head" x="80" y="1160" width="170" height="40"/>
+  <rect class="table-head" x="250" y="1160" width="190" height="40"/>
+  <rect class="table-head" x="440" y="1160" width="240" height="40"/>
+  <rect class="table-head" x="680" y="1160" width="220" height="40"/>
+  <rect class="table-head" x="900" y="1160" width="1120" height="40"/>
+  <text class="small" x="98" y="1185">Part</text>
+  <text class="small" x="274" y="1185">Pads</text>
+  <text class="small" x="462" y="1185">Function</text>
+  <text class="small" x="702" y="1185">Net</text>
+  <text class="small" x="922" y="1185">Notes</text>
+
+  <rect class="table-cell" x="80" y="1200" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1200" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1200" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1200" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1200" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1224">J1 barrel</text>
+  <text class="tiny" x="268" y="1224">A1, L1</text>
+  <text class="tiny" x="458" y="1224">12 V input</text>
+  <text class="tiny" x="698" y="1224">12 V_IN / GND</text>
+  <text class="tiny" x="918" y="1224">Panel or chassis mounted. Bring short leads to the board and keep polarity obvious.</text>
+
+  <rect class="table-cell" x="80" y="1238" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1238" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1238" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1238" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1238" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1262">F1 MF-R110</text>
+  <text class="tiny" x="268" y="1262">D2-D3</text>
+  <text class="tiny" x="458" y="1262">input fuse</text>
+  <text class="tiny" x="698" y="1262">12 V_IN</text>
+  <text class="tiny" x="918" y="1262">Place directly after the jack before the reverse-polarity diode.</text>
+
+  <rect class="table-cell" x="80" y="1276" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1276" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1276" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1276" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1276" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1300">D1 1N5819-DIO</text>
+  <text class="tiny" x="268" y="1300">D7-D8</text>
+  <text class="tiny" x="458" y="1300">reverse protection</text>
+  <text class="tiny" x="698" y="1300">12 V path</text>
+  <text class="tiny" x="918" y="1300">Band faces the regulator side so normal current flows from jack to VIN.</text>
+
+  <rect class="table-cell" x="80" y="1314" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1314" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1314" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1314" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1314" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1338">C1 / C2 / D2</text>
+  <text class="tiny" x="268" y="1338">A12-E12, A13-D13, A14-L14</text>
+  <text class="tiny" x="458" y="1338">input filter + TVS</text>
+  <text class="tiny" x="698" y="1338">12 V_IN / GND</text>
+  <text class="tiny" x="918" y="1338">Keep these close to the VIN entry so surges and ripple are handled before the buck loop.</text>
+
+  <rect class="table-cell" x="80" y="1352" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1352" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1352" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1352" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1352" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1376">U1 LM2596T-5.0-TT</text>
+  <text class="tiny" x="268" y="1376">F16-J20</text>
+  <text class="tiny" x="458" y="1376">buck regulator</text>
+  <text class="tiny" x="698" y="1376">12 V_IN to 5 V_DIG</text>
+  <text class="tiny" x="918" y="1376">Mount upright with room around the tab. Keep L1, D3, C3, and C4 close to it.</text>
+
+  <rect class="table-cell" x="80" y="1390" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1390" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1390" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1390" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1390" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1414">L1 / D3 / C3 / C4</text>
+  <text class="tiny" x="268" y="1414">G20-I20, H21-L21, G23-L23, B20-G20</text>
+  <text class="tiny" x="458" y="1414">buck output loop</text>
+  <text class="tiny" x="698" y="1414">5 V_DIG / GND</text>
+  <text class="tiny" x="918" y="1414">These parts define the switching-output loop. Do not spread them apart on the board.</text>
+
+  <rect class="table-cell" x="80" y="1428" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1428" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1428" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1428" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1428" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1452">RISO / C5 / C6</text>
+  <text class="tiny" x="268" y="1452">G21-G22, G24-L24, A24-C24</text>
+  <text class="tiny" x="458" y="1452">analog branch</text>
+  <text class="tiny" x="698" y="1452">5 V_A / GND</text>
+  <text class="tiny" x="918" y="1452">All analog reference and CV-output loads should leave from this node, not from raw 5 V_DIG.</text>
+
+  <rect class="table-cell" x="80" y="1466" width="170" height="38"/>
+  <rect class="table-cell" x="250" y="1466" width="190" height="38"/>
+  <rect class="table-cell" x="440" y="1466" width="240" height="38"/>
+  <rect class="table-cell" x="680" y="1466" width="220" height="38"/>
+  <rect class="table-cell" x="900" y="1466" width="1120" height="38"/>
+  <text class="tiny" x="98" y="1490">Output headers</text>
+  <text class="tiny" x="268" y="1490">B24/L24 and C24/L24</text>
+  <text class="tiny" x="458" y="1490">distribution points</text>
+  <text class="tiny" x="698" y="1490">5 V_DIG, 5 V_A, GND</text>
+  <text class="tiny" x="918" y="1490">Run separate harnesses for digital and analog consumers so the analog branch stays quiet.</text>
+</svg>

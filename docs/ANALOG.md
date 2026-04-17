@@ -213,7 +213,7 @@ The CV output path is designed for microtuning stability. The board exposes four
 
 ### Power Input And Distribution
 
-The detailed drawing is in [cv-power-input-stage.svg](cv-power-input-stage.svg).
+For the through-hole prototyping layout of the power-entry, buck, and analog 5 V branch, see [cv-power-input-board-layout.svg](cv-power-input-board-layout.svg).
 
 | Stage | Parts |
 |---|---|

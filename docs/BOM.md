@@ -60,7 +60,7 @@ Repeat the parts below three times, once for each gate input.
 
 All rails for the project come from a 12 V wall PSU. The Pi is fed from a regulated 5 V rail, and the precision analog section gets its own filtered 5 V_A branch.
 
-The detailed power distribution schematic is in [cv-power-input-stage.svg](cv-power-input-stage.svg).
+The through-hole power-entry and distribution build map is in [cv-power-input-board-layout.svg](cv-power-input-board-layout.svg).
 
 | Qty | Part | Notes |
 |---|---|---|
