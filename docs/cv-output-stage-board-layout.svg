@@ -1,0 +1,422 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1460" viewBox="0 0 1800 1460" role="img" aria-label="CV output stage perfboard placement map on a square 2.54 pitch grid">
+  <defs>
+    <style>
+      .bg { fill: #f6f3ea; }
+      .panel { fill: #fffdf8; stroke: #202020; stroke-width: 2.5; rx: 20; ry: 20; }
+      .board { fill: #3b7b4a; stroke: #21492a; stroke-width: 2.5; rx: 18; ry: 18; }
+      .pad { fill: #d7a44a; stroke: #7b5320; stroke-width: 1; }
+      .title { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 30px; font-weight: 700; }
+      .subtitle { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 17px; }
+      .note { fill: #111; font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-weight: 700; }
+      .small { fill: #333; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+      .tiny { fill: #555; font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+      .legend { fill: #f6f1e4; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; }
+      .coord { fill: #34452d; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; }
+      .pinlabel { fill: #173454; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; }
+      .passive { fill: #fff8e8; stroke: #8a5b00; stroke-width: 2; rx: 8; ry: 8; }
+      .callout { fill: #fffdf8; opacity: 0.95; stroke: #a89a82; stroke-width: 1.1; rx: 8; ry: 8; }
+      .net5 { stroke: #2d8a3d; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netg { stroke: #1f1f1f; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netsig { stroke: #2366a8; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .netfb { stroke: #8a4f00; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .dot5 { fill: #2d8a3d; }
+      .dotg { fill: #1f1f1f; }
+      .dots { fill: #2366a8; }
+      .dotfb { fill: #8a4f00; }
+      .table-head { fill: #ebe3d2; stroke: #b9a98d; stroke-width: 1.2; }
+      .table-cell { fill: #fffdf8; stroke: #d1c5b1; stroke-width: 1; }
+    </style>
+
+    <pattern id="perf-pad-grid" patternUnits="userSpaceOnUse" x="165" y="255" width="50" height="50">
+      <circle class="pad" cx="25" cy="25" r="7.5"/>
+    </pattern>
+
+    <g id="dip8">
+      <rect x="0" y="0" width="110" height="200" rx="10" ry="10" fill="#eef3ff" stroke="#1d3b66" stroke-width="2.2"/>
+      <path d="M 38 0 Q 55 -14 72 0" fill="none" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="0" y1="25" x2="-20" y2="25" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="0" y1="75" x2="-20" y2="75" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="0" y1="125" x2="-20" y2="125" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="0" y1="175" x2="-20" y2="175" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="110" y1="25" x2="130" y2="25" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="110" y1="75" x2="130" y2="75" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="110" y1="125" x2="130" y2="125" stroke="#1d3b66" stroke-width="2.2"/>
+      <line x1="110" y1="175" x2="130" y2="175" stroke="#1d3b66" stroke-width="2.2"/>
+    </g>
+
+    <g id="res-1k-body">
+      <rect x="0" y="0" width="70" height="18" rx="4" ry="4" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.3"/>
+      <rect x="14" y="0" width="5" height="18" fill="#8b5a2b"/>
+      <rect x="27" y="0" width="5" height="18" fill="#111"/>
+      <rect x="40" y="0" width="5" height="18" fill="#c62828"/>
+      <rect x="55" y="0" width="5" height="18" fill="#d4af37"/>
+    </g>
+
+    <g id="res-10k-body">
+      <rect x="0" y="0" width="80" height="18" rx="4" ry="4" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.3"/>
+      <rect x="12" y="0" width="5" height="18" fill="#8b5a2b"/>
+      <rect x="25" y="0" width="5" height="18" fill="#111"/>
+      <rect x="38" y="0" width="5" height="18" fill="#111"/>
+      <rect x="51" y="0" width="5" height="18" fill="#c62828"/>
+      <rect x="66" y="0" width="5" height="18" fill="#8e24aa"/>
+    </g>
+
+    <g id="res-9k76-body">
+      <rect x="0" y="0" width="80" height="18" rx="4" ry="4" fill="#f2d5a0" stroke="#6f4f1a" stroke-width="1.3"/>
+      <rect x="12" y="0" width="5" height="18" fill="#fff" stroke="#bbb" stroke-width="0.3"/>
+      <rect x="25" y="0" width="5" height="18" fill="#8e24aa"/>
+      <rect x="38" y="0" width="5" height="18" fill="#1565c0"/>
+      <rect x="51" y="0" width="5" height="18" fill="#8b5a2b"/>
+      <rect x="66" y="0" width="5" height="18" fill="#8e24aa"/>
+    </g>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1460"/>
+
+  <text class="title" x="60" y="56">CV output stage perfboard placement map</text>
+  <text class="subtitle" x="60" y="86">Main board is snapped to one square 2.54-style pitch in both directions so the DIP-8 socket and the pad field use the same spacing. Parts are drawn to land on pad multiples.</text>
+
+  <rect class="panel" x="50" y="120" width="1120" height="760"/>
+  <text class="note" x="80" y="162">Main placement on square pad grid</text>
+  <text class="small" x="80" y="188">Top rail is 5V_A on row A. Bottom rail is GND on row J. Lead endpoints and socket pins are placed on the same repeated board pitch.</text>
+
+  <rect class="board" x="140" y="220" width="860" height="580"/>
+  <rect x="165" y="255" width="800" height="500" fill="url(#perf-pad-grid)"/>
+
+  <g>
+    <text class="coord" x="185" y="242">1</text>
+    <text class="coord" x="235" y="242">2</text>
+    <text class="coord" x="285" y="242">3</text>
+    <text class="coord" x="335" y="242">4</text>
+    <text class="coord" x="385" y="242">5</text>
+    <text class="coord" x="435" y="242">6</text>
+    <text class="coord" x="485" y="242">7</text>
+    <text class="coord" x="535" y="242">8</text>
+    <text class="coord" x="585" y="242">9</text>
+    <text class="coord" x="635" y="242">10</text>
+    <text class="coord" x="685" y="242">11</text>
+    <text class="coord" x="735" y="242">12</text>
+    <text class="coord" x="785" y="242">13</text>
+    <text class="coord" x="835" y="242">14</text>
+    <text class="coord" x="885" y="242">15</text>
+    <text class="coord" x="935" y="242">16</text>
+
+    <text class="coord" x="146" y="284">A</text>
+    <text class="coord" x="146" y="334">B</text>
+    <text class="coord" x="146" y="384">C</text>
+    <text class="coord" x="146" y="434">D</text>
+    <text class="coord" x="146" y="484">E</text>
+    <text class="coord" x="146" y="534">F</text>
+    <text class="coord" x="146" y="584">G</text>
+    <text class="coord" x="146" y="634">H</text>
+    <text class="coord" x="146" y="684">I</text>
+    <text class="coord" x="146" y="734">J</text>
+  </g>
+
+  <g>
+    <path class="net5" d="M 190 280 L 940 280"/>
+    <path class="netg" d="M 190 730 L 940 730"/>
+    <text class="legend" x="786" y="272">5V_A rail A1-A16</text>
+    <text class="legend" x="790" y="722">GND rail J1-J16</text>
+
+    <path class="netsig" d="M 190 330 L 240 330"/>
+    <path class="netsig" d="M 290 330 L 340 330"/>
+    <path class="netsig" d="M 340 330 L 340 580 L 490 580"/>
+
+    <path class="netfb" d="M 490 530 L 490 430 L 690 430"/>
+    <path class="netfb" d="M 770 430 L 790 430"/>
+    <path class="netfb" d="M 860 430 L 860 680 L 790 680"/>
+    <path class="netfb" d="M 790 680 L 790 730"/>
+
+    <path class="netsig" d="M 640 580 L 690 580"/>
+    <path class="netsig" d="M 740 580 L 890 580"/>
+    <path class="netsig" d="M 890 580 L 940 580"/>
+
+    <path class="net5" d="M 640 530 L 640 280"/>
+    <path class="netg" d="M 490 630 L 490 730"/>
+
+    <path class="netg" d="M 340 430 L 340 730"/>
+    <path class="netg" d="M 590 380 L 590 730"/>
+  </g>
+
+  <g>
+    <path class="netsig" d="M 190 330 L 150 330 L 150 306 L 158 306"/>
+    <path class="netg" d="M 190 730 L 120 730 L 120 338 L 158 338"/>
+    <rect class="callout" x="58" y="288" width="100" height="64"/>
+    <text class="tiny" x="70" y="308">DAC header</text>
+    <text class="tiny" x="70" y="326">signal: B1</text>
+    <text class="tiny" x="70" y="342">ground: J1</text>
+
+    <use href="#res-1k-body" x="230" y="321"/>
+    <line x1="240" y1="330" x2="230" y2="330" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="300" y1="330" x2="340" y2="330" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="265" y="312" text-anchor="middle">R1</text>
+    <text class="tiny" x="265" y="358" text-anchor="middle">B2-B3</text>
+
+    <line x1="340" y1="330" x2="340" y2="383" stroke="#333" stroke-width="3"/>
+    <line x1="318" y1="383" x2="362" y2="383" stroke="#333" stroke-width="3"/>
+    <line x1="318" y1="407" x2="362" y2="407" stroke="#333" stroke-width="3"/>
+    <line x1="340" y1="407" x2="340" y2="430" stroke="#333" stroke-width="3"/>
+    <circle class="dots" cx="340" cy="330" r="6"/>
+    <circle class="dotg" cx="340" cy="430" r="6"/>
+    <text class="small" x="372" y="380">C1 10 nF</text>
+    <text class="tiny" x="372" y="398">B4 to D4</text>
+    <text class="tiny" x="372" y="414">D4 then drops to J4</text>
+
+    <use href="#dip8" x="510" y="455"/>
+    <text class="small" x="565" y="520" text-anchor="middle">U1</text>
+    <text class="tiny" x="565" y="538" text-anchor="middle">OPA277PA</text>
+    <text class="tiny" x="565" y="556" text-anchor="middle">E7-H7 / E10-H10</text>
+    <text class="pinlabel" x="452" y="534">pin 2 -IN F7</text>
+    <text class="pinlabel" x="452" y="584">pin 3 +IN G7</text>
+    <text class="pinlabel" x="452" y="634">pin 4 V- H7</text>
+    <text class="pinlabel" x="648" y="534">pin 7 V+ F10</text>
+    <text class="pinlabel" x="648" y="584">pin 6 OUT G10</text>
+
+    <line x1="590" y1="280" x2="590" y2="365" stroke="#333" stroke-width="3"/>
+    <line x1="568" y1="365" x2="612" y2="365" stroke="#333" stroke-width="3"/>
+    <line x1="568" y1="389" x2="612" y2="389" stroke="#333" stroke-width="3"/>
+    <line x1="590" y1="389" x2="590" y2="380" stroke="#333" stroke-width="3"/>
+    <circle class="dot5" cx="590" cy="280" r="6"/>
+    <circle class="dotg" cx="590" cy="380" r="6"/>
+    <text class="small" x="620" y="364">C2 100 nF</text>
+    <text class="tiny" x="620" y="382">A9 to C9</text>
+    <text class="tiny" x="620" y="398">C9 then drops to J9</text>
+
+    <use href="#res-9k76-body" x="690" y="421"/>
+    <line x1="690" y1="430" x2="680" y2="430" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="770" y1="430" x2="790" y2="430" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="730" y="412" text-anchor="middle">R3</text>
+    <text class="tiny" x="730" y="456" text-anchor="middle">D11-D12</text>
+
+    <g transform="translate(790,380)">
+      <rect class="passive" x="0" y="0" width="110" height="96" rx="8" ry="8"/>
+      <text class="small" x="55" y="26" text-anchor="middle">TRIM1</text>
+      <text class="tiny" x="55" y="46" text-anchor="middle">3296W-1-501LF</text>
+      <text class="tiny" x="55" y="64" text-anchor="middle">pads C13 D13 E13</text>
+      <text class="tiny" x="55" y="82" text-anchor="middle">fan-out node</text>
+    </g>
+
+    <line x1="790" y1="680" x2="790" y2="645" stroke="#7a5a28" stroke-width="2"/>
+    <use href="#res-10k-body" x="750" y="611" transform="rotate(90 790 620)"/>
+    <line x1="790" y1="611" x2="790" y2="630" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="818" y="638">R2 10k</text>
+    <text class="tiny" x="818" y="654">H13 to J13</text>
+    <text class="tiny" x="818" y="670">vertical on board pads</text>
+
+    <use href="#res-1k-body" x="690" y="571"/>
+    <line x1="690" y1="580" x2="680" y2="580" stroke="#7a5a28" stroke-width="2"/>
+    <line x1="760" y1="580" x2="890" y2="580" stroke="#7a5a28" stroke-width="2"/>
+    <text class="small" x="725" y="562" text-anchor="middle">R4</text>
+    <text class="tiny" x="725" y="606" text-anchor="middle">G11-G12</text>
+
+    <line x1="890" y1="280" x2="890" y2="345" stroke="#333" stroke-width="3"/>
+    <rect x="880" y="345" width="20" height="48" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="880" y="345" width="20" height="7" fill="#111"/>
+    <line x1="890" y1="393" x2="890" y2="580" stroke="#333" stroke-width="3"/>
+    <circle class="dot5" cx="890" cy="280" r="6"/>
+    <circle class="dots" cx="890" cy="580" r="6"/>
+    <rect class="passive" x="902" y="344" width="50" height="28" rx="6" ry="6"/>
+    <text class="tiny" x="912" y="362">D4</text>
+
+    <line x1="940" y1="730" x2="940" y2="645" stroke="#333" stroke-width="3"/>
+    <rect x="930" y="597" width="20" height="48" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+    <rect x="930" y="638" width="20" height="7" fill="#111"/>
+    <line x1="940" y1="597" x2="940" y2="580" stroke="#333" stroke-width="3"/>
+    <circle class="dotg" cx="940" cy="730" r="6"/>
+    <circle class="dots" cx="940" cy="580" r="6"/>
+    <rect class="passive" x="902" y="604" width="50" height="28" rx="6" ry="6"/>
+    <text class="tiny" x="912" y="622">D5</text>
+
+    <path class="netsig" d="M 890 580 L 1008 580 L 1008 606"/>
+    <path class="netg" d="M 915 730 L 988 730 L 988 622 L 1008 622"/>
+    <rect class="callout" x="1008" y="592" width="122" height="56"/>
+    <text class="tiny" x="1020" y="612">CV OUT node</text>
+    <text class="tiny" x="1020" y="628">signal: G15</text>
+    <text class="tiny" x="1020" y="644">sleeve: J15</text>
+  </g>
+
+  <rect class="panel" x="1200" y="120" width="550" height="420"/>
+  <text class="note" x="1230" y="162">Inset 1: signal path</text>
+  <text class="small" x="1230" y="188">This view ignores the rails and only shows the path you should wire first.</text>
+  <rect class="callout" x="1230" y="220" width="490" height="280"/>
+  <path class="netsig" d="M 1260 320 L 1330 320"/>
+  <use href="#res-1k-body" x="1330" y="311"/>
+  <path class="netsig" d="M 1400 320 L 1470 320"/>
+  <line x1="1470" y1="320" x2="1470" y2="355" stroke="#333" stroke-width="3"/>
+  <line x1="1448" y1="355" x2="1492" y2="355" stroke="#333" stroke-width="3"/>
+  <line x1="1448" y1="379" x2="1492" y2="379" stroke="#333" stroke-width="3"/>
+  <line x1="1470" y1="379" x2="1470" y2="430" stroke="#333" stroke-width="3"/>
+  <text class="tiny" x="1256" y="308">DAC IN</text>
+  <text class="tiny" x="1340" y="304">R1 1k</text>
+  <text class="tiny" x="1498" y="370">C1 10 nF</text>
+  <use href="#dip8" x="1390" y="380"/>
+  <text class="tiny" x="1445" y="598" text-anchor="middle">build around pin 3, pin 2, and pin 6 first</text>
+  <use href="#res-9k76-body" x="1565" y="421"/>
+  <g transform="translate(1600,360)">
+    <rect class="passive" x="0" y="0" width="92" height="52" rx="8" ry="8"/>
+    <text class="tiny" x="46" y="22" text-anchor="middle">TRIM1</text>
+    <text class="tiny" x="46" y="38" text-anchor="middle">fan-out</text>
+  </g>
+  <use href="#res-10k-body" x="1600" y="506" transform="rotate(90 1640 515)"/>
+  <use href="#res-1k-body" x="1565" y="501"/>
+  <text class="tiny" x="1570" y="412">R3 9.76k</text>
+  <text class="tiny" x="1570" y="494">R4 1k</text>
+  <text class="tiny" x="1660" y="584">R2 10k to GND</text>
+  <path class="netfb" d="M 1543 430 L 1565 430"/>
+  <path class="netfb" d="M 1645 412 L 1645 480 L 1543 480"/>
+  <path class="netsig" d="M 1543 510 L 1565 510"/>
+  <path class="netsig" d="M 1635 510 L 1700 510"/>
+  <text class="tiny" x="1704" y="514">CV OUT</text>
+
+  <rect class="panel" x="1200" y="570" width="550" height="390"/>
+  <text class="note" x="1230" y="612">Inset 2: rails and protection</text>
+  <text class="small" x="1230" y="638">This view keeps the top 5V rail and bottom GND rail explicit so the clamp and decoupling placement is easier to follow.</text>
+  <rect class="callout" x="1230" y="670" width="490" height="250"/>
+  <path class="net5" d="M 1260 730 L 1700 730"/>
+  <path class="netg" d="M 1260 880 L 1700 880"/>
+  <text class="tiny" x="1260" y="722">5V_A top rail</text>
+  <text class="tiny" x="1260" y="898">GND bottom rail</text>
+  <line x1="1410" y1="730" x2="1410" y2="795" stroke="#333" stroke-width="3"/>
+  <line x1="1388" y1="795" x2="1432" y2="795" stroke="#333" stroke-width="3"/>
+  <line x1="1388" y1="819" x2="1432" y2="819" stroke="#333" stroke-width="3"/>
+  <line x1="1410" y1="819" x2="1410" y2="880" stroke="#333" stroke-width="3"/>
+  <text class="tiny" x="1442" y="810">C2 between rail pads</text>
+  <path class="netsig" d="M 1590 805 L 1670 805"/>
+  <text class="tiny" x="1676" y="809">OUT</text>
+  <line x1="1590" y1="730" x2="1590" y2="772" stroke="#333" stroke-width="3"/>
+  <rect x="1580" y="772" width="20" height="44" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+  <rect x="1580" y="772" width="20" height="7" fill="#111"/>
+  <line x1="1590" y1="816" x2="1590" y2="805" stroke="#333" stroke-width="3"/>
+  <text class="tiny" x="1564" y="760">D4 band to 5V_A</text>
+  <line x1="1640" y1="880" x2="1640" y2="848" stroke="#333" stroke-width="3"/>
+  <rect x="1630" y="804" width="20" height="44" rx="4" ry="4" fill="#f4e6c7" stroke="#7a5a28" stroke-width="1.4"/>
+  <rect x="1630" y="841" width="20" height="7" fill="#111"/>
+  <line x1="1640" y1="804" x2="1640" y2="805" stroke="#333" stroke-width="3"/>
+  <text class="tiny" x="1654" y="864">D5 band to OUT</text>
+
+  <rect class="panel" x="50" y="920" width="1700" height="470"/>
+  <text class="note" x="80" y="962">Hole-by-hole placement table</text>
+  <text class="small" x="80" y="988">Coordinates below follow the main board above. Where a capacitor lands above the bottom rail, its lower pad is then linked straight down to row J on the same column.</text>
+
+  <rect class="table-head" x="80" y="1020" width="140" height="40"/>
+  <rect class="table-head" x="220" y="1020" width="160" height="40"/>
+  <rect class="table-head" x="380" y="1020" width="230" height="40"/>
+  <rect class="table-head" x="610" y="1020" width="220" height="40"/>
+  <rect class="table-head" x="830" y="1020" width="880" height="40"/>
+  <text class="small" x="100" y="1045">Part</text>
+  <text class="small" x="248" y="1045">Pads</text>
+  <text class="small" x="402" y="1045">Function</text>
+  <text class="small" x="632" y="1045">Net</text>
+  <text class="small" x="852" y="1045">Notes</text>
+
+  <rect class="table-cell" x="80" y="1060" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1060" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1060" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1060" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1060" width="880" height="36"/>
+  <text class="tiny" x="98" y="1083">DAC header</text>
+  <text class="tiny" x="238" y="1083">B1, J1</text>
+  <text class="tiny" x="398" y="1083">signal in + ground</text>
+  <text class="tiny" x="628" y="1083">DAC IN, GND</text>
+  <text class="tiny" x="848" y="1083">The board uses a top 5V rail and bottom GND rail. External DAC ground should land on row J.</text>
+
+  <rect class="table-cell" x="80" y="1096" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1096" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1096" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1096" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1096" width="880" height="36"/>
+  <text class="tiny" x="98" y="1119">R1 1k</text>
+  <text class="tiny" x="238" y="1119">B2 to B3</text>
+  <text class="tiny" x="398" y="1119">input resistor</text>
+  <text class="tiny" x="628" y="1119">DAC IN to FLT</text>
+  <text class="tiny" x="848" y="1119">B1 bridges to B2. B3 continues to B4 and then down to U1 pin 3 at G7.</text>
+
+  <rect class="table-cell" x="80" y="1132" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1132" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1132" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1132" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1132" width="880" height="36"/>
+  <text class="tiny" x="98" y="1155">C1 10 nF</text>
+  <text class="tiny" x="238" y="1155">B4 to D4</text>
+  <text class="tiny" x="398" y="1155">input filter cap</text>
+  <text class="tiny" x="628" y="1155">FLT to GND</text>
+  <text class="tiny" x="848" y="1155">D4 is linked straight down to J4. This keeps the part on a pad multiple while preserving the bottom ground rail.</text>
+
+  <rect class="table-cell" x="80" y="1168" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1168" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1168" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1168" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1168" width="880" height="36"/>
+  <text class="tiny" x="98" y="1191">U1 socket</text>
+  <text class="tiny" x="238" y="1191">E7-H7 and E10-H10</text>
+  <text class="tiny" x="398" y="1191">OPA277PA footprint</text>
+  <text class="tiny" x="628" y="1191">+IN, -IN, OUT, V+, V-</text>
+  <text class="tiny" x="848" y="1191">The socket rows are aligned to the same square grid as the board pads. Pin 3 is G7, pin 2 is F7, pin 6 is G10, pin 7 is F10, and pin 4 is H7.</text>
+
+  <rect class="table-cell" x="80" y="1204" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1204" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1204" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1204" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1204" width="880" height="36"/>
+  <text class="tiny" x="98" y="1227">C2 100 nF</text>
+  <text class="tiny" x="238" y="1227">A9 to C9</text>
+  <text class="tiny" x="398" y="1227">local decoupling</text>
+  <text class="tiny" x="628" y="1227">5V_A to GND</text>
+  <text class="tiny" x="848" y="1227">C9 then links down to J9. This keeps the capacitor close to the op-amp while the actual ground rail stays on the bottom row.</text>
+
+  <rect class="table-cell" x="80" y="1240" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1240" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1240" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1240" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1240" width="880" height="36"/>
+  <text class="tiny" x="98" y="1263">R3 9.76k</text>
+  <text class="tiny" x="238" y="1263">D11 to D12</text>
+  <text class="tiny" x="398" y="1263">feedback resistor</text>
+  <text class="tiny" x="628" y="1263">-IN to trim</text>
+  <text class="tiny" x="848" y="1263">The feedback path starts at U1 pin 2 on F7, rises to row D, goes through R3, then enters the trim cluster.</text>
+
+  <rect class="table-cell" x="80" y="1276" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1276" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1276" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1276" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1276" width="880" height="36"/>
+  <text class="tiny" x="98" y="1299">TRIM1</text>
+  <text class="tiny" x="238" y="1299">C13, D13, E13</text>
+  <text class="tiny" x="398" y="1299">trim fan-out</text>
+  <text class="tiny" x="628" y="1299">R3 to R2 and -IN</text>
+  <text class="tiny" x="848" y="1299">This area is spread out so the trim body is not on top of R3, R2, or the clamp diodes.</text>
+
+  <rect class="table-cell" x="80" y="1312" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1312" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1312" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1312" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1312" width="880" height="36"/>
+  <text class="tiny" x="98" y="1335">R2 10k</text>
+  <text class="tiny" x="238" y="1335">H13 to J13</text>
+  <text class="tiny" x="398" y="1335">feedback to ground</text>
+  <text class="tiny" x="628" y="1335">-IN node to GND</text>
+  <text class="tiny" x="848" y="1335">R2 now visibly sits on board pads and drops from the trim/feedback node down to the bottom ground rail.</text>
+
+  <rect class="table-cell" x="80" y="1348" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1348" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1348" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1348" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1348" width="880" height="36"/>
+  <text class="tiny" x="98" y="1371">R4 1k</text>
+  <text class="tiny" x="238" y="1371">G11 to G12</text>
+  <text class="tiny" x="398" y="1371">output resistor</text>
+  <text class="tiny" x="628" y="1371">OUT to jack</text>
+  <text class="tiny" x="848" y="1371">The op-amp output at G10 runs through R4, then continues right to the output clamp node on G15 and G16.</text>
+
+  <rect class="table-cell" x="80" y="1384" width="140" height="36"/>
+  <rect class="table-cell" x="220" y="1384" width="160" height="36"/>
+  <rect class="table-cell" x="380" y="1384" width="230" height="36"/>
+  <rect class="table-cell" x="610" y="1384" width="220" height="36"/>
+  <rect class="table-cell" x="830" y="1384" width="880" height="36"/>
+  <text class="tiny" x="98" y="1407">D4 and D5</text>
+  <text class="tiny" x="238" y="1407">A15-G15 and J16-G16</text>
+  <text class="tiny" x="398" y="1407">output clamps</text>
+  <text class="tiny" x="628" y="1407">OUT to 5V_A and GND</text>
+  <text class="tiny" x="848" y="1407">D4 reaches up to the top rail. D5 reaches down to the bottom rail. Both parts are placed on pad multiples that match the square board pitch.</text>
+</svg>
