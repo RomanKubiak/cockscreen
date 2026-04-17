@@ -290,13 +290,17 @@
   <text class="small" x="1650" y="188">This is the full 3-channel gate board, not a one-channel repeat block.</text>
   <rect class="callout" x="1650" y="220" width="370" height="250"/>
   <text class="small" x="1676" y="252">1. One chip, three gates</text>
-  <text class="tiny" x="1676" y="274">Use U2 pin pairs 1/2, 3/4, and 5/6 for GATE0, GATE1, and GATE2.</text>
+  <text class="tiny" x="1676" y="274">Use U2 pin pairs 1/2, 3/4, and 5/6 for</text>
+  <text class="tiny" x="1676" y="292">GATE0, GATE1, and GATE2.</text>
   <text class="small" x="1676" y="306">2. Shared rails</text>
-  <text class="tiny" x="1676" y="328">Row A carries 3V3 for U2 and the upper clamp diodes. Row L carries GND, the pull-down returns, and the jack sleeves.</text>
+  <text class="tiny" x="1676" y="328">Row A carries 3V3 for U2 and the upper clamp diodes.</text>
+  <text class="tiny" x="1676" y="346">Row L carries GND, the pull-down returns, and the jack sleeves.</text>
   <text class="small" x="1676" y="360">3. Protection first</text>
-  <text class="tiny" x="1676" y="382">Each jack passes through 10k before the node reaches the clamp pair or the IC input.</text>
+  <text class="tiny" x="1676" y="382">Each jack passes through 10k before the node reaches</text>
+  <text class="tiny" x="1676" y="400">the clamp pair or the IC input.</text>
   <text class="small" x="1676" y="414">4. Stable idle state</text>
-  <text class="tiny" x="1676" y="436">Each 100k pull-down holds the input low when the patch cable is absent or the source is open.</text>
+  <text class="tiny" x="1676" y="436">Each 100k pull-down holds the input low when the patch cable</text>
+  <text class="tiny" x="1676" y="454">is absent or the source is open.</text>
 
   <rect class="panel" x="50" y="1060" width="2000" height="480"/>
   <text class="note" x="80" y="1102">Hole-by-hole placement table</text>

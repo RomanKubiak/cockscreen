@@ -7,7 +7,7 @@ This document covers the Pi-only analog front end used on the AARCH64 build.
 The analog path is split into three parts:
 
 - Three direct CV inputs on the Waveshare board ADC channels `AD1`, `AD2`, and `AD3`.
-- A control surface built from eight user-supplied manual pots on the Waveshare board ADC input `AD0` using a `CD74HC4067`, one I2C NeoSlider module, and two motorized faders.
+- A control surface built from eight user-supplied manual pots on the Waveshare board ADC input `AD0` using a `CD74HC4067`, one I2C NeoSlider module, one `MCP23017` I2C GPIO expander with eight buttons, and two motorized faders.
 - Three separate gate inputs on free Pi GPIO pins for note/gate/trigger events.
 
 The runtime support is AARCH64-only and prints sampled CV values and gate states to the console.
@@ -18,13 +18,13 @@ A good orderable desktop enclosure for this layout is the Hammond 1456WL3BKBK sl
 
 - 15 degree sloped top for comfortable knob and fader access
 - 20.26 x 11.61 x 3.21 in overall size
-- wide enough for eight manual pots, one NeoSlider, and two motorized faders without going to a rack chassis
+- wide enough for eight manual pots, eight buttons, one NeoSlider, and two motorized faders without going to a rack chassis
 - if you want a steeper layout, the Hammond 1456WK4BKBK is the 30 degree alternate
 - if you want a DIY build, see [diy-enclosure-option-2.md](diy-enclosure-option-2.md) for a plywood-shell and aluminum-top-panel rough cut/layout
 
 ## Detailed Proposed Schematic
 
-The preferred front-end is drawn in [analog-front-end-detailed.svg](analog-front-end-detailed.svg). It shows the direct CV blocks, the control-surface layout, the NeoSlider module, the motorized faders, and the gate inputs in one board-level diagram.
+The preferred front-end is drawn in [analog-front-end-detailed.svg](analog-front-end-detailed.svg). It shows the direct CV blocks, the control-surface layout, the NeoSlider module, the `MCP23017` button expander, the motorized faders, and the gate inputs in one board-level diagram.
 
 The short version is:
 
@@ -35,7 +35,8 @@ The short version is:
 - Optional bipolar CV stage: `MCP6002-I/P` dual rail-to-rail op-amp in DIP-8 with `100k` / `100k` mid-rail bias.
 - Pot mux series protection: `1k`.
 - Pot mux clamp: two `1N4148` diodes to `0 V` and `3V3`.
-- Control surface: eight user-supplied manual pots, one NeoSlider I2C slider module, and two motorized faders.
+- Control surface: eight user-supplied manual pots, eight momentary buttons on one `MCP23017` I2C expander, one NeoSlider I2C slider module, and two motorized faders.
+- Button bank: one `MCP23017-E/SP` with eight normally-open buttons on `GPA0` through `GPA7`.
 - Motorized fader drive: one `L9110` two-channel motor-driver module, one channel per fader.
 - Gate series resistor: `10k`.
 - Gate pull-down: `100k`.
@@ -100,7 +101,7 @@ If you want a through-hole prototyping layout for one direct CV conditioning cha
 
 ## Pot Mux On `AD0`
 
-The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever manual pot or motorized-fader feedback channel is selected. The mux is used for the control-surface pots and fader feedback, not for the direct CV inputs or the NeoSlider module.
+The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever manual pot or motorized-fader feedback channel is selected. The mux is used for the control-surface pots and fader feedback, not for the direct CV inputs, the button bank, or the NeoSlider module.
 
 ### Pin Map
 
@@ -137,6 +138,46 @@ Wire each manual potentiometer or motorized-fader feedback track with one outer 
 
 The pot mux is shown in the board-level schematic above. It is the `AD0` section of [analog-front-end-detailed.svg](analog-front-end-detailed.svg).
 
+## Button Bank On I2C
+
+The eight control buttons sit on one `MCP23017` I2C GPIO expander. This keeps the button bank off the analog mux and avoids consuming eight separate Pi GPIO pins.
+
+For the first-pass wiring, keep the expander at the default I2C address `0x20` by tying `A0`, `A1`, and `A2` to `GND`.
+
+### Pin Map
+
+| Function | MCP23017 pin group | Connect to |
+|---|---|---|
+| `SDA` | `SDA` | Pi `BCM2` / physical pin `3` |
+| `SCL` | `SCL` | Pi `BCM3` / physical pin `5` |
+| `BTN0`-`BTN7` | `GPA0`-`GPA7` | one button per pin |
+| address select | `A0`, `A1`, `A2` | `GND` for address `0x20` |
+| reset | `RESET` | `3V3` |
+| spare bank | `GPB0`-`GPB7` | leave unused for now |
+| interrupts | `INTA`, `INTB` | optional spare Pi GPIO later |
+
+### Power And Wiring
+
+| MCP23017 pin | Connect to |
+|---|---|
+| `VDD` | Waveshare board `3V3` |
+| `VSS` | Waveshare board `GND` |
+| `SDA` | Pi `GPIO2` |
+| `SCL` | Pi `GPIO3` |
+| `A0`, `A1`, `A2` | `GND` |
+| `RESET` | `3V3` |
+| `GPA0`-`GPA7` | one side of buttons `B1`-`B8` |
+
+Wire the other side of each button to the shared ground rail. In the first-pass firmware, enable the `MCP23017` internal pull-ups so each button reads active-low without extra resistors.
+
+### Button Rules
+
+- Keep the button bank on the shared I2C bus with the NeoSlider.
+- Use normally-open momentary buttons from `GPA0`-`GPA7` to `GND`.
+- Enable internal pull-ups in the expander instead of adding eight external pull-up resistors.
+- The first-pass design can poll button state over I2C, so no dedicated Pi interrupt pin is required.
+- `GPB0`-`GPB7` stay available for later LEDs, transport buttons, or interrupt-driven expansion.
+
 ## Motorized Faders
 
 The two COM-10976 motorized faders are panel controls with a 10k linear position pot and a small motor. Treat each one as two subsystems:
@@ -159,7 +200,7 @@ The two COM-10976 motorized faders are panel controls with a 10k linear position
 - One two-channel `L9110` module can drive both motorized faders.
 - Keep the driver and motor-supply decoupling close to the panel harness.
 - The firmware needs to compare the sampled fader position against the target position before moving the motor.
-- The Adafruit NeoSlider module is separate on I2C and does not use the mux.
+- The Adafruit NeoSlider module and the `MCP23017` button expander are separate on I2C and do not use the mux.
 
 ### Proposed Motor Logic Pins
 
@@ -199,7 +240,7 @@ The practical no-implementation-change recommendation is to keep the initial ful
 
 ### Control-Surface Wiring Map
 
-For a header-and-power wiring view that shows the pot mux, NeoSlider I2C pins, and the current state of the motor-driver wiring, see [control-surface-header-wiring.svg](control-surface-header-wiring.svg).
+For a header-and-power wiring view that shows the pot mux, the shared I2C pins for the NeoSlider and `MCP23017`, and the current state of the motor-driver wiring, see [control-surface-header-wiring.svg](control-surface-header-wiring.svg).
 
 ## Gate Inputs
 

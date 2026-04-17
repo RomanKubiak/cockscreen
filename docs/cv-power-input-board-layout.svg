@@ -81,7 +81,6 @@
   <rect class="panel" x="50" y="120" width="1520" height="900"/>
   <text class="note" x="80" y="162">Main placement on square pad grid</text>
   <text class="small" x="80" y="188">Top rail is 12 V_IN on row A. Middle rail is 5 V_DIG on row B. Bottom rail is GND on row L. The 5 V_A branch starts after RISO and stays local to the analog loads only.</text>
-
   <rect class="board" x="140" y="230" width="1260" height="680"/>
   <rect x="165" y="265" width="1200" height="600" fill="url(#perf-pad-grid)"/>
 
@@ -273,31 +272,41 @@
     <text class="tiny" x="1490" y="744">ground: L24</text>
   </g>
 
-  <rect class="panel" x="1610" y="120" width="440" height="420"/>
+  <rect class="panel" x="1610" y="120" width="440" height="430"/>
   <text class="note" x="1640" y="162">Inset 1: build order</text>
   <text class="small" x="1640" y="188">Wire the high-current loop first, then add the analog branch after 5 V_DIG is stable.</text>
-  <rect class="callout" x="1640" y="220" width="380" height="270"/>
+  <rect class="callout" x="1640" y="220" width="380" height="290"/>
   <text class="small" x="1660" y="254">1. Input protection</text>
-  <text class="tiny" x="1660" y="276">Barrel jack -> F1 -> D1, with C1 and C2 across the input rail and D2 across 12 V_IN to GND.</text>
+  <text class="tiny" x="1660" y="276">Barrel jack -> F1 -> D1, with C1 and C2 across the input rail</text>
+  <text class="tiny" x="1660" y="294">and D2 across 12 V_IN to GND.</text>
   <text class="small" x="1660" y="316">2. Buck loop</text>
-  <text class="tiny" x="1660" y="338">Keep U1, L1, D3, C3, and C4 grouped tightly so the switching loop stays short.</text>
+  <text class="tiny" x="1660" y="338">Keep U1, L1, D3, C3, and C4 grouped tightly so</text>
+  <text class="tiny" x="1660" y="356">the switching loop stays short.</text>
   <text class="small" x="1660" y="378">3. Analog branch</text>
-  <text class="tiny" x="1660" y="400">Take 5 V_DIG through RISO into a separate 5 V_A node. Put C5 and C6 only on the analog side of RISO.</text>
+  <text class="tiny" x="1660" y="400">Take 5 V_DIG through RISO into a separate 5 V_A node.</text>
+  <text class="tiny" x="1660" y="418">Put C5 and C6 only on the analog side of RISO.</text>
   <text class="small" x="1660" y="440">4. Star return</text>
-  <text class="tiny" x="1660" y="462">Bring the Pi, buck, and analog returns back to the same L-row ground rail and leave off-board wiring short.</text>
+  <text class="tiny" x="1660" y="462">Bring the Pi, buck, and analog returns back to the same</text>
+  <text class="tiny" x="1660" y="480">L-row ground rail and leave off-board wiring short.</text>
 
   <rect class="panel" x="1610" y="570" width="440" height="450"/>
   <text class="note" x="1640" y="612">Inset 2: wiring notes</text>
   <rect class="callout" x="1640" y="644" width="380" height="330"/>
   <text class="tiny" x="1660" y="672">Use heavy wire or solder bridges for the A, B, and L rail runs.</text>
-  <text class="tiny" x="1660" y="694">The LM2596T-5.0-TT tab area is large; leave airflow and avoid crowding tall electrolytics too close.</text>
-  <text class="tiny" x="1660" y="716">C1/C2 are the input decouplers before the buck regulator.</text>
-  <text class="tiny" x="1660" y="738">C3/C4 are the digital 5 V output decouplers after the buck loop.</text>
-  <text class="tiny" x="1660" y="760">C5/C6 are only for the analog 5 V_A branch used by the reference and CV-output stages.</text>
-  <text class="tiny" x="1660" y="782">If the Pi and motor loads share 5 V_DIG, keep their harness return separate until it reaches the ground rail.</text>
-  <text class="tiny" x="1660" y="804">The TVS D2 is a shunt part, so mount it directly across the 12 V and GND rails rather than in series.</text>
-  <text class="tiny" x="1660" y="826">D1 should be oriented so reverse input power is blocked before the regulator VIN node.</text>
-  <text class="tiny" x="1660" y="848">This is a practical prototyping map, not a replacement for a proper high-current PCB if the load grows.</text>
+  <text class="tiny" x="1660" y="690">The LM2596T-5.0-TT tab area is large; leave airflow and avoid</text>
+  <text class="tiny" x="1660" y="708">crowding tall electrolytics too close.</text>
+  <text class="tiny" x="1660" y="726">C1/C2 are the input decouplers before the buck regulator.</text>
+  <text class="tiny" x="1660" y="744">C3/C4 are the digital 5 V output decouplers after the buck loop.</text>
+  <text class="tiny" x="1660" y="762">C5/C6 are only for the analog 5 V_A branch used by the reference</text>
+  <text class="tiny" x="1660" y="780">and CV-output stages.</text>
+  <text class="tiny" x="1660" y="798">If the Pi and motor loads share 5 V_DIG, keep their harness return</text>
+  <text class="tiny" x="1660" y="816">separate until it reaches the ground rail.</text>
+  <text class="tiny" x="1660" y="834">The TVS D2 is a shunt part, so mount it directly across</text>
+  <text class="tiny" x="1660" y="852">the 12 V and GND rails rather than in series.</text>
+  <text class="tiny" x="1660" y="870">D1 should be oriented so reverse input power is blocked</text>
+  <text class="tiny" x="1660" y="888">before the regulator VIN node.</text>
+  <text class="tiny" x="1660" y="906">This is a practical prototyping map, not a replacement for</text>
+  <text class="tiny" x="1660" y="924">a proper high-current PCB if the load grows.</text>
 
   <rect class="panel" x="50" y="1060" width="2000" height="500"/>
   <text class="note" x="80" y="1102">Hole-by-hole placement table</text>

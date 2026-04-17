@@ -50,7 +50,7 @@
   <rect class="bg" x="0" y="0" width="1800" height="1220"/>
 
   <text class="title" x="70" y="56">Detailed analog front end proposal</text>
-  <text class="subtitle" x="70" y="84">Pi Zero 2 W / Waveshare ADS1256 board, direct CV on AD1-AD3, desktop control surface in a sloped console, and three gate inputs</text>
+  <text class="subtitle" x="70" y="84">Pi Zero 2 W / Waveshare ADS1256 board, direct CV on AD1-AD3, desktop control surface with buttons on an MCP23017, and three gate inputs</text>
 
   <path class="rail3v3" d="M 70 125 L 1730 125"/>
   <text class="small" x="85" y="116">3V3 rail</text>
@@ -100,7 +100,7 @@
   <rect class="panel" x="900" y="160" width="830" height="390"/>
   <text class="label" x="920" y="194">Desktop enclosure control surface</text>
   <text class="small" x="920" y="220">Recommended panel: Hammond 1456WL3BKBK sloped console, 15 degree slope, 20.26 x 11.61 x 3.21 in.</text>
-  <text class="small" x="920" y="242">Eight manual pots are user-supplied. One NeoSlider is I2C. Two motorized faders use one L9110 dual motor module.</text>
+  <text class="small" x="920" y="242">Eight manual pots are user-supplied. One NeoSlider and one MCP23017 button expander share I2C. Two motorized faders use one L9110 dual motor module.</text>
 
   <polygon points="940,262 1350,262 1325,470 965,470" fill="#fff" stroke="#222" stroke-width="2.5"/>
   <text class="tiny" x="1145" y="286" text-anchor="middle">Front panel layout</text>
@@ -133,20 +133,25 @@
   <text class="tiny" x="1235" y="455" text-anchor="middle">F2 motorized fader</text>
 
   <path class="wire arrow" d="M 1325 304 L 1410 304"/>
-  <path class="wire arrow" d="M 1325 348 L 1410 390"/>
-  <path class="wire arrow" d="M 1325 439 L 1410 475"/>
+  <path class="wire arrow" d="M 1325 348 L 1410 375"/>
+  <path class="wire arrow" d="M 1325 392 L 1410 448"/>
+  <path class="wire arrow" d="M 1325 439 L 1410 521"/>
 
   <rect class="chip" x="1410" y="270" width="280" height="70"/>
   <text class="small" x="1550" y="298" text-anchor="middle">CD74HC4067E</text>
   <text class="tiny" x="1550" y="320" text-anchor="middle">manual pots and feedback -> AD0</text>
 
-  <rect class="chip" x="1410" y="355" width="280" height="70"/>
-  <text class="small" x="1550" y="383" text-anchor="middle">NeoSlider</text>
-  <text class="tiny" x="1550" y="405" text-anchor="middle">I2C to Pi Zero 2 W</text>
+  <rect class="chip" x="1410" y="345" width="280" height="60"/>
+  <text class="small" x="1550" y="369" text-anchor="middle">NeoSlider</text>
+  <text class="tiny" x="1550" y="389" text-anchor="middle">I2C to Pi Zero 2 W</text>
 
-  <rect class="green" x="1410" y="440" width="280" height="70"/>
-  <text class="small" x="1550" y="468" text-anchor="middle">L9110 module</text>
-  <text class="tiny" x="1550" y="490" text-anchor="middle">motor drive for F1 / F2</text>
+  <rect class="chip" x="1410" y="418" width="280" height="60"/>
+  <text class="small" x="1550" y="442" text-anchor="middle">MCP23017</text>
+  <text class="tiny" x="1550" y="462" text-anchor="middle">eight buttons on shared I2C</text>
+
+  <rect class="green" x="1410" y="491" width="280" height="60"/>
+  <text class="small" x="1550" y="515" text-anchor="middle">L9110 module</text>
+  <text class="tiny" x="1550" y="535" text-anchor="middle">motor drive for F1 / F2</text>
 
   <rect class="panel" x="70" y="590" width="820" height="270"/>
   <text class="label" x="90" y="624">Gate inputs on BCM16, BCM19, BCM20</text>
@@ -189,6 +194,10 @@
   <text class="tiny" x="1260" y="680">I2C device to Pi Zero 2 W</text>
   <text class="tiny" x="1260" y="700">kept off the mux</text>
 
+  <text class="small" x="1260" y="740">Buttons x8</text>
+  <text class="tiny" x="1260" y="764">MCP23017 on the same I2C bus</text>
+  <text class="tiny" x="1260" y="784">use `GPA0-GPA7` with internal pull-ups</text>
+
   <text class="small" x="1510" y="656">Motorized faders x2</text>
   <text class="tiny" x="1510" y="680">wipers -> spare AD0 mux channels</text>
   <text class="tiny" x="1510" y="700">motors -> L9110 channel A and channel B</text>
@@ -203,10 +212,10 @@
   <rect class="panel" x="70" y="900" width="1660" height="220"/>
   <text class="label" x="90" y="934">Board-level wiring summary</text>
   <text class="tiny" x="90" y="964">Direct CV: AD1, AD2, AD3</text>
-  <text class="tiny" x="90" y="986">Control surface: eight manual pots, one NeoSlider, and two motorized faders</text>
-  <text class="tiny" x="90" y="1008">Motor drive GPIO: BCM23, BCM24, BCM25, BCM21 on the L9110 IA / IB inputs</text>
-  <text class="tiny" x="90" y="1030">Optional later speed control: PWM the active IA or IB line for the selected motor</text>
-  <text class="tiny" x="90" y="1052">Gate inputs: BCM16, BCM19, BCM20</text>
-  <text class="tiny" x="90" y="1074">Common power: Waveshare board 3V3 and GND rails</text>
-  <text class="tiny" x="90" y="1096">Runtime: Linux AARCH64 only</text>
+  <text class="tiny" x="90" y="986">Control surface: eight manual pots, one NeoSlider, eight buttons on one MCP23017, and two motorized faders</text>
+  <text class="tiny" x="90" y="1008">Shared I2C controls: NeoSlider plus MCP23017 at address `0x20` with `GPA0-GPA7` for the button bank</text>
+  <text class="tiny" x="90" y="1030">Motor drive GPIO: BCM23, BCM24, BCM25, BCM21 on the L9110 IA / IB inputs</text>
+  <text class="tiny" x="90" y="1052">Optional later speed control: PWM the active IA or IB line for the selected motor</text>
+  <text class="tiny" x="90" y="1074">Gate inputs: BCM16, BCM19, BCM20</text>
+  <text class="tiny" x="90" y="1096">Common power: Waveshare board 3V3 and GND rails</text>
 </svg>

@@ -17,6 +17,7 @@ The goal is to keep this BOM to the PCB-level electronics that can be checked on
 | 1 | Buck catch diode | 1N5822-ST | exact, in stock | THT DO201AD Schottky; 4220 in TME stock |
 | 1 | 33 uH buck inductor | DPU033A3 / DPO-3.0-33 | exact, in stock | THT toroidal inductor; 745 in TME stock |
 | 1 | Gate inverter | SN74HCT14N | exact, in stock | DIP14 Schmitt-trigger inverter; 46 in TME stock |
+| 1 | Button expander | MCP23017-E/SP | exact, check stock | DIP28 I2C GPIO expander for eight control buttons on `GPA0`-`GPA7` |
 | 4 | CV output op amp | OPA277PA | exact, in stock | DIP8 precision op amp; 332 in TME stock |
 | 0-3 | Optional bipolar input op amp | MCP6002-I/P | exact, in stock | DIP8 dual RRIO op amp; 1714 in TME stock |
 | 1 | 2.5 V reference | LM4040AIZ-2.5/NOPB | exact, in stock | THT TO-92 fixed reference; 438 in TME stock |
@@ -46,7 +47,7 @@ These parts are outside the TME electronics list above and should be handled sep
 
 - Raspberry Pi Zero 2 W
 - Waveshare ADS1256 ADC board
-- Manual pots, motorized faders, and NeoSlider module
+- Manual pots, motorized faders, NeoSlider module, and panel push buttons
 - Panel jacks, barrel jack, GPIO header, and switches
 - Enclosure, standoffs, screws, spacers, labels, knobs, and other mechanical hardware
 
