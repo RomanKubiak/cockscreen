@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1380" viewBox="0 0 1900 1380" role="img" aria-label="Control-surface wiring map for Pi 40-pin header and power rails">
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="1600" viewBox="0 0 1900 1600" role="img" aria-label="Control-surface wiring map for Pi 40-pin header and power rails">
   <defs>
     <style>
       .bg { fill: #f7f6f2; }
@@ -33,7 +33,7 @@
     </marker>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1900" height="1380"/>
+  <rect class="bg" x="0" y="0" width="1900" height="1600"/>
 
   <text class="title" x="60" y="56">Control-surface wiring to Pi 40-pin header and power rails</text>
   <text class="subtitle" x="60" y="84">This map focuses on the eight manual pots, the AD0 mux, one NeoSlider I2C module, and two motorized faders. Exact mux and I2C header pins come from the current repo docs. The motor-driver logic now has a first-pass pin assignment that avoids the already-used ADS1256, mux, gate, and I2C lines.</text>
@@ -93,9 +93,9 @@
   <rect class="chip" x="700" y="210" width="360" height="180"/>
   <text class="label" x="880" y="244" text-anchor="middle">CD74HC4067E on AD0</text>
   <text class="small" x="880" y="272" text-anchor="middle">Manual pots and fader feedback only</text>
-  <text class="tiny" x="880" y="304" text-anchor="middle">C0-C7 <- P1-P8 wipers</text>
-  <text class="tiny" x="880" y="324" text-anchor="middle">C8 <- F1 feedback wiper</text>
-  <text class="tiny" x="880" y="344" text-anchor="middle">C9 <- F2 feedback wiper</text>
+  <text class="tiny" x="880" y="304" text-anchor="middle">C0-C7 &lt;- P1-P8 wipers</text>
+  <text class="tiny" x="880" y="324" text-anchor="middle">C8 &lt;- F1 feedback wiper</text>
+  <text class="tiny" x="880" y="344" text-anchor="middle">C9 &lt;- F2 feedback wiper</text>
   <text class="tiny" x="880" y="364" text-anchor="middle">COM / SIG -> Waveshare ADS1256 AD0</text>
   <text class="tiny" x="880" y="384" text-anchor="middle">VCC -> 3V3, EN -> GND, VEE -> GND</text>
 
@@ -253,18 +253,18 @@
   <circle class="dotm" cx="700" cy="740" r="5"/>
   <circle class="dotm" cx="700" cy="760" r="5"/>
 
-  <rect class="callout" x="80" y="910" width="1020" height="180"/>
-  <text class="small" x="100" y="944">What is exact in the repo today</text>
-  <text class="tiny" x="100" y="968">Mux select lines: BCM5, BCM6, BCM13, BCM26 on physical pins 29, 31, 33, 37.</text>
-  <text class="tiny" x="100" y="988">NeoSlider I2C: BCM2 / pin 3 for SDA and BCM3 / pin 5 for SCL.</text>
-  <text class="tiny" x="100" y="1008">Pot bank and motorized-fader feedback tracks go through the CD74HC4067E into ADS1256 AD0.</text>
-  <text class="tiny" x="100" y="1028">5 V_DIG comes from the power board into the Pi header. 3V3 is then available on the Pi header for the control logic side.</text>
-  <text class="tiny" x="100" y="1048">All control-surface grounds, the mux ground, the NeoSlider ground, the Pi ground, and the motor-driver ground must remain common.</text>
+  <rect class="callout" x="80" y="1330" width="1020" height="180"/>
+  <text class="small" x="100" y="1364">What is exact in the repo today</text>
+  <text class="tiny" x="100" y="1388">Mux select lines: BCM5, BCM6, BCM13, BCM26 on physical pins 29, 31, 33, 37.</text>
+  <text class="tiny" x="100" y="1408">NeoSlider I2C: BCM2 / pin 3 for SDA and BCM3 / pin 5 for SCL.</text>
+  <text class="tiny" x="100" y="1428">Pot bank and motorized-fader feedback tracks go through the CD74HC4067E into ADS1256 AD0.</text>
+  <text class="tiny" x="100" y="1448">5 V_DIG comes from the power board into the Pi header. 3V3 is then available on the Pi header for the control logic side.</text>
+  <text class="tiny" x="100" y="1468">All control-surface grounds, the mux ground, the NeoSlider ground, the Pi ground, and the motor-driver ground must remain common.</text>
 
-  <rect class="callout" x="1120" y="910" width="720" height="190"/>
-  <text class="small" x="1140" y="944">First-pass motor logic</text>
-  <text class="tiny" x="1140" y="968">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four L9110 `IA` / `IB` inputs.</text>
-  <text class="tiny" x="1140" y="988">Per channel, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
-  <text class="tiny" x="1140" y="1008">The module has no separate enable pins, so later speed control must use PWM on the active `IA` or `IB` line.</text>
-  <text class="tiny" x="1140" y="1028">The current four-GPIO layout remains valid for forward, reverse, coast, and brake control without hardware changes.</text>
+  <rect class="callout" x="1120" y="1330" width="720" height="190"/>
+  <text class="small" x="1140" y="1364">First-pass motor logic</text>
+  <text class="tiny" x="1140" y="1388">This revision uses BCM23, BCM24, BCM25, and BCM21 for the four L9110 `IA` / `IB` inputs.</text>
+  <text class="tiny" x="1140" y="1408">Per channel, `1/0` drives one way, `0/1` drives the other way, `0/0` coasts, and `1/1` brakes.</text>
+  <text class="tiny" x="1140" y="1428">The module has no separate enable pins, so later speed control must use PWM on the active `IA` or `IB` line.</text>
+  <text class="tiny" x="1140" y="1448">The current four-GPIO layout remains valid for forward, reverse, coast, and brake control without hardware changes.</text>
 </svg>
