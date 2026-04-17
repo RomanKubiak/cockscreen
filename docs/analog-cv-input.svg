@@ -47,15 +47,15 @@
 
   <rect class="box" x="575" y="135" width="220" height="70"/>
   <text class="small" x="685" y="162" text-anchor="middle">Mode 1: direct path</text>
-  <text class="tiny" x="685" y="182" text-anchor="middle">R 1 k series + BAT54S clamp + 1 nF</text>
+  <text class="tiny" x="685" y="182" text-anchor="middle">1 k series + 1N4148-DIO clamp pair + 1 nF</text>
 
   <rect class="box" x="575" y="220" width="220" height="70"/>
   <text class="small" x="685" y="247" text-anchor="middle">Mode 2: attenuated path</text>
-  <text class="tiny" x="685" y="267" text-anchor="middle">100k / 100k divider + R 1 k + clamp</text>
+  <text class="tiny" x="685" y="267" text-anchor="middle">100k / 100k divider + 1 k + 1N4148-DIO</text>
 
   <rect class="box" x="575" y="305" width="220" height="70"/>
   <text class="small" x="685" y="332" text-anchor="middle">Mode 3: bipolar path</text>
-  <text class="tiny" x="685" y="352" text-anchor="middle">MCP6002 mid-rail bias + clamp</text>
+  <text class="tiny" x="685" y="352" text-anchor="middle">MCP6002-I/P mid-rail bias + 1N4148-DIO</text>
 
   <path class="wire dash" d="M 685 205 L 685 220"/>
   <path class="wire dash" d="M 685 290 L 685 305"/>

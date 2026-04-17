@@ -100,7 +100,7 @@
   <!-- bipolar path -->
   <path class="wire" d="M 390 520 L 470 520"/>
   <polygon points="470,470 470,570 590,520" fill="#eef3ff" stroke="#1d3b66" stroke-width="2.2"/>
-  <text class="small" x="522" y="454" text-anchor="middle">U1 MCP6002</text>
+  <text class="small" x="522" y="454" text-anchor="middle">U1 MCP6002-I/P</text>
   <text class="tiny" x="520" y="590" text-anchor="middle">bipolar level shifter</text>
   <path class="wire" d="M 590 520 L 640 520 L 640 320 L 580 320"/>
   <circle class="node" cx="640" cy="320" r="4.5"/>
@@ -127,8 +127,8 @@
   <circle class="node" cx="840" cy="320" r="5"/>
 
   <rect class="block" x="900" y="238" width="180" height="124"/>
-  <text class="small" x="990" y="272" text-anchor="middle">D1 BAT54S</text>
-  <text class="tiny" x="990" y="294" text-anchor="middle">dual Schottky clamp</text>
+  <text class="small" x="990" y="272" text-anchor="middle">D1/D2 1N4148-DIO</text>
+  <text class="tiny" x="990" y="294" text-anchor="middle">small-signal clamp pair</text>
   <text class="tiny" x="990" y="314" text-anchor="middle">to 3V3 and GND</text>
   <path class="wire" d="M 840 320 L 900 320"/>
   <path class="wire" d="M 990 238 L 990 90"/>
@@ -151,5 +151,5 @@
   <text class="small" x="60" y="650">Mode summary</text>
   <text class="tiny" x="60" y="674">Pos 1: use the direct path for 0-5 V signals.</text>
   <text class="tiny" x="60" y="692">Pos 2: use the 100k / 100k divider for 0-10 V signals.</text>
-  <text class="tiny" x="60" y="710">Pos 3: use the MCP6002 stage to shift bipolar signals into the ADC range.</text>
+  <text class="tiny" x="60" y="710">Pos 3: use the MCP6002-I/P stage to shift bipolar signals into the ADC range.</text>
 </svg>

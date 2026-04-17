@@ -67,9 +67,9 @@
   <text class="tiny" x="210" y="344" text-anchor="middle">R1 100k / R2 100k</text>
   <text class="tiny" x="210" y="364" text-anchor="middle">2:1 attenuation for 0-10 V</text>
   <text class="tiny" x="210" y="380" text-anchor="middle">R3 1k series</text>
-  <text class="tiny" x="210" y="392" text-anchor="middle">D1 BAT54S clamp</text>
+  <text class="tiny" x="210" y="392" text-anchor="middle">D1/D2 1N4148-DIO clamp pair</text>
   <text class="tiny" x="210" y="412" text-anchor="middle">C1 1 nF to GND</text>
-  <text class="tiny" x="210" y="432" text-anchor="middle">optional U1 MCP6002</text>
+  <text class="tiny" x="210" y="432" text-anchor="middle">optional U1 MCP6002-I/P</text>
   <text class="tiny" x="210" y="452" text-anchor="middle">for bipolar level shift</text>
 
   <rect x="350" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
@@ -78,9 +78,9 @@
   <text class="tiny" x="465" y="344" text-anchor="middle">R1 100k / R2 100k</text>
   <text class="tiny" x="465" y="364" text-anchor="middle">2:1 attenuation for 0-10 V</text>
   <text class="tiny" x="465" y="380" text-anchor="middle">R3 1k series</text>
-  <text class="tiny" x="465" y="392" text-anchor="middle">D1 BAT54S clamp</text>
+  <text class="tiny" x="465" y="392" text-anchor="middle">D1/D2 1N4148-DIO clamp pair</text>
   <text class="tiny" x="465" y="412" text-anchor="middle">C1 1 nF to GND</text>
-  <text class="tiny" x="465" y="432" text-anchor="middle">optional U1 MCP6002</text>
+  <text class="tiny" x="465" y="432" text-anchor="middle">optional U1 MCP6002-I/P</text>
   <text class="tiny" x="465" y="452" text-anchor="middle">for bipolar level shift</text>
 
   <rect x="605" y="255" width="230" height="225" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>
@@ -89,9 +89,9 @@
   <text class="tiny" x="720" y="344" text-anchor="middle">R1 100k / R2 100k</text>
   <text class="tiny" x="720" y="364" text-anchor="middle">2:1 attenuation for 0-10 V</text>
   <text class="tiny" x="720" y="380" text-anchor="middle">R3 1k series</text>
-  <text class="tiny" x="720" y="392" text-anchor="middle">D1 BAT54S clamp</text>
+  <text class="tiny" x="720" y="392" text-anchor="middle">D1/D2 1N4148-DIO clamp pair</text>
   <text class="tiny" x="720" y="412" text-anchor="middle">C1 1 nF to GND</text>
-  <text class="tiny" x="720" y="432" text-anchor="middle">optional U1 MCP6002</text>
+  <text class="tiny" x="720" y="432" text-anchor="middle">optional U1 MCP6002-I/P</text>
   <text class="tiny" x="720" y="452" text-anchor="middle">for bipolar level shift</text>
 
   <path class="wire arrow" d="M 325 367 L 350 367"/>
@@ -156,7 +156,7 @@
   <text class="small" x="205" y="710" text-anchor="middle">Gate front-end x3</text>
   <text class="tiny" x="205" y="746" text-anchor="middle">R5 10k series</text>
   <text class="tiny" x="205" y="768" text-anchor="middle">R6 100k pull-down</text>
-  <text class="tiny" x="205" y="788" text-anchor="middle">D3 BAT54S clamp</text>
+  <text class="tiny" x="205" y="788" text-anchor="middle">D3/D4 1N4148-DIO clamp pair</text>
   <text class="tiny" x="205" y="796" text-anchor="middle">U2 74LVC14 at 3.3 V</text>
 
   <rect x="350" y="660" width="250" height="170" fill="#fff" stroke="#222" stroke-width="2" rx="14" ry="14"/>

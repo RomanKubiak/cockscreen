@@ -38,14 +38,14 @@
   <text class="small" x="90" y="284">12 V wall PSU input</text>
   <text class="tiny" x="90" y="316">J1 barrel jack, 5.5 x 2.1 mm</text>
   <text class="tiny" x="90" y="338">F1 MF-R110 polyfuse</text>
-  <text class="tiny" x="90" y="360">D1 1N5819 reverse polarity diode</text>
+  <text class="tiny" x="90" y="360">D1 1N5819-DIO reverse polarity diode</text>
   <text class="tiny" x="90" y="382">D2 1.5KE15A TVS across 12 V rail</text>
   <text class="tiny" x="90" y="404">C1 470 uF and C2 100 nF input decoupling</text>
 
   <rect class="chip" x="490" y="220" width="410" height="250"/>
-  <text class="label" x="695" y="256" text-anchor="middle">U1 LM2596T-5.0</text>
+  <text class="label" x="695" y="256" text-anchor="middle">U1 LM2596T-5.0-TT</text>
   <text class="small" x="695" y="284" text-anchor="middle">5 V_DIG buck regulator, TO-220-5</text>
-  <text class="tiny" x="695" y="316" text-anchor="middle">L1 33 uH, D3 1N5822, C3 330 uF</text>
+  <text class="tiny" x="695" y="316" text-anchor="middle">L1 DPU033A3 / DPO-3.0-33, D3 1N5822-ST, C3 330 uF</text>
   <text class="tiny" x="695" y="338" text-anchor="middle">C4 100 nF close to the regulator pins</text>
   <text class="tiny" x="695" y="360" text-anchor="middle">feeds Pi and digital logic rail</text>
   <text class="tiny" x="695" y="390" text-anchor="middle">keep buck return local until the star point</text>
