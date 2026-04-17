@@ -94,6 +94,10 @@ Each direct CV input uses the same element set:
 
 ![Direct CV conditioning schematic](analog-cv-conditioning-schematic.svg)
 
+### Direct CV Rough Board Placement
+
+If you want a through-hole prototyping layout for one direct CV conditioning channel, see [analog-cv-conditioning-board-layout.svg](analog-cv-conditioning-board-layout.svg).
+
 ## Pot Mux On `AD0`
 
 The mux common pin goes to `AD0`. The Pi drives the mux select lines and the ADC samples whichever manual pot or motorized-fader feedback channel is selected. The mux is used for the control-surface pots and fader feedback, not for the direct CV inputs or the NeoSlider module.
@@ -193,13 +197,13 @@ Suggested front-end channel:
 - Optional pull-down: 100 k to GND
 - Optional Schmitt stage for cleaner edges
 
-### Gate Input Schematic
-
-![Gate input schematic](analog-gate-input.svg)
-
 ### Gate Conditioning Schematic
 
 ![Gate conditioning schematic](analog-gate-conditioning-schematic.svg)
+
+### Gate Rough Board Placement
+
+If you want a through-hole prototyping layout for the full three-channel gate board, see [analog-gate-conditioning-board-layout.svg](analog-gate-conditioning-board-layout.svg).
 
 ## Power And CV Outputs
 
@@ -248,6 +252,10 @@ Each output channel uses the same element set:
 ### Output Schematic
 
 The detailed drawing is in [cv-output-stage.svg](cv-output-stage.svg).
+
+### Rough Board Placement
+
+If you want to build one channel by hand on through-hole prototyping material, see [cv-output-stage-board-layout.svg](cv-output-stage-board-layout.svg) for the square-pitch universal perfboard placement map.
 
 ## Runtime Output
 

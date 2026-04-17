@@ -76,8 +76,8 @@
 
   <path class="wire" d="M 430 310 L 520 310"/>
   <rect class="block" x="520" y="228" width="190" height="164"/>
-  <text class="small" x="615" y="264" text-anchor="middle">D1 BAT54S</text>
-  <text class="tiny" x="615" y="286" text-anchor="middle">dual Schottky clamp</text>
+  <text class="small" x="615" y="264" text-anchor="middle">D1/D2 1N4148-DIO</text>
+  <text class="tiny" x="615" y="286" text-anchor="middle">small-signal clamp pair</text>
   <text class="tiny" x="615" y="306" text-anchor="middle">to 3V3 and GND</text>
   <text class="tiny" x="615" y="328" text-anchor="middle">protects Pi-side logic</text>
   <path class="wire" d="M 615 228 L 615 90"/>
@@ -86,7 +86,7 @@
   <path class="wire" d="M 710 310 L 780 310"/>
 
   <rect class="block" x="780" y="228" width="220" height="164"/>
-  <text class="small" x="890" y="264" text-anchor="middle">U2 74LVC14</text>
+  <text class="small" x="890" y="264" text-anchor="middle">U2 SN74LVC14AN</text>
   <text class="tiny" x="890" y="286" text-anchor="middle">Schmitt trigger buffer</text>
   <text class="tiny" x="890" y="306" text-anchor="middle">powered from 3V3</text>
   <text class="tiny" x="890" y="328" text-anchor="middle">active-high digital output</text>
@@ -105,11 +105,11 @@
   <text class="small" x="60" y="592">Suggested parts</text>
   <text class="tiny" x="60" y="618">R5 = 10k series resistor</text>
   <text class="tiny" x="60" y="636">R6 = 100k pull-down to GND</text>
-  <text class="tiny" x="60" y="654">D1 = BAT54S dual Schottky clamp</text>
+  <text class="tiny" x="60" y="654">D1/D2 = 1N4148-DIO clamp pair</text>
 
   <rect class="box" x="600" y="560" width="470" height="110"/>
   <text class="small" x="620" y="592">Behavior</text>
   <text class="tiny" x="620" y="618">Input is protected and clamped before the logic stage.</text>
-  <text class="tiny" x="620" y="636">74LVC14 cleans the edge and outputs stable 3.3 V logic.</text>
+  <text class="tiny" x="620" y="636">SN74LVC14AN cleans the edge and outputs stable 3.3 V logic.</text>
   <text class="tiny" x="620" y="654">This output goes to one Pi GPIO gate input.</text>
 </svg>
