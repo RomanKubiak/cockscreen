@@ -56,6 +56,11 @@
     },
     "show_status_overlay": false,
     "timecode": false,
+    "pink_key": {
+        "audio_algorithm": 0,
+        "audio_reactivity": 0.45,
+        "midi_reactivity": 0.35
+    },
     "video": {
         "enabled": false,
         "shaders": [
