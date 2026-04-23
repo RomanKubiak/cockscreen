@@ -9,12 +9,17 @@ namespace cockscreen::app
 
 namespace
 {
-std::string default_scene_name()
+std::vector<std::string> default_scene_names()
 {
 #ifdef _WIN32
-    return "windows.scene.json";
+    return {"windows.scene.jsonc", "windows.scene.json"};
 #else
-    return runtime::is_pi_target() ? "pizero-linux.scene.json" : "x86_64-linux.scene.json";
+    if (runtime::is_pi_target())
+    {
+        return {"pizero-linux.scene.jsonc", "pizero-linux.scene.json"};
+    }
+
+    return {"x86_64-linux.scene.jsonc", "x86_64-linux.scene.json"};
 #endif
 }
 
@@ -49,20 +54,26 @@ std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem
 
 std::optional<std::filesystem::path> default_scene_file(const std::filesystem::path &executable_dir)
 {
-    const auto scene_name = default_scene_name();
+    const auto scene_names = default_scene_names();
 
     if (!executable_dir.empty())
     {
-        const auto beside_executable = executable_dir / "scenes" / scene_name;
-        if (std::filesystem::exists(beside_executable))
+        for (const auto &scene_name : scene_names)
         {
-            return beside_executable;
+            const auto beside_executable = executable_dir / "scenes" / scene_name;
+            if (std::filesystem::exists(beside_executable))
+            {
+                return beside_executable;
+            }
         }
     }
 
-    if (const auto current = resolve_relative_path(std::filesystem::path{"scenes"} / scene_name); current.has_value())
+    for (const auto &scene_name : scene_names)
     {
-        return current;
+        if (const auto current = resolve_relative_path(std::filesystem::path{"scenes"} / scene_name); current.has_value())
+        {
+            return current;
+        }
     }
 
     return std::nullopt;

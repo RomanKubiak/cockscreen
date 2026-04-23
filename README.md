@@ -24,6 +24,8 @@ Local x86_64 scenes default to a 1024×600 Qt6 window. Pi Zero 2 W builds use `e
 
 Runtime startup is scene-driven. Launch with `--scene-file <path>` or place the platform scene in `scenes/` next to the executable so `cockscreen` can auto-detect it.
 
+Scene files can be plain JSON or JSONC. JSONC is recommended when you want inline `//` or `/* ... */` comments in presets. Default scene auto-detection prefers `.scene.jsonc` and falls back to `.scene.json`.
+
 The only supported CLI options are:
 
 - `--help`
@@ -39,7 +41,7 @@ Example:
 
 ```bash
 ./out/build/local-x86_64-debug/cockscreen \
-    --scene-file scenes/x86_64-linux.scene.json \
+    --scene-file scenes/x86_64-linux.scene.jsonc \
     --enable-web-server http://0.0.0.0:8080
 ```
 
@@ -67,7 +69,7 @@ Device reopening is still read-only in this first version.
 
 ## Scene file
 
-A scene JSON file controls every visual aspect of a run, including the render backend and window geometry.
+A scene JSON or JSONC file controls every visual aspect of a run, including the render backend and window geometry.
 
 ### Top-level fields
 
