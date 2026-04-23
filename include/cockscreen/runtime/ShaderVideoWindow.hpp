@@ -49,6 +49,13 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] double render_fps() const;
     [[nodiscard]] QString status_message() const;
     [[nodiscard]] QString fatal_render_error() const;
+    [[nodiscard]] std::int64_t playback_position_ms() const;
+    [[nodiscard]] std::int64_t playback_duration_ms() const;
+    [[nodiscard]] int playback_loops_completed() const;
+    [[nodiscard]] double playback_current_rate() const;
+    [[nodiscard]] QString playback_error_text() const;
+    [[nodiscard]] QString playback_status_text() const;
+    [[nodiscard]] std::optional<std::uintmax_t> playback_file_size_bytes() const;
 
     void apply_scene_update(SceneDefinition scene);
     void set_status_overlay_text(QString text);
@@ -171,6 +178,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     std::int64_t playback_duration_ms_{0};
     int playback_loops_completed_{0};
     bool playback_transport_pending_seek_{false};
+    QString playback_error_text_;
+    QString playback_status_text_;
+    std::optional<std::uintmax_t> playback_file_size_bytes_;
     double processing_fps_{0.0};
     double render_fps_{0.0};
 };

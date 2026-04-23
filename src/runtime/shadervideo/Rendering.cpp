@@ -6,7 +6,10 @@
 #include <QColor>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QFont>
+#include <QFontDatabase>
 #include <QOpenGLFramebufferObject>
+#include <QPainter>
 #include <QRectF>
 #include <QVector2D>
 #include <QVector3D>
@@ -73,6 +76,50 @@ float mapped_note_value(const core::ControlFrame &frame, const MidiNoteMapping &
 
     value = std::pow(value, mapping.exponent);
     return mapping.minimum + (mapping.maximum - mapping.minimum) * value;
+}
+
+QString format_timecode_value(std::int64_t position_ms)
+{
+    constexpr std::int64_t kFramesPerSecond{25};
+    const std::int64_t clamped_ms = std::max<std::int64_t>(0, position_ms);
+    const std::int64_t total_seconds = clamped_ms / 1000;
+    const std::int64_t frames = ((clamped_ms % 1000) * kFramesPerSecond) / 1000;
+    const std::int64_t hours = total_seconds / 3600;
+    const std::int64_t minutes = (total_seconds / 60) % 60;
+    const std::int64_t seconds = total_seconds % 60;
+    return QStringLiteral("%1:%2:%3:%4")
+        .arg(hours, 2, 10, QLatin1Char('0'))
+        .arg(minutes, 2, 10, QLatin1Char('0'))
+        .arg(seconds, 2, 10, QLatin1Char('0'))
+        .arg(frames, 2, 10, QLatin1Char('0'));
+}
+
+void draw_timecode_overlay(QPainter *painter, const QRect &viewport_rect, std::int64_t position_ms)
+{
+    if (painter == nullptr)
+    {
+        return;
+    }
+
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    font.setBold(true);
+    font.setPointSizeF(std::max(12.0, viewport_rect.height() * 0.026));
+    font.setLetterSpacing(QFont::AbsoluteSpacing, 1.2);
+    painter->setFont(font);
+
+    const QString label = QStringLiteral("TC %1").arg(format_timecode_value(position_ms));
+    const QFontMetrics metrics{font};
+    const QRect text_rect = metrics.boundingRect(label).adjusted(-16, -10, 16, 10);
+    const QRect padded_rect = viewport_rect.adjusted(24, 24, -24, -24);
+    const QRect target{padded_rect.right() - text_rect.width(), padded_rect.bottom() - text_rect.height(),
+                       text_rect.width(), text_rect.height()};
+
+    painter->setRenderHint(QPainter::TextAntialiasing, false);
+    painter->fillRect(target, QColor{38, 28, 16, 170});
+    painter->setPen(QColor{36, 24, 12, 220});
+    painter->drawText(target.translated(2, 2), Qt::AlignCenter, label);
+    painter->setPen(QColor{255, 214, 117, 235});
+    painter->drawText(target, Qt::AlignCenter, label);
 }
 
 std::vector<QString> effective_layer_order(const SceneDefinition &scene, bool video_on_top)
@@ -296,6 +343,12 @@ void ShaderVideoWindow::paintGL()
     {
         status_overlay_->set_status_overlay_text(status_overlay_text_);
         status_overlay_->raise();
+    }
+
+    if (scene_.timecode && scene_.playback_input.enabled && !scene_.playback_input.file.empty())
+    {
+        QPainter painter{this};
+        draw_timecode_overlay(&painter, rect(), playback_position_ms_);
     }
 
     if (last_frame_time_ != std::chrono::steady_clock::time_point{})

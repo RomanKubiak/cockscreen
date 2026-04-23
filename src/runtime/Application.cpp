@@ -10,6 +10,7 @@
 #include "../../include/cockscreen/runtime/ShaderVideoWindow.hpp"
 #include "../../include/cockscreen/runtime/RuntimeHelpers.hpp"
 #include "../../include/cockscreen/runtime/application/Support.hpp"
+#include "../../include/cockscreen/runtime/shadervideo/Support.hpp"
 #include "../../include/cockscreen/runtime/web/SceneControlServer.hpp"
 #include "../../include/cockscreen/runtime/VideoWindow.hpp"
 
@@ -18,6 +19,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QHostAddress>
+#include <QMimeDatabase>
 #include <QPainter>
 #include <QSurfaceFormat>
 #include <QTimer>
@@ -25,6 +27,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <optional>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -126,7 +129,8 @@ QStringList wrap_overlay_line(const QString &text, int preferred_chars)
 
 QString build_overlay_text(const QString &fps_line, const QString &device_line, const QString &audio_line,
                            const QString &metrics_line, const QString &midi_line, const QString &osc_line,
-                           const QString &extra_line = QString{}, const QString &extra_line_two = QString{})
+                           const QString &extra_line = QString{}, const QString &extra_line_two = QString{},
+                           const QString &extra_line_three = QString{})
 {
     constexpr int kPreferredCharsPerLine{58};
 
@@ -145,32 +149,210 @@ QString build_overlay_text(const QString &fps_line, const QString &device_line, 
     {
         lines << wrap_overlay_line(extra_line_two, kPreferredCharsPerLine);
     }
+    if (!extra_line_three.isEmpty())
+    {
+        lines << wrap_overlay_line(extra_line_three, kPreferredCharsPerLine);
+    }
 
     return lines.join('\n');
 }
 
-QString playback_overlay_line(const SceneDefinition &scene)
+QString format_transport_clock(std::int64_t position_ms)
+{
+    const std::int64_t clamped_ms = std::max<std::int64_t>(0, position_ms);
+    const std::int64_t total_seconds = clamped_ms / 1000;
+    const std::int64_t milliseconds = clamped_ms % 1000;
+    const std::int64_t hours = total_seconds / 3600;
+    const std::int64_t minutes = (total_seconds / 60) % 60;
+    const std::int64_t seconds = total_seconds % 60;
+    return QStringLiteral("%1:%2:%3.%4")
+        .arg(hours, 2, 10, QLatin1Char('0'))
+        .arg(minutes, 2, 10, QLatin1Char('0'))
+        .arg(seconds, 2, 10, QLatin1Char('0'))
+        .arg(milliseconds, 3, 10, QLatin1Char('0'));
+}
+
+QString format_file_size(std::optional<std::uintmax_t> bytes)
+{
+    if (!bytes.has_value())
+    {
+        return QStringLiteral("?");
+    }
+
+    constexpr double kKilobyte{1024.0};
+    constexpr double kMegabyte{1024.0 * 1024.0};
+    constexpr double kGigabyte{1024.0 * 1024.0 * 1024.0};
+    const double value = static_cast<double>(*bytes);
+    if (value >= kGigabyte)
+    {
+        return QStringLiteral("%1 GB").arg(value / kGigabyte, 0, 'f', 2);
+    }
+    if (value >= kMegabyte)
+    {
+        return QStringLiteral("%1 MB").arg(value / kMegabyte, 0, 'f', 2);
+    }
+    if (value >= kKilobyte)
+    {
+        return QStringLiteral("%1 KB").arg(value / kKilobyte, 0, 'f', 1);
+    }
+    return QStringLiteral("%1 B").arg(*bytes);
+}
+
+QString playback_source_label(const SceneDefinition &scene)
+{
+    if (scene.playback_input.file.empty())
+    {
+        return QStringLiteral("<none>");
+    }
+
+    const std::filesystem::path source_path{scene.playback_input.file};
+    return QString::fromStdString(source_path.filename().empty() ? scene.playback_input.file : source_path.filename().string());
+}
+
+QString playback_config_summary(const SceneDefinition &scene)
 {
     const auto &playback = scene.playback_input;
-    const QString file_name = playback.file.empty()
-                                 ? QStringLiteral("<none>")
-                                 : QString::fromStdString(std::filesystem::path{playback.file}.filename().string());
     const QString loop_text = playback.loop_end_ms.has_value()
-                                  ? QStringLiteral("%1-%2")
+                                  ? QStringLiteral("%1-%2 ms")
                                         .arg(playback.loop_start_ms)
                                         .arg(*playback.loop_end_ms)
                                   : QStringLiteral("full");
     const QString repeat_text = playback.loop_repeat == 0 ? QStringLiteral("inf")
                                                           : QString::number(playback.loop_repeat);
+    const QString source_text = playback.file.empty() ? QStringLiteral("<none>")
+                                                      : QString::fromStdString(playback.file);
 
-    return QStringLiteral("Playback %1 | file %2 | start %3 | loop %4 | repeat %5 | rate %6/%7")
+    return QStringLiteral("Playback cfg %1 | source %2 | start %3 ms | loop %4 | repeat %5 | rate %6/%7")
         .arg(playback.enabled ? QStringLiteral("on") : QStringLiteral("off"))
-        .arg(file_name)
+        .arg(source_text)
         .arg(playback.start_ms)
         .arg(loop_text)
         .arg(repeat_text)
         .arg(playback.playback_rate, 0, 'f', 2)
         .arg(playback.playback_rate_looping, 0, 'f', 2);
+}
+
+QString playback_runtime_overlay_line(const SceneDefinition &scene, const ShaderVideoWindow &window)
+{
+    const auto &playback = scene.playback_input;
+    const QString duration_text = window.playback_duration_ms() > 0 ? format_transport_clock(window.playback_duration_ms())
+                                                                    : QStringLiteral("--:--:--.---");
+    const QString loop_text = playback.loop_end_ms.has_value()
+                                  ? QStringLiteral("%1-%2")
+                                        .arg(format_transport_clock(playback.loop_start_ms))
+                                        .arg(format_transport_clock(*playback.loop_end_ms))
+                                  : QStringLiteral("full");
+    const QString repeat_text = playback.loop_repeat == 0 ? QStringLiteral("inf") : QString::number(playback.loop_repeat);
+    const QString status_text = window.playback_status_text().isEmpty() ? QStringLiteral("idle") : window.playback_status_text();
+    const QString error_text = window.playback_error_text().isEmpty() ? QStringLiteral("none") : window.playback_error_text();
+
+    return QStringLiteral("Playback %1 | size %2 | pos %3/%4 | start %5 | loop %6 x%7 | rate %8 | status %9 | err %10")
+        .arg(playback_source_label(scene))
+        .arg(format_file_size(window.playback_file_size_bytes()))
+        .arg(format_transport_clock(window.playback_position_ms()))
+        .arg(duration_text)
+        .arg(format_transport_clock(playback.start_ms))
+        .arg(loop_text)
+        .arg(repeat_text)
+        .arg(window.playback_current_rate(), 0, 'f', 2)
+        .arg(status_text)
+        .arg(error_text);
+}
+
+QString playback_static_overlay_line(const SceneDefinition &scene)
+{
+    const auto &playback = scene.playback_input;
+    const QString loop_text = playback.loop_end_ms.has_value()
+                                  ? QStringLiteral("%1-%2")
+                                        .arg(format_transport_clock(playback.loop_start_ms))
+                                        .arg(format_transport_clock(*playback.loop_end_ms))
+                                  : QStringLiteral("full");
+    const QString repeat_text = playback.loop_repeat == 0 ? QStringLiteral("inf") : QString::number(playback.loop_repeat);
+    return QStringLiteral("Playback %1 | start %2 | loop %3 x%4 | rate %5/%6")
+        .arg(playback_source_label(scene))
+        .arg(format_transport_clock(playback.start_ms))
+        .arg(loop_text)
+        .arg(repeat_text)
+        .arg(playback.playback_rate, 0, 'f', 2)
+        .arg(playback.playback_rate_looping, 0, 'f', 2);
+}
+
+std::optional<QString> validate_playback_source(const SceneDefinition &scene)
+{
+    const auto &playback = scene.playback_input;
+    if (!playback.enabled)
+    {
+        return std::nullopt;
+    }
+
+    const QString source_text = QString::fromStdString(playback.file);
+    if (source_text.trimmed().isEmpty())
+    {
+        return QStringLiteral("Playback is enabled but no playback source is defined.");
+    }
+
+    const QUrl source_url{source_text};
+    if (!source_url.scheme().isEmpty())
+    {
+        if (!source_url.isValid())
+        {
+            return QStringLiteral("Playback source '%1' is not a valid URL or file path.").arg(source_text);
+        }
+
+        if (!source_url.isLocalFile())
+        {
+            return QStringLiteral("Playback source '%1' uses unsupported scheme '%2'. Only local files are supported.")
+                .arg(source_text, source_url.scheme());
+        }
+
+        const std::filesystem::path local_file{source_url.toLocalFile().toStdString()};
+        if (local_file.empty() || !std::filesystem::exists(local_file))
+        {
+            return QStringLiteral("Playback source '%1' does not exist on disk.").arg(source_text);
+        }
+        if (std::filesystem::is_directory(local_file))
+        {
+            return QStringLiteral("Playback source '%1' resolves to a directory, not a media file.").arg(source_text);
+        }
+
+        QMimeDatabase mime_database;
+        const auto mime = mime_database.mimeTypeForFile(QString::fromStdString(local_file.string()), QMimeDatabase::MatchContent);
+        if (mime.isValid() && !mime.name().startsWith(QStringLiteral("video/")) &&
+            !mime.name().startsWith(QStringLiteral("audio/")) && mime.name() != QStringLiteral("application/ogg"))
+        {
+            return QStringLiteral("Playback source '%1' is not a recognized audio/video media file (%2).").arg(source_text,
+                                                                                                                   mime.name());
+        }
+
+        return std::nullopt;
+    }
+
+    const std::filesystem::path raw_path{playback.file};
+    if (raw_path.filename().empty())
+    {
+        return QStringLiteral("Playback source '%1' is not a valid file path.").arg(source_text);
+    }
+
+    const auto resolved_path = shader_window::resolve_scene_resource_path(scene.resources_directory, playback.file);
+    if (!resolved_path.has_value())
+    {
+        return QStringLiteral("Playback source '%1' does not exist on disk.").arg(source_text);
+    }
+    if (std::filesystem::is_directory(*resolved_path))
+    {
+        return QStringLiteral("Playback source '%1' resolves to a directory, not a media file.").arg(source_text);
+    }
+
+    QMimeDatabase mime_database;
+    const auto mime = mime_database.mimeTypeForFile(QString::fromStdString(resolved_path->string()), QMimeDatabase::MatchContent);
+    if (mime.isValid() && !mime.name().startsWith(QStringLiteral("video/")) &&
+        !mime.name().startsWith(QStringLiteral("audio/")) && mime.name() != QStringLiteral("application/ogg"))
+    {
+        return QStringLiteral("Playback source '%1' is not a recognized audio/video media file (%2).").arg(source_text,
+                                                                                                               mime.name());
+    }
+
+    return std::nullopt;
 }
 
 struct WebServerBindConfig
@@ -323,6 +505,11 @@ int Application::run(int argc, char *argv[])
         return show_fatal_error_window(&application, lines.join('\n'));
     }
 
+    if (const auto playback_error = validate_playback_source(scene); playback_error.has_value())
+    {
+        return show_fatal_error_window(&application, *playback_error);
+    }
+
     if (!validate_render_path(settings_))
     {
         return show_fatal_error_window(
@@ -430,7 +617,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                                             playback_overlay_line(scene),
+                                                             playback_config_summary(scene),
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         });
 
@@ -465,7 +652,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                                             playback_overlay_line(scene),
+                                                             playback_config_summary(scene),
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         }
         timer.start(static_cast<int>(frame_time.count()));
@@ -586,7 +773,8 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                                             playback_overlay_line(scene),
+                                                             playback_config_summary(scene),
+                                                             playback_runtime_overlay_line(scene, window),
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
         });
 
@@ -621,7 +809,8 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                                             playback_overlay_line(scene),
+                                                             playback_config_summary(scene),
+                                                             playback_runtime_overlay_line(scene, window),
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
         }
         timer.start(static_cast<int>(frame_time.count()));
@@ -703,7 +892,8 @@ int Application::run(int argc, char *argv[])
                                      .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                 playback_overlay_line(scene),
+                     playback_config_summary(scene),
+                     playback_static_overlay_line(scene),
                                  QStringLiteral("Qt6 windowed mode on Linux")));
     });
 
@@ -738,8 +928,9 @@ int Application::run(int argc, char *argv[])
                                      .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                 playback_overlay_line(scene),
-                                 QStringLiteral("Qt6 windowed mode on Linux")));
+                 playback_config_summary(scene),
+                 playback_static_overlay_line(scene),
+                     QStringLiteral("Qt6 windowed mode on Linux")));
     }
     timer.start(static_cast<int>(frame_time.count()));
 
@@ -751,7 +942,7 @@ int Application::run(int argc, char *argv[])
     std::cout << "Audio device: " << settings_.audio_device << '\n';
     std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
       std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
-    std::cout << "Playback file: " << (scene.playback_input.file.empty() ? "<none>" : scene.playback_input.file) << '\n';
+    std::cout << playback_config_summary(scene).toStdString() << '\n';
     std::cout << "Video shader loaded: " << video_shader_label.toStdString() << '\n';
     std::cout << "Screen shader loaded: " << screen_shader_label.toStdString() << '\n';
     std::cout << "Top layer: " << effective_top_layer_name(scene, video_on_top).toStdString() << '\n';

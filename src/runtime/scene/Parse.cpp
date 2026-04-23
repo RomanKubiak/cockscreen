@@ -273,6 +273,11 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         scene.show_status_overlay = show_status_overlay.toBool();
     }
 
+    if (const auto timecode = root.value(QStringLiteral("timecode")); timecode.isBool())
+    {
+        scene.timecode = timecode.toBool();
+    }
+
     if (const auto render_path = root.value(QStringLiteral("render_path")); render_path.isString())
     {
         scene.render_path = render_path.toString().toStdString();

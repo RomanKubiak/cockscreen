@@ -103,6 +103,7 @@ struct SceneDefinition
     SceneBackgroundImage background_image;
     SceneGeometry geometry;
     bool show_status_overlay{true};
+    bool timecode{false};
     std::string render_path{"qt-shader"};
     std::string shader_directory;
     std::filesystem::path resources_directory;
