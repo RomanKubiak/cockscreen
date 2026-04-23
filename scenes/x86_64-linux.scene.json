@@ -21,19 +21,19 @@
         },
         "playback": {
             "enabled": true,
-            "file": "/home/atom/Videos/video.mp4",
+            "file": "/home/atom/Videos/pizza.mp4",
             "scale": 1.0,
             "on_top": true,
             "position": {
                 "x": 0,
                 "y": 0
             },
-            "start_ms": 0,
-            "loop_start_ms": 0,
-            "loop_end_ms": null,
+            "start_ms": 14000,
+            "loop_start_ms": 18000,
+            "loop_end_ms": 20000,
             "loop_repeat": 0,
             "playback_rate": 1.0,
-            "playback_rate_looping": 1.0
+            "playback_rate_looping": 0.5
         },
         "background_color": {
             "r": 0.0,
@@ -46,11 +46,11 @@
             "device": "PCM2902 Audio Codec Analog Stereo"
         },
         "midi": {
-            "enabled": false,
+            "enabled": true,
             "device": "through"
         }
     },
-    "show_status_overlay": true,
+    "show_status_overlay": false,
     "timecode": true,
     "video": {
         "enabled": false,
@@ -61,7 +61,7 @@
     "playback": {
         "enabled": true,
         "shaders": [
-            "pixelize_loop.glsl"
+            "pink_key.glsl"
         ]
     },
     "screen": {
@@ -97,7 +97,7 @@
             "exponent": 1.0
         },
         {
-            "layer": "video",
+            "layer": "playback",
             "shader": "pink_key.glsl",
             "uniform": "u_key_h",
             "channel": 0,
@@ -107,7 +107,7 @@
             "exponent": 1.0
         },
         {
-            "layer": "video",
+            "layer": "playback",
             "shader": "pink_key.glsl",
             "uniform": "u_key_hrange",
             "channel": 0,
@@ -117,7 +117,7 @@
             "exponent": 1.0
         },
         {
-            "layer": "video",
+            "layer": "playback",
             "shader": "pink_key.glsl",
             "uniform": "u_key_spread",
             "channel": 0,
