@@ -246,11 +246,12 @@ QString playback_runtime_overlay_line(const SceneDefinition &scene, const Shader
     const QString status_text = window.playback_status_text().isEmpty() ? QStringLiteral("idle") : window.playback_status_text();
     const QString error_text = window.playback_error_text().isEmpty() ? QStringLiteral("none") : window.playback_error_text();
 
-    return QStringLiteral("Playback %1 | size %2 | pos %3/%4 | start %5 | loop %6 x%7 | rate %8 | status %9 | err %10")
+    return QStringLiteral("Playback %1 | size %2 | pos %3/%4 | ms %5 | start %6 | loop %7 x%8 | rate %9 | status %10 | err %11")
         .arg(playback_source_label(scene))
         .arg(format_file_size(window.playback_file_size_bytes()))
         .arg(format_transport_clock(window.playback_position_ms()))
         .arg(duration_text)
+        .arg(window.playback_position_ms())
         .arg(format_transport_clock(playback.start_ms))
         .arg(loop_text)
         .arg(repeat_text)

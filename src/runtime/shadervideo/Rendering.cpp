@@ -107,7 +107,9 @@ void draw_timecode_overlay(QPainter *painter, const QRect &viewport_rect, std::i
     font.setLetterSpacing(QFont::AbsoluteSpacing, 1.2);
     painter->setFont(font);
 
-    const QString label = QStringLiteral("TC %1").arg(format_timecode_value(position_ms));
+    const QString label = QStringLiteral("TC %1  MS %2")
+                              .arg(format_timecode_value(position_ms))
+                              .arg(std::max<std::int64_t>(0, position_ms));
     const QFontMetrics metrics{font};
     const QRect text_rect = metrics.boundingRect(label).adjusted(-16, -10, 16, 10);
     const QRect padded_rect = viewport_rect.adjusted(24, 24, -24, -24);
