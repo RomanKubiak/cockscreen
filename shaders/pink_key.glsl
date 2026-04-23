@@ -28,8 +28,8 @@ uniform float u_key_smin;   // minimum pixel saturation to key  0-1  (default 0.
 // 4 = weighted spectral centroid across all 16 bands
 // 5 = full-spectrum energy average
 uniform float u_audio_algorithm;
-uniform float u_audio_reactivity;   // 0-1.5, default 0.45
-uniform float u_midi_reactivity;    // 0-1.5, default 0.35
+uniform float u_audio_reactivity; // 0-1.5, default 0.45
+uniform float u_midi_reactivity;  // 0-1.5, default 0.35
 
 // Convert RGB to HSV. Returns vec3(hue 0-1, saturation 0-1, value 0-1).
 vec3 rgb_to_hsv(vec3 c)
@@ -150,8 +150,8 @@ void main()
 
     float audio_amount = mix(0.45, u_audio_reactivity, step(0.001, u_audio_reactivity));
     float midi_amount = mix(0.35, u_midi_reactivity, step(0.001, u_midi_reactivity));
-    float audio_drive = clamp(selected_audio_drive(u_audio_algorithm) * (1.8 + u_audio_rms * 0.9) + u_audio_peak * 0.25,
-                              0.0, 1.0);
+    float audio_drive =
+        clamp(selected_audio_drive(u_audio_algorithm) * (1.8 + u_audio_rms * 0.9) + u_audio_peak * 0.25, 0.0, 1.0);
     float midi_energy = clamp(midi_drive(), 0.0, 1.0);
 
     float hue_shift = audio_drive * audio_amount * 0.09 + midi_energy * midi_amount * 0.06;
