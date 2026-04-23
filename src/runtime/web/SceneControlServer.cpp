@@ -420,9 +420,10 @@ SceneControlServer::SceneControlServer(SceneDefinition *scene, ShaderVideoWindow
                                                                              std::filesystem::path resources_directory, std::filesystem::path shader_directory,
                                                                              SceneControlDeviceInfo device_info, bool active_scene_read_only, QObject *parent)
     : QObject{parent}, scene_{scene}, window_{window}, scene_file_{std::move(scene_file)},
+            initial_scene_file_{scene_file_},
       resources_directory_{std::move(resources_directory)}, shader_directory_{std::move(shader_directory)},
     default_shader_directory_{shader_directory_},
-            device_info_{std::move(device_info)}, active_scene_read_only_{active_scene_read_only}, server_{this}
+                        device_info_{std::move(device_info)}, initial_scene_read_only_{active_scene_read_only}, server_{this}
 {
 }
 
@@ -787,7 +788,7 @@ QByteArray SceneControlServer::build_index_html() const
                         <input type="text" value="${escapeHtml(presetManager.root || '')}" readonly>
                         <button id="loadPresetButton" type="button">Load preset</button>
                     </div>
-                    <p class="muted">Directories map 1:1 to preset groups and scene files map 1:1 to selectable scenes. Loading a preset updates the visual scene immediately. ${presetManager.activeSceneReadOnly ? 'The currently loaded command-line scene is read-only so multiple windows can run from the same source scene in parallel; future save flows must create a new preset instead of rewriting that file.' : 'The current scene was not locked by the command line.'} Device reopening is still read-only.</p>
+                    <p class="muted">Directories map 1:1 to preset groups and scene files map 1:1 to selectable scenes. Loading a preset updates the visual scene immediately. ${presetManager.activeSceneReadOnly ? 'The initial startup scene is read-only, so future save flows must create a new preset instead of rewriting that source file.' : 'The current active preset is not the initial read-only startup scene.'} Device reopening is still read-only.</p>
                 </section>
         <section>
           <h2>Background</h2>
@@ -970,9 +971,18 @@ QJsonObject SceneControlServer::build_state_object() const
 
     const QColor background_color = QColor::fromRgbF(scene_->background_color.red, scene_->background_color.green,
                                                      scene_->background_color.blue, scene_->background_color.alpha);
+    bool active_scene_read_only = false;
+    if (initial_scene_read_only_)
+    {
+        std::error_code initial_error;
+        std::error_code current_error;
+        const auto canonical_initial = std::filesystem::weakly_canonical(initial_scene_file_, initial_error);
+        const auto canonical_current = std::filesystem::weakly_canonical(scene_file_, current_error);
+        active_scene_read_only = !initial_error && !current_error && canonical_initial == canonical_current;
+    }
     object.insert(QStringLiteral("sceneFile"), filesystem_path_to_url_value(scene_file_));
     object.insert(QStringLiteral("presetManager"),
-                  preset_groups_to_json(preset_root_directory(scene_file_), scene_file_, active_scene_read_only_));
+                  preset_groups_to_json(preset_root_directory(scene_file_), scene_file_, active_scene_read_only));
     object.insert(QStringLiteral("backgroundColor"),
                   QJsonObject{{QStringLiteral("r"), scene_->background_color.red},
                               {QStringLiteral("g"), scene_->background_color.green},

@@ -67,6 +67,8 @@ int main(int argc, char *argv[])
         command_line.settings.scene_file = default_scene->string();
     }
 
+    command_line.settings.scene_file_is_read_only = !command_line.settings.scene_file.empty();
+
     if (command_line.list_devices_requested)
     {
         cli::print_device_list();

@@ -59,11 +59,12 @@ class SceneControlServer final : public QObject
     SceneDefinition *scene_{nullptr};
     ShaderVideoWindow *window_{nullptr};
     std::filesystem::path scene_file_;
+    std::filesystem::path initial_scene_file_;
     std::filesystem::path resources_directory_;
     std::filesystem::path shader_directory_;
     std::filesystem::path default_shader_directory_;
     SceneControlDeviceInfo device_info_;
-    bool active_scene_read_only_{false};
+    bool initial_scene_read_only_{false};
     QTcpServer server_;
 };
 
