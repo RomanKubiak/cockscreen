@@ -19,6 +19,7 @@ struct ApplicationSettings
     std::string shader_file{};
     std::string screen_shader_file{};
     std::string web_server_bind_url{};
+    bool scene_file_is_read_only{false};
     std::string top_layer{"screen"};
     double top_layer_opacity{0.75};
     std::string render_path{"qt"};

@@ -710,7 +710,8 @@ int Application::run(int argc, char *argv[])
                                           scene.source_path,
                                           scene.resources_directory,
                                           std::filesystem::path{settings_.shader_directory},
-                                          web_device_info};
+                                          web_device_info,
+                                          settings_.scene_file_is_read_only};
         if (web_server_bind.has_value())
         {
             if (control_server.start(web_server_bind->address, web_server_bind->port))

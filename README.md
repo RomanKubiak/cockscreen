@@ -68,6 +68,8 @@ Device reopening is still read-only in this first version.
 
 Preset discovery is directory-based. Starting from the active scene root, each directory becomes a preset group and each `.scene.jsonc` or `.scene.json` file becomes a selectable scene in the web UI.
 
+If a scene was passed with `--scene-file`, treat that source scene as read-only. This allows multiple windows to run from the same source scene in parallel without fighting over in-place edits. Future preset-writing flows must not rewrite that file in place; they should create a new preset file instead.
+
 ---
 
 ## Scene file

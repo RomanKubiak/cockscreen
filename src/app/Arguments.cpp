@@ -73,6 +73,7 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         else if (argument == "--scene-file")
         {
             result.settings.scene_file = std::string(next_value(index, argc, argv));
+            result.settings.scene_file_is_read_only = !result.settings.scene_file.empty();
         }
         else if (argument == "--enable-web-server")
         {

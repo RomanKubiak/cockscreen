@@ -94,10 +94,14 @@ QString preset_group_label(const std::string &group_path)
     return group_path.empty() ? QStringLiteral("root") : QString::fromStdString(group_path);
 }
 
-QJsonObject preset_groups_to_json(const std::filesystem::path &root, const std::filesystem::path &scene_file)
+QJsonObject preset_groups_to_json(const std::filesystem::path &root, const std::filesystem::path &scene_file,
+                                  bool active_scene_read_only)
 {
     QJsonObject result;
     result.insert(QStringLiteral("root"), QString::fromStdString(root.generic_string()));
+    result.insert(QStringLiteral("activeSceneReadOnly"), active_scene_read_only);
+    result.insert(QStringLiteral("saveMode"),
+                  active_scene_read_only ? QStringLiteral("new-preset-only") : QStringLiteral("in-place-or-new"));
 
     if (root.empty() || !std::filesystem::exists(root))
     {
@@ -413,12 +417,12 @@ std::optional<SceneControlServer::HttpRequest> parse_http_request(const QByteArr
 } // namespace
 
 SceneControlServer::SceneControlServer(SceneDefinition *scene, ShaderVideoWindow *window, std::filesystem::path scene_file,
-                                       std::filesystem::path resources_directory, std::filesystem::path shader_directory,
-                                       SceneControlDeviceInfo device_info, QObject *parent)
+                                                                             std::filesystem::path resources_directory, std::filesystem::path shader_directory,
+                                                                             SceneControlDeviceInfo device_info, bool active_scene_read_only, QObject *parent)
     : QObject{parent}, scene_{scene}, window_{window}, scene_file_{std::move(scene_file)},
       resources_directory_{std::move(resources_directory)}, shader_directory_{std::move(shader_directory)},
     default_shader_directory_{shader_directory_},
-      device_info_{std::move(device_info)}, server_{this}
+            device_info_{std::move(device_info)}, active_scene_read_only_{active_scene_read_only}, server_{this}
 {
 }
 
@@ -738,8 +742,8 @@ QByteArray SceneControlServer::build_index_html() const
             }
         }
     async function refreshState() {
-      const state = await fetch('/api/state').then(response => response.json());
-                        const presetManager = state.presetManager || { groups: [], activeScenePath: '' };
+    const state = await fetch('/api/state').then(response => response.json());
+                const presetManager = state.presetManager || { groups: [], activeScenePath: '', activeSceneReadOnly: false, saveMode: 'new-preset-only' };
             const pinkKeyAudioAlgorithms = [
                 { value: '0', label: '0: Bass focus' },
                 { value: '1', label: '1: Low-mid focus' },
@@ -783,7 +787,7 @@ QByteArray SceneControlServer::build_index_html() const
                         <input type="text" value="${escapeHtml(presetManager.root || '')}" readonly>
                         <button id="loadPresetButton" type="button">Load preset</button>
                     </div>
-                    <p class="muted">Directories map 1:1 to preset groups and scene files map 1:1 to selectable scenes. Loading a preset updates the visual scene immediately. Device reopening is still read-only.</p>
+                    <p class="muted">Directories map 1:1 to preset groups and scene files map 1:1 to selectable scenes. Loading a preset updates the visual scene immediately. ${presetManager.activeSceneReadOnly ? 'The currently loaded command-line scene is read-only so multiple windows can run from the same source scene in parallel; future save flows must create a new preset instead of rewriting that file.' : 'The current scene was not locked by the command line.'} Device reopening is still read-only.</p>
                 </section>
         <section>
           <h2>Background</h2>
@@ -968,7 +972,7 @@ QJsonObject SceneControlServer::build_state_object() const
                                                      scene_->background_color.blue, scene_->background_color.alpha);
     object.insert(QStringLiteral("sceneFile"), filesystem_path_to_url_value(scene_file_));
     object.insert(QStringLiteral("presetManager"),
-                  preset_groups_to_json(preset_root_directory(scene_file_), scene_file_));
+                  preset_groups_to_json(preset_root_directory(scene_file_), scene_file_, active_scene_read_only_));
     object.insert(QStringLiteral("backgroundColor"),
                   QJsonObject{{QStringLiteral("r"), scene_->background_color.red},
                               {QStringLiteral("g"), scene_->background_color.green},

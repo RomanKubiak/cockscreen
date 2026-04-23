@@ -38,7 +38,8 @@ class SceneControlServer final : public QObject
 
     SceneControlServer(SceneDefinition *scene, ShaderVideoWindow *window, std::filesystem::path scene_file,
                        std::filesystem::path resources_directory, std::filesystem::path shader_directory,
-                       SceneControlDeviceInfo device_info, QObject *parent = nullptr);
+                       SceneControlDeviceInfo device_info, bool active_scene_read_only = false,
+                       QObject *parent = nullptr);
 
     bool start(const QHostAddress &address, quint16 port);
     [[nodiscard]] quint16 port() const;
@@ -62,6 +63,7 @@ class SceneControlServer final : public QObject
     std::filesystem::path shader_directory_;
     std::filesystem::path default_shader_directory_;
     SceneControlDeviceInfo device_info_;
+    bool active_scene_read_only_{false};
     QTcpServer server_;
 };
 
