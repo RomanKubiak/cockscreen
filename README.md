@@ -55,6 +55,7 @@ Available endpoints:
 
 The current web UI supports:
 
+- browsing scene presets from the scene directory tree, where directories map to groups and files map to scenes
 - enabling or disabling the `video`, `playback`, and `screen` layers
 - editing each layer's ordered shader chain
 - editing playback transport values for the playback input
@@ -64,6 +65,8 @@ The current web UI supports:
 - viewing opened and available devices
 
 Device reopening is still read-only in this first version.
+
+Preset discovery is directory-based. Starting from the active scene root, each directory becomes a preset group and each `.scene.jsonc` or `.scene.json` file becomes a selectable scene in the web UI.
 
 ---
 

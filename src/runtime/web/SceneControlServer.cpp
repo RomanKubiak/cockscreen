@@ -2,6 +2,7 @@
 
 #include "cockscreen/app/CliSupport.hpp"
 #include "cockscreen/runtime/RuntimeHelpers.hpp"
+#include "cockscreen/runtime/application/Support.hpp"
 #include "cockscreen/runtime/ShaderVideoWindow.hpp"
 
 #include <QAudioDevice>
@@ -15,12 +16,179 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <map>
 
 namespace cockscreen::runtime
 {
 
 namespace
 {
+
+bool has_suffix(const std::string &value, std::string_view suffix)
+{
+    return value.size() >= suffix.size() && value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+bool is_scene_preset_file(const std::filesystem::path &path)
+{
+    if (!path.has_filename())
+    {
+        return false;
+    }
+
+    const auto name = path.filename().string();
+    return has_suffix(name, ".scene.json") || has_suffix(name, ".scene.jsonc");
+}
+
+std::string scene_label_for_path(const std::filesystem::path &path)
+{
+    auto name = path.filename().string();
+    if (has_suffix(name, ".scene.jsonc"))
+    {
+        name.resize(name.size() - std::string{".scene.jsonc"}.size());
+    }
+    else if (has_suffix(name, ".scene.json"))
+    {
+        name.resize(name.size() - std::string{".scene.json"}.size());
+    }
+    return name;
+}
+
+std::filesystem::path preset_root_directory(const std::filesystem::path &scene_file)
+{
+    if (scene_file.empty())
+    {
+        return {};
+    }
+
+    for (auto current = scene_file.parent_path(); !current.empty(); current = current.parent_path())
+    {
+        if (current.filename() == "scenes")
+        {
+            return current;
+        }
+
+        if (!current.has_parent_path() || current == current.parent_path())
+        {
+            break;
+        }
+    }
+
+    return scene_file.parent_path();
+}
+
+std::string relative_path_string(const std::filesystem::path &path, const std::filesystem::path &root)
+{
+    if (path.empty() || root.empty())
+    {
+        return {};
+    }
+
+    std::error_code error;
+    const auto relative = std::filesystem::relative(path, root, error);
+    return error ? std::string{} : relative.generic_string();
+}
+
+QString preset_group_label(const std::string &group_path)
+{
+    return group_path.empty() ? QStringLiteral("root") : QString::fromStdString(group_path);
+}
+
+QJsonObject preset_groups_to_json(const std::filesystem::path &root, const std::filesystem::path &scene_file)
+{
+    QJsonObject result;
+    result.insert(QStringLiteral("root"), QString::fromStdString(root.generic_string()));
+
+    if (root.empty() || !std::filesystem::exists(root))
+    {
+        result.insert(QStringLiteral("activeScenePath"), QStringLiteral(""));
+        result.insert(QStringLiteral("activeGroupPath"), QStringLiteral(""));
+        result.insert(QStringLiteral("groups"), QJsonArray{});
+        return result;
+    }
+
+    std::map<std::string, std::vector<std::filesystem::path>> grouped_presets;
+    std::error_code error;
+    for (const auto &entry : std::filesystem::recursive_directory_iterator{root, error})
+    {
+        if (error)
+        {
+            break;
+        }
+
+        if (!entry.is_regular_file() || !is_scene_preset_file(entry.path()))
+        {
+            continue;
+        }
+
+        std::error_code relative_error;
+        const auto relative = std::filesystem::relative(entry.path(), root, relative_error);
+        if (relative_error)
+        {
+            continue;
+        }
+
+        grouped_presets[relative.parent_path().generic_string()].push_back(relative);
+    }
+
+    QJsonArray groups;
+    for (auto &[group_path, presets] : grouped_presets)
+    {
+        std::sort(presets.begin(), presets.end());
+        QJsonArray scenes;
+        for (const auto &preset : presets)
+        {
+            scenes.push_back(QJsonObject{{QStringLiteral("path"), QString::fromStdString(preset.generic_string())},
+                                         {QStringLiteral("label"), QString::fromStdString(scene_label_for_path(preset))}});
+        }
+
+        groups.push_back(QJsonObject{{QStringLiteral("path"), QString::fromStdString(group_path)},
+                                     {QStringLiteral("label"), preset_group_label(group_path)},
+                                     {QStringLiteral("scenes"), scenes}});
+    }
+
+    const auto active_scene_path = relative_path_string(scene_file, root);
+    const std::filesystem::path active_scene_relative_path{active_scene_path};
+    result.insert(QStringLiteral("activeScenePath"), QString::fromStdString(active_scene_path));
+    result.insert(QStringLiteral("activeGroupPath"), QString::fromStdString(active_scene_relative_path.parent_path().generic_string()));
+    result.insert(QStringLiteral("groups"), groups);
+    return result;
+}
+
+bool validate_scene_shader_files(const SceneDefinition &scene, const std::filesystem::path &shader_directory,
+                                 QString *error_message)
+{
+    const auto validate_layer = [&](const char *layer_name, const SceneLayer &layer) -> bool {
+        for (const auto &shader : layer.shaders)
+        {
+            if (shader.empty())
+            {
+                continue;
+            }
+
+            std::filesystem::path shader_path{shader};
+            if (!shader_path.is_absolute())
+            {
+                shader_path = shader_directory / shader_path;
+            }
+
+            if (!application_support::resolve_relative_path(shader_path).has_value())
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral("Missing scene shader [%1]: %2")
+                                         .arg(QString::fromUtf8(layer_name), QString::fromStdString(shader));
+                }
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    return validate_layer("video", scene.video_layer) && validate_layer("playback", scene.playback_layer) &&
+           validate_layer("screen", scene.screen_layer);
+}
 
 QString placement_to_string(BackgroundImagePlacement placement)
 {
@@ -249,6 +417,7 @@ SceneControlServer::SceneControlServer(SceneDefinition *scene, ShaderVideoWindow
                                        SceneControlDeviceInfo device_info, QObject *parent)
     : QObject{parent}, scene_{scene}, window_{window}, scene_file_{std::move(scene_file)},
       resources_directory_{std::move(resources_directory)}, shader_directory_{std::move(shader_directory)},
+    default_shader_directory_{shader_directory_},
       device_info_{std::move(device_info)}, server_{this}
 {
 }
@@ -452,6 +621,13 @@ QByteArray SceneControlServer::build_index_html() const
       const set = new Set(selected || []);
       return values.map(value => `<option value="${escapeHtml(value)}" ${set.has(value) ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('');
     }
+        function buildPresetOptions(groups, selected) {
+            return (groups || []).map(group => {
+                const scenes = Array.isArray(group.scenes) ? group.scenes : [];
+                const options = buildLabeledOptions(scenes.map(scene => ({ value: scene.path, label: scene.label })), selected);
+                return `<optgroup label="${escapeHtml(group.label || 'root')}">${options}</optgroup>`;
+            }).join('');
+        }
         function buildLabeledOptions(options, selected) {
             const selectedValue = String(selected ?? '');
             return options.map(option => {
@@ -563,6 +739,7 @@ QByteArray SceneControlServer::build_index_html() const
         }
     async function refreshState() {
       const state = await fetch('/api/state').then(response => response.json());
+                        const presetManager = state.presetManager || { groups: [], activeScenePath: '' };
             const pinkKeyAudioAlgorithms = [
                 { value: '0', label: '0: Bass focus' },
                 { value: '1', label: '1: Low-mid focus' },
@@ -598,6 +775,16 @@ QByteArray SceneControlServer::build_index_html() const
           <label>Fatal render error</label>
           <pre>${escapeHtml(state.status.fatalRenderError || '<none>')}</pre>
         </section>
+                <section>
+                    <h2>Presets</h2>
+                    <label for="presetScenePath">Scene preset</label>
+                    <select id="presetScenePath">${buildPresetOptions(presetManager.groups, presetManager.activeScenePath)}</select>
+                    <div class="row">
+                        <input type="text" value="${escapeHtml(presetManager.root || '')}" readonly>
+                        <button id="loadPresetButton" type="button">Load preset</button>
+                    </div>
+                    <p class="muted">Directories map 1:1 to preset groups and scene files map 1:1 to selectable scenes. Loading a preset updates the visual scene immediately. Device reopening is still read-only.</p>
+                </section>
         <section>
           <h2>Background</h2>
           <div class="grid">
@@ -705,8 +892,25 @@ QByteArray SceneControlServer::build_index_html() const
 
       document.getElementById('applyButton').onclick = applyChanges;
       document.getElementById('refreshButton').onclick = refreshState;
+                        document.getElementById('loadPresetButton').onclick = loadPreset;
             wireShaderEditorButtons();
     }
+        async function loadPreset() {
+            const presetPath = document.getElementById('presetScenePath')?.value || '';
+            if (!presetPath) {
+                document.getElementById('message').textContent = 'No preset selected.';
+                return;
+            }
+
+            const response = await fetch('/api/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ presetPath })
+            });
+            const result = await response.json();
+            document.getElementById('message').textContent = result.ok ? 'Preset loaded.' : `Preset load failed: ${result.error}`;
+            await refreshState();
+        }
     async function applyChanges() {
       const color = document.getElementById('bgColor').value;
       const payload = {
@@ -763,6 +967,8 @@ QJsonObject SceneControlServer::build_state_object() const
     const QColor background_color = QColor::fromRgbF(scene_->background_color.red, scene_->background_color.green,
                                                      scene_->background_color.blue, scene_->background_color.alpha);
     object.insert(QStringLiteral("sceneFile"), filesystem_path_to_url_value(scene_file_));
+    object.insert(QStringLiteral("presetManager"),
+                  preset_groups_to_json(preset_root_directory(scene_file_), scene_file_));
     object.insert(QStringLiteral("backgroundColor"),
                   QJsonObject{{QStringLiteral("r"), scene_->background_color.red},
                               {QStringLiteral("g"), scene_->background_color.green},
@@ -808,6 +1014,83 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
     }
 
     SceneDefinition updated = *scene_;
+    auto updated_scene_file = scene_file_;
+    auto updated_resources_directory = resources_directory_;
+    auto updated_shader_directory = shader_directory_;
+
+    if (const auto preset_path = payload.value(QStringLiteral("presetPath")); preset_path.isString())
+    {
+        const auto requested_preset = preset_path.toString().trimmed();
+        if (!requested_preset.isEmpty())
+        {
+            const auto preset_root = preset_root_directory(scene_file_);
+            if (preset_root.empty())
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral("Preset root directory is not available");
+                }
+                return false;
+            }
+
+            const auto requested_scene_file = preset_root / requested_preset.toStdString();
+            std::error_code preset_error;
+            const auto canonical_root = std::filesystem::weakly_canonical(preset_root, preset_error);
+            if (preset_error)
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral("Could not resolve preset root directory");
+                }
+                return false;
+            }
+
+            const auto canonical_scene_file = std::filesystem::weakly_canonical(requested_scene_file, preset_error);
+            if (preset_error || !std::filesystem::exists(canonical_scene_file))
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral("Preset not found: %1").arg(requested_preset);
+                }
+                return false;
+            }
+
+            const auto [root_end, candidate_mismatch] = std::mismatch(canonical_root.begin(), canonical_root.end(),
+                                                                      canonical_scene_file.begin(), canonical_scene_file.end());
+            if (root_end != canonical_root.end())
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral("Preset is outside the preset root: %1").arg(requested_preset);
+                }
+                return false;
+            }
+
+            Q_UNUSED(candidate_mismatch);
+
+            std::string load_error;
+            const auto loaded_scene = load_scene_definition(canonical_scene_file, &load_error);
+            if (!loaded_scene.has_value())
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QString::fromStdString(load_error);
+                }
+                return false;
+            }
+
+            updated = *loaded_scene;
+            updated_scene_file = updated.source_path;
+            updated_resources_directory = updated.resources_directory;
+            updated_shader_directory = !updated.shader_directory.empty() ? std::filesystem::path{updated.shader_directory}
+                                                                        : default_shader_directory_;
+
+            if (!validate_scene_shader_files(updated, updated_shader_directory, error_message))
+            {
+                return false;
+            }
+        }
+    }
 
     if (const auto background_color = payload.value(QStringLiteral("backgroundColor")); background_color.isObject())
     {
@@ -828,7 +1111,7 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
             std::filesystem::path file_path{updated.background_image.file};
             if (!file_path.is_absolute())
             {
-                file_path = resources_directory_ / file_path;
+                file_path = updated_resources_directory / file_path;
             }
             if (!std::filesystem::exists(file_path))
             {
@@ -937,7 +1220,7 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
                 std::filesystem::path shader_path{shader.toStdString()};
                 if (!shader_path.is_absolute())
                 {
-                    shader_path = shader_directory_ / shader_path;
+                    shader_path = updated_shader_directory / shader_path;
                 }
                 if (!std::filesystem::exists(shader_path))
                 {
@@ -999,6 +1282,9 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
     }
 
     *scene_ = updated;
+    scene_file_ = std::move(updated_scene_file);
+    resources_directory_ = std::move(updated_resources_directory);
+    shader_directory_ = std::move(updated_shader_directory);
     window_->apply_scene_update(updated);
     if (error_message != nullptr)
     {

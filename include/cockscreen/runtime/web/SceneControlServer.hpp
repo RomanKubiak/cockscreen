@@ -60,6 +60,7 @@ class SceneControlServer final : public QObject
     std::filesystem::path scene_file_;
     std::filesystem::path resources_directory_;
     std::filesystem::path shader_directory_;
+    std::filesystem::path default_shader_directory_;
     SceneControlDeviceInfo device_info_;
     QTcpServer server_;
 };
