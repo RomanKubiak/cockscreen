@@ -134,8 +134,9 @@ void ShaderVideoWindow::paintGL()
     const GLfloat top_layer_opacity = static_cast<GLfloat>(std::clamp(settings_.top_layer_opacity, 0.0, 1.0));
     const GLuint camera_texture = texture_id_ != 0 ? texture_id_ : blank_texture_id_;
     const bool camera_valid = texture_id_ != 0;
+    const bool playback_requested = scene_.playback_input.enabled && !scene_.playback_input.file.empty();
     const GLuint playback_texture = playback_texture_id_ != 0 ? playback_texture_id_ : blank_texture_id_;
-    const bool playback_valid = playback_texture_id_ != 0;
+    const bool playback_valid = playback_requested && playback_texture_id_ != 0 && !latest_playback_frame_.isNull();
     const QRectF video_rect = helper::video_display_rect(scene_.video_input, QSize{width(), height()});
     const QRectF playback_rect = helper::video_display_rect(scene_.playback_input, QSize{width(), height()});
     const QRectF full_rect{0.0, 0.0, static_cast<qreal>(width()), static_cast<qreal>(height())};

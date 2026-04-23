@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -18,6 +19,12 @@ struct SceneInput
     float position_x{0.0F};
     float position_y{0.0F};
     std::optional<bool> on_top;
+    std::int64_t start_ms{0};
+    std::int64_t loop_start_ms{0};
+    std::optional<std::int64_t> loop_end_ms;
+    int loop_repeat{0};
+    float playback_rate{1.0F};
+    float playback_rate_looping{1.0F};
 };
 
 struct SceneColor

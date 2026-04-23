@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -74,6 +75,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 
     void handle_frame(const QVideoFrame &frame);
     void handle_playback_frame(const QVideoFrame &frame);
+    void handle_playback_position_changed(std::int64_t position_ms);
     void ensure_texture();
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
@@ -87,6 +89,12 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const;
     void record_fatal_render_error(QString text);
     void build_render_stages();
+    void stop_playback_source();
+    void restart_playback_source(bool seek_to_start);
+    void configure_playback_transport(bool seek_to_start, bool reset_loop_count);
+    void apply_playback_rate_for_position(std::int64_t position_ms);
+    [[nodiscard]] std::optional<std::int64_t> playback_effective_loop_end_ms() const;
+    [[nodiscard]] bool playback_loop_enabled() const;
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
                    int frame_index, const QVector2D &channel0_resolution) const;
@@ -159,6 +167,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};
     std::chrono::steady_clock::time_point last_frame_time_{};
     std::chrono::steady_clock::time_point last_profile_report_{};
+    std::int64_t playback_position_ms_{0};
+    std::int64_t playback_duration_ms_{0};
+    int playback_loops_completed_{0};
+    bool playback_transport_pending_seek_{false};
     double processing_fps_{0.0};
     double render_fps_{0.0};
 };

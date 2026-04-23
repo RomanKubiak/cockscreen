@@ -23,6 +23,12 @@ bool json_bool(const QJsonObject &object, const char *key, bool fallback)
     return value.isBool() ? value.toBool() : fallback;
 }
 
+std::int64_t json_int64(const QJsonObject &object, const char *key, std::int64_t fallback)
+{
+    const auto value = object.value(QString::fromUtf8(key));
+    return value.isDouble() ? static_cast<std::int64_t>(value.toDouble(static_cast<double>(fallback))) : fallback;
+}
+
 int json_int(const QJsonObject &object, const char *key, int fallback)
 {
     const auto value = object.value(QString::fromUtf8(key));
@@ -110,6 +116,16 @@ SceneInput parse_input(const QJsonObject &object)
         input.position_x = json_float(object, "position_x", 0.0F);
         input.position_y = json_float(object, "position_y", 0.0F);
     }
+
+    input.start_ms = std::max<std::int64_t>(0, json_int64(object, "start_ms", 0));
+    input.loop_start_ms = std::max<std::int64_t>(0, json_int64(object, "loop_start_ms", 0));
+    if (const auto loop_end_ms = object.value(QStringLiteral("loop_end_ms")); loop_end_ms.isDouble())
+    {
+        input.loop_end_ms = std::max<std::int64_t>(0, static_cast<std::int64_t>(loop_end_ms.toDouble()));
+    }
+    input.loop_repeat = std::max(0, json_int(object, "loop_repeat", 0));
+    input.playback_rate = std::max(0.01F, json_float(object, "playback_rate", 1.0F));
+    input.playback_rate_looping = std::max(0.01F, json_float(object, "playback_rate_looping", 1.0F));
 
     if (!input.enabled)
     {

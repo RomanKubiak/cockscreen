@@ -55,6 +55,7 @@ The current web UI supports:
 
 - enabling or disabling the `video`, `playback`, and `screen` layers
 - editing each layer's ordered shader chain
+- editing playback transport values for the playback input
 - background colour and background image selection
 - viewing opened and available devices
 
@@ -117,7 +118,13 @@ A scene JSON file controls every visual aspect of a run, including the render ba
         "file": "videos/clip.mp4",  // relative to resources_directory
         "scale": 0.28,
         "on_top": true,
-        "position": { "x": 0.02, "y": 0.02 }
+        "position": { "x": 0.02, "y": 0.02 },
+        "start_ms": 0,
+        "loop_start_ms": 0,
+        "loop_end_ms": 8000,
+        "loop_repeat": 0,
+        "playback_rate": 1.0,
+        "playback_rate_looping": 0.5
     },
     "background_color": { "r": 0, "g": 0, "b": 0, "a": 1 },
     "audio": {
@@ -130,6 +137,15 @@ A scene JSON file controls every visual aspect of a run, including the render ba
     }
 }
 ```
+
+Playback transport fields on `inputs.playback`:
+
+- `start_ms`: initial playback position in milliseconds
+- `loop_start_ms`: loop segment start in milliseconds
+- `loop_end_ms`: loop segment end in milliseconds; omit it to disable custom looping
+- `loop_repeat`: number of extra loop passes; `0` means infinite looping
+- `playback_rate`: playback speed used outside the loop segment
+- `playback_rate_looping`: playback speed used while the player is inside the active loop segment
 
 ### Shader layers
 

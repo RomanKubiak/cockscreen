@@ -8,6 +8,8 @@
 #include <QResizeEvent>
 #include <QUrl>
 
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <utility>
 
@@ -16,6 +18,12 @@ namespace cockscreen::runtime
 
 namespace
 {
+
+float sanitized_playback_rate(float requested_rate, float fallback_rate = 1.0F)
+{
+    const float candidate = std::isfinite(requested_rate) ? requested_rate : fallback_rate;
+    return std::max(candidate, 0.01F);
+}
 
 void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
 {
@@ -62,6 +70,26 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     QObject::connect(&playback_sink_, &QVideoSink::videoFrameChanged, this, [this](const QVideoFrame &frame) {
         handle_playback_frame(frame);
     });
+    QObject::connect(&playback_player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        handle_playback_position_changed(static_cast<std::int64_t>(position));
+    });
+    QObject::connect(&playback_player_, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+        playback_duration_ms_ = std::max<std::int64_t>(0, static_cast<std::int64_t>(duration));
+    });
+    QObject::connect(&playback_player_, &QMediaPlayer::mediaStatusChanged, this,
+                     [this](QMediaPlayer::MediaStatus status) {
+                         if (!playback_transport_pending_seek_)
+                         {
+                             return;
+                         }
+
+                         if (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::BufferedMedia ||
+                             status == QMediaPlayer::BufferingMedia)
+                         {
+                             playback_transport_pending_seek_ = false;
+                             configure_playback_transport(true, true);
+                         }
+                     });
 
     if (!video_device.isNull())
     {
@@ -80,21 +108,8 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         capture_session_.setCamera(camera_);
     }
 
-    if (scene_.playback_input.enabled && !scene_.playback_input.file.empty())
-    {
-        const auto playback_path = helper::resolve_scene_resource_path(scene_.resources_directory, scene_.playback_input.file);
-        if (playback_path.has_value())
-        {
-            playback_player_.setVideoSink(&playback_sink_);
-            playback_player_.setLoops(QMediaPlayer::Infinite);
-            playback_player_.setSource(QUrl::fromLocalFile(QString::fromStdString(playback_path->string())));
-            playback_player_.play();
-        }
-        else
-        {
-            status_message_ = QStringLiteral("Playback file not found");
-        }
-    }
+    playback_player_.setVideoSink(&playback_sink_);
+    restart_playback_source(true);
 
     if (camera_ != nullptr)
     {
@@ -206,6 +221,17 @@ QString ShaderVideoWindow::fatal_render_error() const
 
 void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
 {
+    const bool playback_source_changed = scene_.playback_input.enabled != scene.playback_input.enabled ||
+                                         scene_.playback_input.file != scene.playback_input.file;
+    const bool playback_transport_changed = scene_.playback_input.start_ms != scene.playback_input.start_ms ||
+                                            scene_.playback_input.loop_start_ms != scene.playback_input.loop_start_ms ||
+                                            scene_.playback_input.loop_end_ms != scene.playback_input.loop_end_ms ||
+                                            scene_.playback_input.loop_repeat != scene.playback_input.loop_repeat ||
+                                            scene_.playback_input.playback_rate != scene.playback_input.playback_rate ||
+                                            scene_.playback_input.playback_rate_looping !=
+                                                scene.playback_input.playback_rate_looping;
+    const bool playback_start_changed = scene_.playback_input.start_ms != scene.playback_input.start_ms;
+
     scene_ = std::move(scene);
     status_message_.clear();
     fatal_render_error_.clear();
@@ -234,7 +260,149 @@ void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
         doneCurrent();
     }
 
+    if (playback_source_changed)
+    {
+        restart_playback_source(true);
+    }
+    else if (playback_transport_changed)
+    {
+        configure_playback_transport(playback_start_changed, true);
+    }
+
     update();
+}
+
+void ShaderVideoWindow::stop_playback_source()
+{
+    playback_player_.stop();
+    playback_player_.setSource(QUrl{});
+    playback_position_ms_ = 0;
+    playback_duration_ms_ = 0;
+    playback_loops_completed_ = 0;
+    playback_transport_pending_seek_ = false;
+    latest_playback_frame_ = QImage{};
+    playback_texture_dirty_ = false;
+}
+
+void ShaderVideoWindow::restart_playback_source(bool seek_to_start)
+{
+    latest_playback_frame_ = QImage{};
+    playback_texture_dirty_ = false;
+    playback_position_ms_ = 0;
+    playback_duration_ms_ = 0;
+    playback_loops_completed_ = 0;
+
+    if (!scene_.playback_input.enabled || scene_.playback_input.file.empty())
+    {
+        stop_playback_source();
+        return;
+    }
+
+    const auto playback_path = helper::resolve_scene_resource_path(scene_.resources_directory, scene_.playback_input.file);
+    if (!playback_path.has_value())
+    {
+        stop_playback_source();
+        status_message_ = QStringLiteral("Playback file not found");
+        return;
+    }
+
+    playback_transport_pending_seek_ = seek_to_start;
+    playback_player_.stop();
+    playback_player_.setSource(QUrl::fromLocalFile(QString::fromStdString(playback_path->string())));
+    playback_player_.play();
+    configure_playback_transport(seek_to_start, true);
+}
+
+void ShaderVideoWindow::configure_playback_transport(bool seek_to_start, bool reset_loop_count)
+{
+    if (playback_player_.source().isEmpty())
+    {
+        return;
+    }
+
+    if (reset_loop_count)
+    {
+        playback_loops_completed_ = 0;
+    }
+
+    if (seek_to_start)
+    {
+        playback_position_ms_ = std::max<std::int64_t>(0, scene_.playback_input.start_ms);
+        playback_player_.setPosition(playback_position_ms_);
+    }
+
+    apply_playback_rate_for_position(playback_position_ms_);
+}
+
+bool ShaderVideoWindow::playback_loop_enabled() const
+{
+    return playback_effective_loop_end_ms().has_value();
+}
+
+std::optional<std::int64_t> ShaderVideoWindow::playback_effective_loop_end_ms() const
+{
+    const auto loop_start_ms = std::max<std::int64_t>(0, scene_.playback_input.loop_start_ms);
+    if (scene_.playback_input.loop_end_ms.has_value())
+    {
+        return *scene_.playback_input.loop_end_ms > loop_start_ms
+                   ? std::optional<std::int64_t>{*scene_.playback_input.loop_end_ms}
+                   : std::nullopt;
+    }
+
+    if (playback_duration_ms_ > loop_start_ms)
+    {
+        return playback_duration_ms_;
+    }
+
+    return std::nullopt;
+}
+
+void ShaderVideoWindow::apply_playback_rate_for_position(std::int64_t position_ms)
+{
+    if (playback_player_.source().isEmpty())
+    {
+        return;
+    }
+
+    const float base_rate = sanitized_playback_rate(scene_.playback_input.playback_rate);
+    float target_rate = base_rate;
+    if (const auto loop_end_ms = playback_effective_loop_end_ms(); loop_end_ms.has_value())
+    {
+        const auto loop_start_ms = std::max<std::int64_t>(0, scene_.playback_input.loop_start_ms);
+        const bool loop_has_budget = scene_.playback_input.loop_repeat == 0 ||
+                                     playback_loops_completed_ < scene_.playback_input.loop_repeat;
+        if (loop_has_budget && position_ms >= loop_start_ms && position_ms < *loop_end_ms)
+        {
+            target_rate = sanitized_playback_rate(scene_.playback_input.playback_rate_looping, base_rate);
+        }
+    }
+
+    if (std::fabs(playback_player_.playbackRate() - target_rate) > 0.0001F)
+    {
+        playback_player_.setPlaybackRate(target_rate);
+    }
+}
+
+void ShaderVideoWindow::handle_playback_position_changed(std::int64_t position_ms)
+{
+    playback_position_ms_ = std::max<std::int64_t>(0, position_ms);
+
+    if (const auto loop_end_ms = playback_effective_loop_end_ms(); loop_end_ms.has_value())
+    {
+        const auto loop_start_ms = std::max<std::int64_t>(0, scene_.playback_input.loop_start_ms);
+        const bool loop_has_budget = scene_.playback_input.loop_repeat == 0 ||
+                                     playback_loops_completed_ < scene_.playback_input.loop_repeat;
+        if (loop_has_budget && playback_position_ms_ >= *loop_end_ms)
+        {
+            ++playback_loops_completed_;
+            playback_position_ms_ = loop_start_ms;
+            playback_player_.setPosition(loop_start_ms);
+            apply_playback_rate_for_position(loop_start_ms);
+            return;
+        }
+    }
+
+    apply_playback_rate_for_position(playback_position_ms_);
 }
 
 void ShaderVideoWindow::record_fatal_render_error(QString text)

@@ -49,6 +49,20 @@ QJsonArray layer_order_to_json(const std::vector<std::string> &layer_order)
     return result;
 }
 
+QJsonObject playback_input_to_json(const SceneInput &input)
+{
+    return QJsonObject{{QStringLiteral("enabled"), input.enabled},
+                       {QStringLiteral("file"), QString::fromStdString(input.file)},
+                       {QStringLiteral("startMs"), static_cast<double>(input.start_ms)},
+                       {QStringLiteral("loopStartMs"), static_cast<double>(input.loop_start_ms)},
+                       {QStringLiteral("loopEndMs"),
+                        input.loop_end_ms.has_value() ? QJsonValue{static_cast<double>(*input.loop_end_ms)}
+                                                      : QJsonValue{QJsonValue::Null}},
+                       {QStringLiteral("loopRepeat"), input.loop_repeat},
+                       {QStringLiteral("playbackRate"), input.playback_rate},
+                       {QStringLiteral("playbackRateLooping"), input.playback_rate_looping}};
+}
+
 BackgroundImagePlacement placement_from_string(QString value)
 {
     value = value.trimmed().toLower();
@@ -419,7 +433,7 @@ QByteArray SceneControlServer::build_index_html() const
     <div class="page">
         <div class="page-header">
             <h1>cockscreen control</h1>
-            <p class="muted">Live updates for shader layers and background settings. Device lists are exposed here, but device reopening is read-only in this first version.</p>
+            <p class="muted">Live updates for shader layers, playback transport, and background settings. Device lists are exposed here, but device reopening is read-only in this first version.</p>
         </div>
         <div id="app">Loading…</div>
     </div>
@@ -434,6 +448,24 @@ QByteArray SceneControlServer::build_index_html() const
     function deviceList(values) {
       return values.map(value => `<li>${escapeHtml(value)}</li>`).join('');
     }
+        function numericValue(id, fallback) {
+            const value = document.getElementById(id).value.trim();
+            if (value === '') {
+                return fallback;
+            }
+
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+        function nullableNumericValue(id) {
+            const value = document.getElementById(id).value.trim();
+            if (value === '') {
+                return null;
+            }
+
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
         function orderedValues(id) {
             return Array.from(document.getElementById(id).options).map(option => option.value);
         }
@@ -570,6 +602,40 @@ QByteArray SceneControlServer::build_index_html() const
           <input id="bgImageCustom" type="text" value="${escapeHtml(state.backgroundImage.file)}">
         </section>
         <section>
+                    <h2>Playback</h2>
+                    <div class="grid">
+                        <div>
+                            <label>Playback file</label>
+                            <input type="text" value="${escapeHtml(state.playbackInput.file || '<none>')}" readonly>
+                        </div>
+                        <div>
+                            <label for="playbackStartMs">Start ms</label>
+                            <input id="playbackStartMs" type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.startMs ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="playbackLoopStartMs">Loop start ms</label>
+                            <input id="playbackLoopStartMs" type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.loopStartMs ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="playbackLoopEndMs">Loop end ms</label>
+                            <input id="playbackLoopEndMs" type="number" min="0" step="1" value="${state.playbackInput.loopEndMs == null ? '' : escapeHtml(state.playbackInput.loopEndMs)}">
+                        </div>
+                        <div>
+                            <label for="playbackLoopRepeat">Loop repeat</label>
+                            <input id="playbackLoopRepeat" type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.loopRepeat ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="playbackRate">Playback rate</label>
+                            <input id="playbackRate" type="number" min="0.01" step="0.01" value="${escapeHtml(state.playbackInput.playbackRate ?? 1)}">
+                        </div>
+                        <div>
+                            <label for="playbackRateLooping">Playback rate looping</label>
+                            <input id="playbackRateLooping" type="number" min="0.01" step="0.01" value="${escapeHtml(state.playbackInput.playbackRateLooping ?? 1)}">
+                        </div>
+                    </div>
+                    <p class="muted">Leave loop end empty to disable custom looping. Loop repeat 0 means infinite loops.</p>
+                </section>
+                <section>
           <h2>Shaders</h2>
           <div class="grid">
                         ${buildShaderEditor('video', state.layers.video, state.availableShaders)}
@@ -610,6 +676,14 @@ QByteArray SceneControlServer::build_index_html() const
           file: document.getElementById('bgImageCustom').value || document.getElementById('bgImage').value,
           placement: document.getElementById('bgPlacement').value
         },
+                playbackInput: {
+                    startMs: Math.max(0, Math.floor(numericValue('playbackStartMs', 0))),
+                    loopStartMs: Math.max(0, Math.floor(numericValue('playbackLoopStartMs', 0))),
+                    loopEndMs: nullableNumericValue('playbackLoopEndMs'),
+                    loopRepeat: Math.max(0, Math.floor(numericValue('playbackLoopRepeat', 0))),
+                    playbackRate: Math.max(0.01, numericValue('playbackRate', 1.0)),
+                    playbackRateLooping: Math.max(0.01, numericValue('playbackRateLooping', 1.0))
+                },
         layers: {
                     video: { enabled: document.getElementById('videoEnabled').checked, shaders: orderedValues('videoShaders') },
                     playback: { enabled: document.getElementById('playbackEnabled').checked, shaders: orderedValues('playbackShaders') },
@@ -653,6 +727,7 @@ QJsonObject SceneControlServer::build_state_object() const
                               {QStringLiteral("playback"), layer_to_json(scene_->playback_layer)},
                               {QStringLiteral("screen"), layer_to_json(scene_->screen_layer)}});
     object.insert(QStringLiteral("layerOrder"), layer_order_to_json(scene_->layer_order));
+    object.insert(QStringLiteral("playbackInput"), playback_input_to_json(scene_->playback_input));
     object.insert(QStringLiteral("openedDevices"),
                   QJsonObject{{QStringLiteral("video"), device_info_.opened_video},
                               {QStringLiteral("audio"), device_info_.opened_audio},
@@ -711,6 +786,54 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
                 }
                 return false;
             }
+        }
+    }
+
+    if (const auto playback_input = payload.value(QStringLiteral("playbackInput")); playback_input.isObject())
+    {
+        const auto object = playback_input.toObject();
+        if (const auto start_ms = object.value(QStringLiteral("startMs")); start_ms.isDouble())
+        {
+            updated.playback_input.start_ms = std::max<std::int64_t>(0, static_cast<std::int64_t>(start_ms.toDouble()));
+        }
+        if (const auto loop_start_ms = object.value(QStringLiteral("loopStartMs")); loop_start_ms.isDouble())
+        {
+            updated.playback_input.loop_start_ms =
+                std::max<std::int64_t>(0, static_cast<std::int64_t>(loop_start_ms.toDouble()));
+        }
+        if (const auto loop_end_ms = object.value(QStringLiteral("loopEndMs")); loop_end_ms.isNull())
+        {
+            updated.playback_input.loop_end_ms.reset();
+        }
+        else if (loop_end_ms.isDouble())
+        {
+            updated.playback_input.loop_end_ms =
+                std::max<std::int64_t>(0, static_cast<std::int64_t>(loop_end_ms.toDouble()));
+        }
+        if (const auto loop_repeat = object.value(QStringLiteral("loopRepeat")); loop_repeat.isDouble())
+        {
+            updated.playback_input.loop_repeat = std::max(0, loop_repeat.toInt(updated.playback_input.loop_repeat));
+        }
+        if (const auto playback_rate = object.value(QStringLiteral("playbackRate")); playback_rate.isDouble())
+        {
+            updated.playback_input.playback_rate =
+                std::max(0.01F, static_cast<float>(playback_rate.toDouble(updated.playback_input.playback_rate)));
+        }
+        if (const auto playback_rate_looping = object.value(QStringLiteral("playbackRateLooping"));
+            playback_rate_looping.isDouble())
+        {
+            updated.playback_input.playback_rate_looping = std::max(
+                0.01F, static_cast<float>(playback_rate_looping.toDouble(updated.playback_input.playback_rate_looping)));
+        }
+
+        if (updated.playback_input.loop_end_ms.has_value() &&
+            *updated.playback_input.loop_end_ms <= updated.playback_input.loop_start_ms)
+        {
+            if (error_message != nullptr)
+            {
+                *error_message = QStringLiteral("loopEndMs must be greater than loopStartMs");
+            }
+            return false;
         }
     }
 
