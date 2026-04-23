@@ -78,6 +78,7 @@ A scene JSON file controls every visual aspect of a run, including the render ba
 | `show_status_overlay` | bool | Show the diagnostic HUD overlay (FPS, MIDI, audio). Default `false`. |
 | `background_color` | object | `{ "r": 0, "g": 0, "b": 0, "a": 1 }` — clear colour between frames. |
 | `background_image` | object | See below. |
+| `layer_order` | array | Optional explicit compositing order for `screen`, `video`, and `playback`, listed from back to front. |
 
 ### `geometry`
 
@@ -108,7 +109,7 @@ A scene JSON file controls every visual aspect of a run, including the render ba
         "device": "/dev/video1",
         "format": "qvga",           // "qvga" (320×240), "vga", "hd" etc.
         "scale": 0.5,               // display scale relative to window
-        "on_top": false,            // whether video layer composites above screen layer
+        "on_top": false,            // legacy fallback when layer_order is omitted
         "position": { "x": 0.5, "y": 0.5 }
     },
     "playback": {
@@ -139,6 +140,14 @@ Three composited layers: `video`, `playback`, and `screen`. Each has an ordered 
 "playback": { "enabled": false, "shaders": ["pixelize_loop.glsl"] },
 "screen":   { "enabled": true,  "shaders": ["wireframe_sphere.glsl"] }
 ```
+
+Use `layer_order` to explicitly control the final screen compositing order. The array is interpreted from back to front, so the last item is drawn on top.
+
+```json
+"layer_order": ["screen", "video", "playback"]
+```
+
+`layer_order` must contain `screen`, `video`, and `playback` exactly once. If it is omitted, the runtime falls back to the older `inputs.video.on_top` behavior.
 
 ### `midi_cc_mappings`
 

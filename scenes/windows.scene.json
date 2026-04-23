@@ -72,6 +72,11 @@
             "crt_noise.glsl"
         ]
     },
+    "layer_order": [
+        "screen",
+        "playback",
+        "video"
+    ],
     "midi_cc_mappings": [
         {
             "layer": "screen",
