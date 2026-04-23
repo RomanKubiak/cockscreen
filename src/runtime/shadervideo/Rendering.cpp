@@ -75,6 +75,27 @@ float mapped_note_value(const core::ControlFrame &frame, const MidiNoteMapping &
     return mapping.minimum + (mapping.maximum - mapping.minimum) * value;
 }
 
+std::vector<QString> effective_layer_order(const SceneDefinition &scene, bool video_on_top)
+{
+    if (scene.layer_order.size() == 3)
+    {
+        std::vector<QString> order;
+        order.reserve(scene.layer_order.size());
+        for (const auto &layer_name : scene.layer_order)
+        {
+            order.push_back(QString::fromStdString(layer_name));
+        }
+        return order;
+    }
+
+    if (video_on_top)
+    {
+        return {QStringLiteral("video"), QStringLiteral("playback"), QStringLiteral("screen")};
+    }
+
+    return {QStringLiteral("screen"), QStringLiteral("playback"), QStringLiteral("video")};
+}
+
 } // namespace
 
 void ShaderVideoWindow::paintGL()
@@ -249,17 +270,25 @@ void ShaderVideoWindow::paintGL()
     const bool screen_base_valid = screen_base_texture != 0;
     const GLuint screen_output = render_layer_chain(QStringLiteral("screen"), screen_base_texture, screen_base_valid);
 
-    if (video_on_top_)
+    const auto layer_order = effective_layer_order(scene_, video_on_top_);
+    for (const auto &layer_name : layer_order)
     {
-        draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
-        draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
-        draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
-    }
-    else
-    {
-        draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
-        draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
-        draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
+        if (layer_name == QStringLiteral("video"))
+        {
+            draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
+            continue;
+        }
+
+        if (layer_name == QStringLiteral("playback"))
+        {
+            draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+            continue;
+        }
+
+        if (layer_name == QStringLiteral("screen"))
+        {
+            draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+        }
     }
 
     if (status_overlay_ != nullptr)

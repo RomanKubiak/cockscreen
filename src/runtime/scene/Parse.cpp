@@ -142,6 +142,39 @@ SceneLayer parse_layer(const QJsonValue &value)
     return layer;
 }
 
+std::vector<std::string> parse_layer_order(const QJsonValue &value)
+{
+    if (!value.isArray())
+    {
+        return {};
+    }
+
+    std::vector<std::string> layer_order;
+    layer_order.reserve(3);
+    for (const auto &entry : value.toArray())
+    {
+        if (!entry.isString())
+        {
+            continue;
+        }
+
+        const QString normalized = entry.toString().trimmed().toLower();
+        if (normalized != QStringLiteral("video") && normalized != QStringLiteral("playback") &&
+            normalized != QStringLiteral("screen"))
+        {
+            continue;
+        }
+
+        const std::string layer_name = normalized.toStdString();
+        if (std::find(layer_order.begin(), layer_order.end(), layer_name) == layer_order.end())
+        {
+            layer_order.push_back(layer_name);
+        }
+    }
+
+    return layer_order.size() == 3 ? layer_order : std::vector<std::string>{};
+}
+
 std::filesystem::path resolve_shader_path(const std::filesystem::path &base_dir, const std::string &shader_file)
 {
     if (shader_file.empty())
@@ -276,6 +309,7 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
     scene.video_layer = parse_layer(root.value(QStringLiteral("video")));
     scene.playback_layer = parse_layer(root.value(QStringLiteral("playback")));
     scene.screen_layer = parse_layer(root.value(QStringLiteral("screen")));
+    scene.layer_order = parse_layer_order(root.value(QStringLiteral("layer_order")));
 
     if (const auto mappings = root.value(QStringLiteral("midi_cc_mappings")); mappings.isArray())
     {

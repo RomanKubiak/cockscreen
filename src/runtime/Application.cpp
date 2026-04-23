@@ -192,6 +192,16 @@ std::optional<WebServerBindConfig> parse_web_server_bind_url(const std::string &
     return WebServerBindConfig{address, static_cast<quint16>(url.port()), url.toString()};
 }
 
+QString effective_top_layer_name(const SceneDefinition &scene, bool video_on_top)
+{
+    if (!scene.layer_order.empty())
+    {
+        return QString::fromStdString(scene.layer_order.back());
+    }
+
+    return video_on_top ? QStringLiteral("video") : QStringLiteral("screen");
+}
+
 } // namespace
 
 Application::Application(ApplicationSettings settings) : settings_{std::move(settings)} {}
@@ -467,6 +477,7 @@ int Application::run(int argc, char *argv[])
         const QString camera_format_text = selected_format.has_value() ? camera_format_label(*selected_format)
                                                                       : QStringLiteral("unknown");
         const bool video_on_top = scene.video_input.on_top.value_or(settings_.top_layer == "video");
+        const QString top_layer_name = effective_top_layer_name(scene, video_on_top);
         const bool show_status_overlay = scene.show_status_overlay;
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
@@ -526,7 +537,7 @@ int Application::run(int argc, char *argv[])
             const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3 | opacity %4")
                                             .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
                                             .arg(camera_format_text)
-                                            .arg(video_on_top ? QStringLiteral("video") : QStringLiteral("screen"))
+                                            .arg(top_layer_name)
                                             .arg(settings_.top_layer_opacity, 0, 'f', 2);
             const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
                                            .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
@@ -560,7 +571,7 @@ int Application::run(int argc, char *argv[])
             const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3 | opacity %4")
                                             .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
                                             .arg(camera_format_text)
-                                            .arg(video_on_top ? QStringLiteral("video") : QStringLiteral("screen"))
+                                            .arg(top_layer_name)
                                             .arg(settings_.top_layer_opacity, 0, 'f', 2);
             const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
                                            .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
@@ -592,7 +603,7 @@ int Application::run(int argc, char *argv[])
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
         std::cout << "Scene file: " << (settings_.scene_file.empty() ? "<none>" : settings_.scene_file) << '\n';
-        std::cout << "Top layer: " << (video_on_top ? "video" : "screen") << '\n';
+        std::cout << "Top layer: " << top_layer_name.toStdString() << '\n';
         std::cout << "Top layer opacity: " << settings_.top_layer_opacity << '\n';
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "Window mode: Qt6 windowed" << '\n';
@@ -709,7 +720,7 @@ int Application::run(int argc, char *argv[])
     std::cout << "Playback file: " << (scene.playback_input.file.empty() ? "<none>" : scene.playback_input.file) << '\n';
     std::cout << "Video shader loaded: " << video_shader_label.toStdString() << '\n';
     std::cout << "Screen shader loaded: " << screen_shader_label.toStdString() << '\n';
-    std::cout << "Top layer: " << (video_on_top ? "video" : "screen") << '\n';
+    std::cout << "Top layer: " << effective_top_layer_name(scene, video_on_top).toStdString() << '\n';
     std::cout << "Render path: " << settings_.render_path << '\n';
     std::cout << "Window mode: Qt6 windowed" << '\n';
     std::cout << "Qt platform: " << qt_platform_name << '\n';

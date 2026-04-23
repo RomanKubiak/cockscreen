@@ -2,10 +2,6 @@
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     "shader_directory": "/home/atom/devel/cockscreen/shaders/",
-    "background_image": {
-        "file": "textures/masazer.jpg",
-        "placement": "centered"
-    },
     "render_path": "qt-shader",
     "geometry": {
         "width": 1024,
@@ -24,13 +20,13 @@
             }
         },
         "playback": {
-            "enabled": false,
+            "enabled": true,
             "file": "/home/atom/Videos/video.mp4",
-            "scale": 0.28,
+            "scale": 1.0,
             "on_top": true,
             "position": {
-                "x": 0.02,
-                "y": 0.02
+                "x": 0,
+                "y": 0
             }
         },
         "background_color": {
@@ -44,11 +40,11 @@
             "device": "PCM2902 Audio Codec Analog Stereo"
         },
         "midi": {
-            "enabled": true,
+            "enabled": false,
             "device": "through"
         }
     },
-    "show_status_overlay": false,
+    "show_status_overlay": true,
     "video": {
         "enabled": false,
         "shaders": [
@@ -56,17 +52,22 @@
         ]
     },
     "playback": {
-        "enabled": false,
+        "enabled": true,
         "shaders": [
             "pixelize_loop.glsl"
         ]
     },
     "screen": {
-        "enabled": true,
+        "enabled": false,
         "shaders": [
             "toy_synthwave.glsl"
         ]
     },
+    "layer_order": [
+        "screen",
+        "video",
+        "playback"
+    ],
     "midi_cc_mappings": [
         {
             "layer": "screen",

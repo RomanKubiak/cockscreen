@@ -107,6 +107,7 @@ struct SceneDefinition
     SceneLayer video_layer;
     SceneLayer playback_layer;
     SceneLayer screen_layer;
+    std::vector<std::string> layer_order;
     std::vector<MidiCcMapping> midi_cc_mappings;
     std::vector<MidiNoteMapping> midi_note_mappings;
     std::vector<OscMapping> osc_mappings;

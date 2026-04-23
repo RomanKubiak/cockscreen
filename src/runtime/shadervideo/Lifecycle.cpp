@@ -85,6 +85,7 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         const auto playback_path = helper::resolve_scene_resource_path(scene_.resources_directory, scene_.playback_input.file);
         if (playback_path.has_value())
         {
+            playback_player_.setVideoSink(&playback_sink_);
             playback_player_.setLoops(QMediaPlayer::Infinite);
             playback_player_.setSource(QUrl::fromLocalFile(QString::fromStdString(playback_path->string())));
             playback_player_.play();

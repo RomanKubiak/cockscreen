@@ -39,6 +39,16 @@ QString placement_to_string(BackgroundImagePlacement placement)
     return QStringLiteral("center");
 }
 
+QJsonArray layer_order_to_json(const std::vector<std::string> &layer_order)
+{
+    QJsonArray result;
+    for (const auto &layer_name : layer_order)
+    {
+        result.push_back(QString::fromStdString(layer_name));
+    }
+    return result;
+}
+
 BackgroundImagePlacement placement_from_string(QString value)
 {
     value = value.trimmed().toLower();
@@ -642,6 +652,7 @@ QJsonObject SceneControlServer::build_state_object() const
                   QJsonObject{{QStringLiteral("video"), layer_to_json(scene_->video_layer)},
                               {QStringLiteral("playback"), layer_to_json(scene_->playback_layer)},
                               {QStringLiteral("screen"), layer_to_json(scene_->screen_layer)}});
+    object.insert(QStringLiteral("layerOrder"), layer_order_to_json(scene_->layer_order));
     object.insert(QStringLiteral("openedDevices"),
                   QJsonObject{{QStringLiteral("video"), device_info_.opened_video},
                               {QStringLiteral("audio"), device_info_.opened_audio},
@@ -751,6 +762,43 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
         {
             return false;
         }
+    }
+
+    if (const auto layer_order = payload.value(QStringLiteral("layerOrder")); layer_order.isArray())
+    {
+        std::vector<std::string> parsed_layer_order;
+        parsed_layer_order.reserve(3);
+        for (const auto &entry : layer_order.toArray())
+        {
+            if (!entry.isString())
+            {
+                continue;
+            }
+
+            const QString normalized = entry.toString().trimmed().toLower();
+            if (normalized != QStringLiteral("video") && normalized != QStringLiteral("playback") &&
+                normalized != QStringLiteral("screen"))
+            {
+                continue;
+            }
+
+            const std::string layer_name = normalized.toStdString();
+            if (std::find(parsed_layer_order.begin(), parsed_layer_order.end(), layer_name) == parsed_layer_order.end())
+            {
+                parsed_layer_order.push_back(layer_name);
+            }
+        }
+
+        if (!parsed_layer_order.empty() && parsed_layer_order.size() != 3)
+        {
+            if (error_message != nullptr)
+            {
+                *error_message = QStringLiteral("layerOrder must contain video, playback, and screen exactly once");
+            }
+            return false;
+        }
+
+        updated.layer_order = std::move(parsed_layer_order);
     }
 
     *scene_ = updated;
