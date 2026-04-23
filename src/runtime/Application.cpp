@@ -126,7 +126,7 @@ QStringList wrap_overlay_line(const QString &text, int preferred_chars)
 
 QString build_overlay_text(const QString &fps_line, const QString &device_line, const QString &audio_line,
                            const QString &metrics_line, const QString &midi_line, const QString &osc_line,
-                           const QString &extra_line = QString{})
+                           const QString &extra_line = QString{}, const QString &extra_line_two = QString{})
 {
     constexpr int kPreferredCharsPerLine{58};
 
@@ -141,8 +141,36 @@ QString build_overlay_text(const QString &fps_line, const QString &device_line, 
     {
         lines << wrap_overlay_line(extra_line, kPreferredCharsPerLine);
     }
+    if (!extra_line_two.isEmpty())
+    {
+        lines << wrap_overlay_line(extra_line_two, kPreferredCharsPerLine);
+    }
 
     return lines.join('\n');
+}
+
+QString playback_overlay_line(const SceneDefinition &scene)
+{
+    const auto &playback = scene.playback_input;
+    const QString file_name = playback.file.empty()
+                                 ? QStringLiteral("<none>")
+                                 : QString::fromStdString(std::filesystem::path{playback.file}.filename().string());
+    const QString loop_text = playback.loop_end_ms.has_value()
+                                  ? QStringLiteral("%1-%2")
+                                        .arg(playback.loop_start_ms)
+                                        .arg(*playback.loop_end_ms)
+                                  : QStringLiteral("full");
+    const QString repeat_text = playback.loop_repeat == 0 ? QStringLiteral("inf")
+                                                          : QString::number(playback.loop_repeat);
+
+    return QStringLiteral("Playback %1 | file %2 | start %3 | loop %4 | repeat %5 | rate %6/%7")
+        .arg(playback.enabled ? QStringLiteral("on") : QStringLiteral("off"))
+        .arg(file_name)
+        .arg(playback.start_ms)
+        .arg(loop_text)
+        .arg(repeat_text)
+        .arg(playback.playback_rate, 0, 'f', 2)
+        .arg(playback.playback_rate_looping, 0, 'f', 2);
 }
 
 struct WebServerBindConfig
@@ -402,6 +430,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             playback_overlay_line(scene),
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         });
 
@@ -436,6 +465,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             playback_overlay_line(scene),
                                                              QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
         }
         timer.start(static_cast<int>(frame_time.count()));
@@ -556,6 +586,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             playback_overlay_line(scene),
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
         });
 
@@ -590,6 +621,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
+                                                             playback_overlay_line(scene),
                                                              QStringLiteral("Qt6 shader pipeline on Linux")));
         }
         timer.start(static_cast<int>(frame_time.count()));
@@ -671,7 +703,8 @@ int Application::run(int argc, char *argv[])
                                      .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                                         QStringLiteral("Qt6 windowed mode on Linux")));
+                                 playback_overlay_line(scene),
+                                 QStringLiteral("Qt6 windowed mode on Linux")));
     });
 
     auto live_frame = modulation_bus_.snapshot();
@@ -705,7 +738,8 @@ int Application::run(int argc, char *argv[])
                                      .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
-                                                         QStringLiteral("Qt6 windowed mode on Linux")));
+                                 playback_overlay_line(scene),
+                                 QStringLiteral("Qt6 windowed mode on Linux")));
     }
     timer.start(static_cast<int>(frame_time.count()));
 
