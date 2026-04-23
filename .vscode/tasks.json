@@ -13,7 +13,7 @@
 		{
 			"label": "Local: Run Debug",
 			"type": "shell",
-			"command": "${workspaceFolder}/out/build/local-x86_64-debug/cockscreen",
+			"command": "${workspaceFolder}/scripts/run-local-debug.sh",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},

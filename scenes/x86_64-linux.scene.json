@@ -27,7 +27,13 @@
             "position": {
                 "x": 0,
                 "y": 0
-            }
+            },
+            "start_ms": 0,
+            "loop_start_ms": 0,
+            "loop_end_ms": null,
+            "loop_repeat": 0,
+            "playback_rate": 1.0,
+            "playback_rate_looping": 1.0
         },
         "background_color": {
             "r": 0.0,
