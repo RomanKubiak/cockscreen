@@ -720,7 +720,9 @@ int Application::run(int argc, char *argv[])
             }
             else
             {
-                std::cerr << "Web control server could not start at " << web_server_bind->display_url.toStdString() << '\n';
+                std::cerr << "Web control server could not start at " << web_server_bind->display_url.toStdString()
+                          << ". Another instance may already be running.\n";
+                return 2;
             }
         }
         if (is_pi_target())
