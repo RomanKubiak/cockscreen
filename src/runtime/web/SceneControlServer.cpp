@@ -600,6 +600,7 @@ QByteArray SceneControlServer::build_index_html() const
           </select>
           <label for="bgImageCustom">Custom background path override</label>
           <input id="bgImageCustom" type="text" value="${escapeHtml(state.backgroundImage.file)}">
+                    <label class="layer-toggle"><input id="timecodeEnabled" type="checkbox" ${state.timecode ? 'checked' : ''}> <span>Film timecode overlay</span></label>
         </section>
         <section>
                     <h2>Playback</h2>
@@ -676,6 +677,7 @@ QByteArray SceneControlServer::build_index_html() const
           file: document.getElementById('bgImageCustom').value || document.getElementById('bgImage').value,
           placement: document.getElementById('bgPlacement').value
         },
+                timecode: document.getElementById('timecodeEnabled').checked,
                 playbackInput: {
                     startMs: Math.max(0, Math.floor(numericValue('playbackStartMs', 0))),
                     loopStartMs: Math.max(0, Math.floor(numericValue('playbackLoopStartMs', 0))),
@@ -722,6 +724,7 @@ QJsonObject SceneControlServer::build_state_object() const
     object.insert(QStringLiteral("backgroundImage"),
                   QJsonObject{{QStringLiteral("file"), QString::fromStdString(scene_->background_image.file)},
                               {QStringLiteral("placement"), placement_to_string(scene_->background_image.placement)}});
+    object.insert(QStringLiteral("timecode"), scene_->timecode);
     object.insert(QStringLiteral("layers"),
                   QJsonObject{{QStringLiteral("video"), layer_to_json(scene_->video_layer)},
                               {QStringLiteral("playback"), layer_to_json(scene_->playback_layer)},
@@ -787,6 +790,11 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
                 return false;
             }
         }
+    }
+
+    if (const auto timecode = payload.value(QStringLiteral("timecode")); timecode.isBool())
+    {
+        updated.timecode = timecode.toBool(updated.timecode);
     }
 
     if (const auto playback_input = payload.value(QStringLiteral("playbackInput")); playback_input.isObject())

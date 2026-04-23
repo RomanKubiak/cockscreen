@@ -56,6 +56,7 @@ The current web UI supports:
 - enabling or disabling the `video`, `playback`, and `screen` layers
 - editing each layer's ordered shader chain
 - editing playback transport values for the playback input
+- toggling the film-style playback timecode overlay
 - background colour and background image selection
 - viewing opened and available devices
 
@@ -77,6 +78,7 @@ A scene JSON file controls every visual aspect of a run, including the render ba
 | `shader_directory` | string | Path (relative to scene file) where GLSL shader files are resolved. |
 | `note_font_file` | string | Font file (relative to `resources_directory`) used to render MIDI note labels in the atlas. Supports any TTF/OTF loaded by Qt. |
 | `show_status_overlay` | bool | Show the diagnostic HUD overlay (FPS, MIDI, audio). Default `false`. |
+| `timecode` | bool | Draw an analog-film-style playback timecode in the bottom-right corner when playback is enabled. Default `false`. |
 | `background_color` | object | `{ "r": 0, "g": 0, "b": 0, "a": 1 }` — clear colour between frames. |
 | `background_image` | object | See below. |
 | `layer_order` | array | Optional explicit compositing order for `screen`, `video`, and `playback`, listed from back to front. |

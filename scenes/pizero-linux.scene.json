@@ -55,6 +55,7 @@
         }
     },
     "show_status_overlay": true,
+    "timecode": false,
     "video": {
         "enabled": true,
         "shaders": [
