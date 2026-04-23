@@ -395,6 +395,13 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
                                            static_cast<float>(helper::kIconAtlasRows)});
     }
     helper::set_midi_uniforms(program, frame_);
+
+    if (shader_mapping_matches("pink_key.glsl", stage.shader_path))
+    {
+        program->setUniformValue("u_audio_algorithm", scene_.pink_key.audio_algorithm);
+        program->setUniformValue("u_audio_reactivity", scene_.pink_key.audio_reactivity);
+        program->setUniformValue("u_midi_reactivity", scene_.pink_key.midi_reactivity);
+    }
 }
 
 void ShaderVideoWindow::apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const

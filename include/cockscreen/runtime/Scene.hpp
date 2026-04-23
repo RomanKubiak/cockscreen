@@ -61,6 +61,13 @@ struct SceneLayer
     std::vector<std::string> shaders;
 };
 
+struct PinkKeySettings
+{
+    float audio_algorithm{0.0F};
+    float audio_reactivity{0.45F};
+    float midi_reactivity{0.35F};
+};
+
 struct MidiCcMapping
 {
     std::string layer;
@@ -115,6 +122,7 @@ struct SceneDefinition
     SceneLayer video_layer;
     SceneLayer playback_layer;
     SceneLayer screen_layer;
+    PinkKeySettings pink_key;
     std::vector<std::string> layer_order;
     std::vector<MidiCcMapping> midi_cc_mappings;
     std::vector<MidiNoteMapping> midi_note_mappings;

@@ -63,6 +63,13 @@ QJsonObject playback_input_to_json(const SceneInput &input)
                        {QStringLiteral("playbackRateLooping"), input.playback_rate_looping}};
 }
 
+QJsonObject pink_key_to_json(const PinkKeySettings &settings)
+{
+    return QJsonObject{{QStringLiteral("audioAlgorithm"), settings.audio_algorithm},
+                       {QStringLiteral("audioReactivity"), settings.audio_reactivity},
+                       {QStringLiteral("midiReactivity"), settings.midi_reactivity}};
+}
+
 BackgroundImagePlacement placement_from_string(QString value)
 {
     value = value.trimmed().toLower();
@@ -445,6 +452,14 @@ QByteArray SceneControlServer::build_index_html() const
       const set = new Set(selected || []);
       return values.map(value => `<option value="${escapeHtml(value)}" ${set.has(value) ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('');
     }
+        function buildLabeledOptions(options, selected) {
+            const selectedValue = String(selected ?? '');
+            return options.map(option => {
+                const value = String(option.value ?? '');
+                const label = String(option.label ?? value);
+                return `<option value="${escapeHtml(value)}" ${value === selectedValue ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+            }).join('');
+        }
     function deviceList(values) {
       return values.map(value => `<li>${escapeHtml(value)}</li>`).join('');
     }
@@ -548,6 +563,14 @@ QByteArray SceneControlServer::build_index_html() const
         }
     async function refreshState() {
       const state = await fetch('/api/state').then(response => response.json());
+            const pinkKeyAudioAlgorithms = [
+                { value: '0', label: '0: Bass focus' },
+                { value: '1', label: '1: Low-mid focus' },
+                { value: '2', label: '2: High-mid focus' },
+                { value: '3', label: '3: High focus' },
+                { value: '4', label: '4: Spectral centroid' },
+                { value: '5', label: '5: Full-spectrum average' }
+            ];
       const app = document.getElementById('app');
       app.innerHTML = `
         <section>
@@ -637,6 +660,26 @@ QByteArray SceneControlServer::build_index_html() const
                     <p class="muted">Leave loop end empty to disable custom looping. Loop repeat 0 means infinite loops.</p>
                 </section>
                 <section>
+                    <h2>Pink Key</h2>
+                    <div class="grid">
+                        <div>
+                            <label for="pinkKeyAudioAlgorithm">Audio detector</label>
+                            <select id="pinkKeyAudioAlgorithm">
+                                ${buildLabeledOptions(pinkKeyAudioAlgorithms, Math.max(0, Math.min(5, Math.round(state.pinkKey.audioAlgorithm ?? 0))))}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="pinkKeyAudioReactivity">Audio reactivity</label>
+                            <input id="pinkKeyAudioReactivity" type="number" min="0" max="1.5" step="0.01" value="${escapeHtml(state.pinkKey.audioReactivity ?? 0.45)}">
+                        </div>
+                        <div>
+                            <label for="pinkKeyMidiReactivity">MIDI reactivity</label>
+                            <input id="pinkKeyMidiReactivity" type="number" min="0" max="1.5" step="0.01" value="${escapeHtml(state.pinkKey.midiReactivity ?? 0.35)}">
+                        </div>
+                    </div>
+                    <p class="muted">Detector modes: 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 centroid, 5 full-spectrum average.</p>
+                </section>
+                <section>
           <h2>Shaders</h2>
           <div class="grid">
                         ${buildShaderEditor('video', state.layers.video, state.availableShaders)}
@@ -678,6 +721,11 @@ QByteArray SceneControlServer::build_index_html() const
           placement: document.getElementById('bgPlacement').value
         },
                 timecode: document.getElementById('timecodeEnabled').checked,
+                pinkKey: {
+                    audioAlgorithm: Math.max(0, Math.min(5, Math.floor(numericValue('pinkKeyAudioAlgorithm', 0)))),
+                    audioReactivity: Math.max(0, Math.min(1.5, numericValue('pinkKeyAudioReactivity', 0.45))),
+                    midiReactivity: Math.max(0, Math.min(1.5, numericValue('pinkKeyMidiReactivity', 0.35)))
+                },
                 playbackInput: {
                     startMs: Math.max(0, Math.floor(numericValue('playbackStartMs', 0))),
                     loopStartMs: Math.max(0, Math.floor(numericValue('playbackLoopStartMs', 0))),
@@ -725,6 +773,7 @@ QJsonObject SceneControlServer::build_state_object() const
                   QJsonObject{{QStringLiteral("file"), QString::fromStdString(scene_->background_image.file)},
                               {QStringLiteral("placement"), placement_to_string(scene_->background_image.placement)}});
     object.insert(QStringLiteral("timecode"), scene_->timecode);
+    object.insert(QStringLiteral("pinkKey"), pink_key_to_json(scene_->pink_key));
     object.insert(QStringLiteral("layers"),
                   QJsonObject{{QStringLiteral("video"), layer_to_json(scene_->video_layer)},
                               {QStringLiteral("playback"), layer_to_json(scene_->playback_layer)},
@@ -795,6 +844,23 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
     if (const auto timecode = payload.value(QStringLiteral("timecode")); timecode.isBool())
     {
         updated.timecode = timecode.toBool(updated.timecode);
+    }
+
+    if (const auto pink_key = payload.value(QStringLiteral("pinkKey")); pink_key.isObject())
+    {
+        const auto object = pink_key.toObject();
+        if (const auto audio_algorithm = object.value(QStringLiteral("audioAlgorithm")); audio_algorithm.isDouble())
+        {
+            updated.pink_key.audio_algorithm = std::clamp(static_cast<float>(audio_algorithm.toDouble(updated.pink_key.audio_algorithm)), 0.0F, 5.0F);
+        }
+        if (const auto audio_reactivity = object.value(QStringLiteral("audioReactivity")); audio_reactivity.isDouble())
+        {
+            updated.pink_key.audio_reactivity = std::clamp(static_cast<float>(audio_reactivity.toDouble(updated.pink_key.audio_reactivity)), 0.0F, 1.5F);
+        }
+        if (const auto midi_reactivity = object.value(QStringLiteral("midiReactivity")); midi_reactivity.isDouble())
+        {
+            updated.pink_key.midi_reactivity = std::clamp(static_cast<float>(midi_reactivity.toDouble(updated.pink_key.midi_reactivity)), 0.0F, 1.5F);
+        }
     }
 
     if (const auto playback_input = payload.value(QStringLiteral("playbackInput")); playback_input.isObject())

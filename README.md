@@ -57,6 +57,7 @@ The current web UI supports:
 - editing each layer's ordered shader chain
 - editing playback transport values for the playback input
 - toggling the film-style playback timecode overlay
+- tuning `pink_key.glsl` audio detector mode and audio/MIDI reactivity
 - background colour and background image selection
 - viewing opened and available devices
 
@@ -79,6 +80,7 @@ A scene JSON file controls every visual aspect of a run, including the render ba
 | `note_font_file` | string | Font file (relative to `resources_directory`) used to render MIDI note labels in the atlas. Supports any TTF/OTF loaded by Qt. |
 | `show_status_overlay` | bool | Show the diagnostic HUD overlay (FPS, MIDI, audio). Default `false`. |
 | `timecode` | bool | Draw an analog-film-style playback timecode in the bottom-right corner when playback is enabled. Default `false`. |
+| `pink_key` | object | Optional defaults for `pink_key.glsl` audio/MIDI reactivity. See below. |
 | `background_color` | object | `{ "r": 0, "g": 0, "b": 0, "a": 1 }` — clear colour between frames. |
 | `background_image` | object | See below. |
 | `layer_order` | array | Optional explicit compositing order for `screen`, `video`, and `playback`, listed from back to front. |
@@ -102,6 +104,25 @@ A scene JSON file controls every visual aspect of a run, including the render ba
 ```
 
 `placement` values: `center`, `stretched`, `proportional-stretch`, `tiled`.
+
+### `pink_key`
+
+```json
+"pink_key": {
+    "audio_algorithm": 0,
+    "audio_reactivity": 0.45,
+    "midi_reactivity": 0.35
+}
+```
+
+`audio_algorithm` values:
+
+- `0`: bass focus using FFT bands `0..3`
+- `1`: low-mid focus using FFT bands `4..7`
+- `2`: high-mid focus using FFT bands `8..11`
+- `3`: high focus using FFT bands `12..15`
+- `4`: weighted spectral centroid across all 16 FFT bands
+- `5`: full-spectrum average energy
 
 ### `inputs`
 

@@ -41,6 +41,21 @@ float json_float(const QJsonObject &object, const char *key, float fallback)
     return value.isDouble() ? static_cast<float>(value.toDouble(fallback)) : fallback;
 }
 
+PinkKeySettings parse_pink_key_settings(const QJsonValue &value)
+{
+    PinkKeySettings settings;
+    if (!value.isObject())
+    {
+        return settings;
+    }
+
+    const auto object = value.toObject();
+    settings.audio_algorithm = std::clamp(json_float(object, "audio_algorithm", settings.audio_algorithm), 0.0F, 5.0F);
+    settings.audio_reactivity = std::clamp(json_float(object, "audio_reactivity", settings.audio_reactivity), 0.0F, 1.5F);
+    settings.midi_reactivity = std::clamp(json_float(object, "midi_reactivity", settings.midi_reactivity), 0.0F, 1.5F);
+    return settings;
+}
+
 SceneColor parse_color(const QJsonValue &value)
 {
     SceneColor color;
@@ -310,6 +325,11 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
     else if (background_image.isString())
     {
         scene.background_image.file = background_image.toString().toStdString();
+    }
+
+    if (const auto pink_key = root.value(QStringLiteral("pink_key")); pink_key.isObject())
+    {
+        scene.pink_key = parse_pink_key_settings(pink_key);
     }
 
     if (scene.background_image.file.empty())
