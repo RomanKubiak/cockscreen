@@ -1,5 +1,5 @@
 {
-    // Windows default preset.
+    // Windows preset with a heavier screen-space shader chain.
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     "background_image": {
@@ -13,6 +13,7 @@
         "height": 600
     },
     "inputs": {
+        // Disabled by default, but the field still documents the expected shape.
         "video": {
             "enabled": false,
             "device": "/dev/video1",

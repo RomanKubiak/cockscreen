@@ -1,0 +1,170 @@
+{
+    // Fully annotated scene template.
+    // This file is meant to be copied into a new preset, not used as a shipped default.
+    // Paths are resolved relative to this file unless already absolute.
+    "resources_directory": "../../resources/",
+    "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
+    "shader_directory": "../../shaders/",
+    // Valid runtime values: qt, qt-shader, v4l2-dmabuf-egl.
+    "render_path": "qt-shader",
+    // geometry.width and geometry.height are clamped to a minimum of 1.
+    "geometry": {
+        "width": 1024,
+        "height": 600
+    },
+    // Top-level background_color is a fallback when inputs.background_color is omitted.
+    // The parser also accepts the alias name "background".
+    "background_color": {
+        "r": 0.0,
+        "g": 0.0,
+        "b": 0.0,
+        "a": 1.0
+    },
+    // Object form is preferred, but the parser also accepts:
+    // "background_image": "textures/example.jpg"
+    // plus legacy background_image_file / background_image_placement keys.
+    "background_image": {
+        "file": "textures/masazer.jpg",
+        // Accepted values: center, stretched, proportional-stretch, tiled.
+        // Also accepted: centered, propotional-stretch, proportional_stretch.
+        "placement": "proportional-stretch"
+    },
+    "inputs": {
+        "video": {
+            "enabled": true,
+            "device": "/dev/video1",
+            "format": "qvga",
+            // scale is clamped to a minimum of 0.01.
+            "scale": 0.35,
+            // Legacy fallback when layer_order is omitted.
+            "on_top": false,
+            // Preferred position form.
+            "position": {
+                "x": 0.5,
+                "y": 0.5
+            }
+            // Legacy fallback also exists:
+            // "position_x": 0.5,
+            // "position_y": 0.5
+        },
+        "playback": {
+            "enabled": true,
+            "file": "../../resources/videos/example.mp4",
+            "scale": 0.4,
+            "on_top": true,
+            "position": {
+                "x": 0.05,
+                "y": 0.05
+            },
+            // All transport numbers are clamped to >= 0.
+            "start_ms": 0,
+            "loop_start_ms": 0,
+            // null or omission disables a custom loop end.
+            "loop_end_ms": 8000,
+            // 0 means infinite looping.
+            "loop_repeat": 0,
+            // playback_rate and playback_rate_looping are clamped to >= 0.01.
+            "playback_rate": 1.0,
+            "playback_rate_looping": 0.75
+        },
+        // The parser also accepts inputs.background as an alias.
+        "background_color": {
+            "r": 0.0,
+            "g": 0.0,
+            "b": 0.0,
+            "a": 1.0
+        },
+        // device strings are backend-specific and matched later by runtime startup.
+        "audio": {
+            "enabled": true,
+            "device": "@default_monitor_output@"
+        },
+        "midi": {
+            "enabled": true,
+            "device": "through"
+        }
+    },
+    // Diagnostic overlay in the window.
+    "show_status_overlay": true,
+    // Analog-film-style timecode overlay on playback.
+    "timecode": true,
+    // Scene-level defaults for pink_key.glsl.
+    // audio_algorithm values:
+    // 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 spectral centroid, 5 full-spectrum average.
+    "pink_key": {
+        "audio_algorithm": 0,
+        // audio_reactivity and midi_reactivity are clamped to [0, 1.5].
+        "audio_reactivity": 0.45,
+        "midi_reactivity": 0.35
+    },
+    // Each layer accepts only enabled + shaders[].
+    "video": {
+        "enabled": true,
+        "shaders": [
+            "pink_key.glsl",
+            "video_sphere.glsl"
+        ]
+    },
+    "playback": {
+        "enabled": false,
+        "shaders": [
+            "pixelize_loop.glsl"
+        ]
+    },
+    "screen": {
+        "enabled": true,
+        "shaders": [
+            "wireframe_sphere.glsl",
+            "crt_noise.glsl"
+        ]
+    },
+    // Must contain video, playback, and screen exactly once.
+    // The parser treats the list as back-to-front compositing order.
+    "layer_order": [
+        "screen",
+        "playback",
+        "video"
+    ],
+    // MIDI CC mappings.
+    "midi_cc_mappings": [
+        {
+            "layer": "screen",
+            // shader can be a filename or a partial match.
+            "shader": "wireframe_sphere.glsl",
+            "uniform": "u_wire_density",
+            // channel default is -1 if omitted.
+            "channel": 0,
+            "cc": 91,
+            "min": 0.0,
+            "max": 1.0,
+            // exponent is clamped to >= 0.01.
+            "exponent": 1.0
+        }
+    ],
+    // MIDI note mappings use channel + note + min/max/exponent.
+    // Note: decay is not currently parsed from scene files.
+    "midi_note_mappings": [
+        {
+            "layer": "screen",
+            "shader": "crt_noise.glsl",
+            "uniform": "u_note_flash",
+            "channel": 0,
+            "note": 60,
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        }
+    ],
+    // OSC mappings behave like MIDI mappings but identify the source by OSC address.
+    "osc_mappings": [
+        {
+            "address": "/cockscreen/key/hue",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_h",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        }
+    ]
+}
