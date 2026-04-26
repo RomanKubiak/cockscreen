@@ -10,6 +10,8 @@ const int GLYPH_Z = 14;
 const int GLYPH_O = 15;
 const int GLYPH_N = 16;
 const int GLYPH_E = 17;
+const int GLYPH_T = 18;
+const int GLYPH_B = 19;
 
 float hash11(float p)
 {
@@ -38,6 +40,35 @@ vec3 palette(float t)
     return 0.45 + 0.55 * cos(kTau * (vec3(0.08, 0.26, 0.61) + t));
 }
 
+float viewport_pixel()
+{
+    return 1.0 / max(iResolution.y, 1.0);
+}
+
+float line_mask(vec2 p, vec2 a, vec2 b, float width_pixels);
+
+vec3 rotate_x_axis(vec3 p, float angle)
+{
+    float c = cos(angle);
+    float s = sin(angle);
+    return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
+}
+
+vec2 project_forward_vertex(vec3 vertex, float angle, float scale_pixels, float depth_scale)
+{
+    vec3 rotated = rotate_x_axis(vec3(vertex.x, vertex.y, vertex.z * depth_scale), angle);
+    float perspective = 1.0 / max(3.4 - rotated.z, 0.8);
+    return rotated.xy * perspective * scale_pixels * viewport_pixel();
+}
+
+float projected_segment_mask(vec2 p, vec3 a, vec3 b, float angle, float scale_pixels, float depth_scale,
+                             float width_pixels)
+{
+    vec2 pa = project_forward_vertex(a, angle, scale_pixels, depth_scale);
+    vec2 pb = project_forward_vertex(b, angle, scale_pixels, depth_scale);
+    return line_mask(p, pa, pb, width_pixels);
+}
+
 float segment_distance(vec2 p, vec2 a, vec2 b)
 {
     vec2 pa = p - a;
@@ -46,9 +77,9 @@ float segment_distance(vec2 p, vec2 a, vec2 b)
     return length(pa - ba * h);
 }
 
-float line_mask(vec2 p, vec2 a, vec2 b, float width)
+float line_mask(vec2 p, vec2 a, vec2 b, float width_pixels)
 {
-    return step(segment_distance(p, a, b), width);
+    return step(segment_distance(p, a, b), viewport_pixel() * width_pixels);
 }
 
 float box_mask(vec2 p, vec2 half_size)
@@ -80,6 +111,44 @@ float ground_height(float x)
     return -0.33 + ridges + cliffs;
 }
 
+float screen_to_world_x(float screen_x, float time)
+{
+    return screen_x * 3.2 + time * 1.15;
+}
+
+float world_to_screen_x(float world_x, float time)
+{
+    return (world_x - time * 1.15) / 3.2;
+}
+
+float ground_screen_y(float screen_x, float time)
+{
+    return ground_height(screen_to_world_x(screen_x, time));
+}
+
+vec2 enemy_position(float fi, float seed, float time)
+{
+    float cycle = fract(time * (0.18 + fi * 0.012) + seed * 0.173);
+    float enemy_x = mix(1.12 + mod(fi, 3.0) * 0.10, -1.14 - mod(fi, 2.0) * 0.08, cycle);
+    float enemy_y = 0.08 + 0.20 * sin(time * (0.90 + fi * 0.10) + seed * 1.7) +
+                    0.06 * sin(time * (2.0 + mod(fi, 4.0) * 0.13) + seed * 2.7);
+    return vec2(enemy_x, enemy_y);
+}
+
+float enemy_points(float fi)
+{
+    return 175.0 + fi * 30.0;
+}
+
+float horizontal_segment_hits_box(vec2 start_point, vec2 end_point, vec2 center, vec2 half_size)
+{
+    float min_x = min(start_point.x, end_point.x);
+    float max_x = max(start_point.x, end_point.x);
+    float overlap_x = step(center.x - half_size.x, max_x) * step(min_x, center.x + half_size.x);
+    float overlap_y = step(abs(start_point.y - center.y), half_size.y);
+    return overlap_x * overlap_y;
+}
+
 float ridge_far(float x)
 {
     return 0.16 + terrain_wave(x * 0.30 - 6.0) * 0.11;
@@ -92,49 +161,54 @@ float ridge_mid(float x)
 
 float star_layer(vec2 uv, float scale, float speed, float density, float seed)
 {
-    vec2 id = floor(vec2((uv.x + iTime * speed + seed) * scale, (uv.y + seed * 0.19) * scale));
+    vec2 grid = vec2((uv.x + iTime * speed + seed) * scale, (uv.y + seed * 0.19) * scale);
+    vec2 id = floor(grid);
+    vec2 local = fract(grid) - 0.5;
+    vec2 jitter = (vec2(hash12(id + seed * 5.1), hash12(id + seed * 9.7)) - 0.5) * 0.70;
     float star = step(density, hash12(id + seed * 11.0));
     float twinkle = step(0.45, hash12(id + floor(iTime * (2.0 + seed * 0.3)) + 29.0));
-    return star * twinkle;
+    float point = step(length(local - jitter), 0.11);
+    return star * twinkle * point;
 }
 
 vec2 ship_position(float time)
 {
     float ship_x = -0.50;
-    float world_x = ship_x * 3.2 + time * 1.15;
+    float world_x = screen_to_world_x(ship_x, time);
     float terrain = ground_height(world_x);
     float ship_y = terrain + 0.22 + 0.04 * sin(time * 1.6) + 0.02 * sin(time * 3.4 + 0.9);
     return vec2(ship_x, ship_y);
 }
 
+float ship_angle(float time)
+{
+    return time * 0.95;
+}
+
 vec3 render_ship(vec2 p, vec2 ship_pos, float time)
 {
-    float angle = 0.10 * sin(time * 1.6) + 0.05 * sin(time * 3.2 + 1.2);
-    vec2 q = rotate2(-angle) * (p - ship_pos);
+    float angle = ship_angle(time);
+    vec2 q = p - ship_pos;
+    float scale = 24.0;
+    float depth = 1.0;
+
+    vec3 nose = vec3(1.7, 0.0, 0.0);
+    vec3 base_a = vec3(-1.1, -0.9, -0.9);
+    vec3 base_b = vec3(-1.1, 0.9, -0.9);
+    vec3 base_c = vec3(-1.1, 0.9, 0.9);
+    vec3 base_d = vec3(-1.1, -0.9, 0.9);
 
     float hull = 0.0;
-    hull += line_mask(q, vec2(-0.11, 0.00), vec2(-0.02, 0.045), 0.008);
-    hull += line_mask(q, vec2(-0.11, 0.00), vec2(-0.02, -0.045), 0.008);
-    hull += line_mask(q, vec2(-0.02, 0.045), vec2(0.080, 0.00), 0.008);
-    hull += line_mask(q, vec2(-0.02, -0.045), vec2(0.080, 0.00), 0.008);
-    hull += line_mask(q, vec2(-0.02, 0.024), vec2(-0.02, -0.024), 0.005);
-    hull += line_mask(q, vec2(-0.06, 0.000), vec2(-0.105, 0.026), 0.005);
-    hull += line_mask(q, vec2(-0.06, 0.000), vec2(-0.105, -0.026), 0.005);
-    hull = clamp(hull, 0.0, 1.0);
+    hull += projected_segment_mask(q, nose, base_a, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, nose, base_b, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, nose, base_c, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, nose, base_d, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_a, base_b, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_b, base_c, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_c, base_d, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_d, base_a, angle, scale, depth, 0.75);
 
-    float canopy = ellipse_mask(q - vec2(0.003, 0.0), vec2(0.018, 0.012));
-    float flame_phase = fract(time * 6.0);
-    float flame_length = 0.045 + 0.020 * step(0.5, flame_phase);
-    float flame = 0.0;
-    flame += line_mask(q, vec2(-0.112, 0.000), vec2(-0.150 - flame_length, 0.000), 0.010);
-    flame += line_mask(q, vec2(-0.100, 0.012), vec2(-0.126 - flame_length * 0.5, 0.020), 0.006);
-    flame += line_mask(q, vec2(-0.100, -0.012), vec2(-0.126 - flame_length * 0.5, -0.020), 0.006);
-    flame = clamp(flame, 0.0, 1.0);
-
-    vec3 color = vec3(0.18, 0.95, 1.0) * hull;
-    color += vec3(1.0, 0.30, 0.70) * canopy * 0.75;
-    color += mix(vec3(1.0, 0.42, 0.08), vec3(1.0, 0.92, 0.30), step(0.5, flame_phase)) * flame;
-    return color;
+    return vec3(0.18, 0.95, 1.0) * step(0.5, hull);
 }
 
 float explosion_mask(vec2 p, float phase)
@@ -144,40 +218,196 @@ float explosion_mask(vec2 p, float phase)
         return 0.0;
     }
 
-    float radius = 0.018 + phase * 0.10;
-    float ring = ring_mask(p, radius, 0.010);
-    float spokes = step(0.82, abs(sin(atan(p.y, p.x) * 6.0 + phase * 14.0)));
-    float core = step(length(p), 0.018 + (1.0 - phase) * 0.02);
+    float px = viewport_pixel();
+    float radius = (2.0 + phase * 8.0) * px;
+    float ring = ring_mask(p, radius, px * 0.75);
+    float spokes = step(0.88, abs(sin(atan(p.y, p.x) * 6.0 + phase * 14.0)));
+    float core = step(length(p), (1.0 + (1.0 - phase) * 2.0) * px);
     return clamp(ring * spokes + core * (1.0 - step(0.7, phase)), 0.0, 1.0);
+}
+
+float enemy_variant(float seed)
+{
+    return mod(floor(seed), 5.0);
+}
+
+float enemy_scale(float variant)
+{
+    return 20.0 + variant * 2.6;
+}
+
+float enemy_spin_speed(float seed)
+{
+    return 0.70 + hash11(seed * 5.3 + 7.1) * 1.45;
+}
+
+float enemy_spin_intensity(float seed)
+{
+    return 0.65 + hash11(seed * 3.7 + 19.0) * 0.85;
+}
+
+vec2 enemy_hit_half_extent(float variant)
+{
+    float scale = enemy_scale(variant);
+    return vec2(0.72, 0.56) * scale * viewport_pixel();
+}
+
+float fragment_wire(vec2 q, float angle, float scale, float depth)
+{
+    vec3 nose = vec3(1.2, 0.0, 0.0);
+    vec3 base_a = vec3(-0.9, -0.7, -0.6);
+    vec3 base_b = vec3(-0.9, 0.7, -0.6);
+    vec3 base_c = vec3(-0.9, 0.0, 0.8);
+
+    float hull = 0.0;
+    hull += projected_segment_mask(q, nose, base_a, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, nose, base_b, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, nose, base_c, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_a, base_b, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_b, base_c, angle, scale, depth, 0.75);
+    hull += projected_segment_mask(q, base_c, base_a, angle, scale, depth, 0.75);
+    return step(0.5, hull);
+}
+
+vec3 render_debris_cluster(vec2 p, float impact_world_x, float impact_y, float age, float seed, vec3 tint, float time)
+{
+    if (age <= 0.0)
+    {
+        return vec3(0.0);
+    }
+
+    vec3 color = vec3(0.0);
+    float fade = clamp(1.0 - age * 0.75, 0.0, 1.0);
+
+    for (int i = 0; i < 6; ++i)
+    {
+        float fi = float(i);
+        float frag_seed = seed * 13.7 + fi * 7.3;
+        float drift_x = (hash11(frag_seed + 1.0) - 0.5) * age * 1.35;
+        float drift_y = (hash11(frag_seed + 2.0) - 0.25) * age * 0.75 - age * age * 0.28;
+        float world_x = impact_world_x + drift_x;
+        vec2 center = vec2(world_to_screen_x(world_x, time), impact_y + drift_y);
+        float spin = age * (5.0 + hash11(frag_seed + 3.0) * 8.0) + hash11(frag_seed + 4.0) * kTau;
+        float scale = 4.0 + hash11(frag_seed + 5.0) * 3.0;
+        float depth = 0.55 + hash11(frag_seed + 6.0) * 0.95;
+        float fragment = fragment_wire(p - center, spin, scale, depth);
+        color += tint * fragment * fade;
+    }
+
+    return color;
 }
 
 vec3 render_enemy(vec2 p, vec2 enemy_pos, float seed, float time, float explode)
 {
-    float wobble = 0.18 * sin(time * 1.8 + seed * 5.7);
-    vec2 q = rotate2(wobble) * (p - enemy_pos);
+    float px = viewport_pixel();
+    vec2 q = p - enemy_pos;
+    float variant = enemy_variant(seed);
+    float scale = enemy_scale(variant);
+    float angle = time * enemy_spin_speed(seed) + seed * 1.7;
+    float depth = enemy_spin_intensity(seed);
 
     float frame = 0.0;
-    frame += line_mask(q, vec2(-0.048, 0.000), vec2(0.000, 0.032), 0.005);
-    frame += line_mask(q, vec2(-0.048, 0.000), vec2(0.000, -0.032), 0.005);
-    frame += line_mask(q, vec2(0.000, 0.032), vec2(0.048, 0.000), 0.005);
-    frame += line_mask(q, vec2(0.000, -0.032), vec2(0.048, 0.000), 0.005);
-    frame += line_mask(q, vec2(-0.020, 0.000), vec2(0.020, 0.000), 0.004);
-    frame += line_mask(q, vec2(0.000, 0.032), vec2(0.000, 0.052), 0.003);
-    frame = clamp(frame, 0.0, 1.0);
+    if (variant < 0.5)
+    {
+        vec3 nose = vec3(1.5, 0.0, 0.0);
+        vec3 base_a = vec3(-1.0, -0.8, -0.8);
+        vec3 base_b = vec3(-1.0, 0.8, -0.8);
+        vec3 base_c = vec3(-1.0, 0.8, 0.8);
+        vec3 base_d = vec3(-1.0, -0.8, 0.8);
+        frame += projected_segment_mask(q, nose, base_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, base_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, base_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, base_d, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, base_a, base_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, base_b, base_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, base_c, base_d, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, base_d, base_a, angle, scale, depth, 0.75);
+    }
+    else if (variant < 1.5)
+    {
+        vec3 nose = vec3(1.8, 0.0, 0.0);
+        vec3 tail = vec3(-1.6, 0.0, 0.0);
+        vec3 ring_a = vec3(0.0, -1.0, -1.0);
+        vec3 ring_b = vec3(0.0, 1.0, -1.0);
+        vec3 ring_c = vec3(0.0, 1.0, 1.0);
+        vec3 ring_d = vec3(0.0, -1.0, 1.0);
+        frame += projected_segment_mask(q, nose, ring_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, ring_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, ring_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, ring_d, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, ring_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, ring_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, ring_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, ring_d, angle, scale, depth, 0.75);
+    }
+    else if (variant < 2.5)
+    {
+        vec3 nose = vec3(1.6, 0.0, 0.0);
+        vec3 mid_a = vec3(-0.2, -1.1, -0.9);
+        vec3 mid_b = vec3(-0.2, 1.1, -0.9);
+        vec3 mid_c = vec3(-0.2, 1.1, 0.9);
+        vec3 mid_d = vec3(-0.2, -1.1, 0.9);
+        vec3 tail = vec3(-1.5, 0.0, 0.0);
+        frame += projected_segment_mask(q, nose, mid_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, mid_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, mid_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, mid_d, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, mid_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, mid_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, mid_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, mid_d, angle, scale, depth, 0.75);
+    }
+    else if (variant < 3.5)
+    {
+        vec3 nose = vec3(1.5, 0.0, 0.0);
+        vec3 top = vec3(-0.6, 0.0, 1.2);
+        vec3 bottom = vec3(-0.6, 0.0, -1.2);
+        vec3 left = vec3(-0.6, -1.2, 0.0);
+        vec3 right = vec3(-0.6, 1.2, 0.0);
+        vec3 tail = vec3(-1.7, 0.0, 0.0);
+        frame += projected_segment_mask(q, nose, top, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, bottom, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, left, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, right, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, top, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, bottom, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, left, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, right, angle, scale, depth, 0.75);
+    }
+    else
+    {
+        vec3 nose = vec3(1.9, 0.0, 0.0);
+        vec3 tail = vec3(-1.4, 0.0, 0.0);
+        vec3 wing_a = vec3(0.0, -1.3, -0.7);
+        vec3 wing_b = vec3(0.0, 1.3, -0.7);
+        vec3 wing_c = vec3(0.0, 1.3, 0.7);
+        vec3 wing_d = vec3(0.0, -1.3, 0.7);
+        frame += projected_segment_mask(q, nose, wing_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, wing_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, wing_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, nose, wing_d, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, wing_a, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, wing_b, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, wing_c, angle, scale, depth, 0.75);
+        frame += projected_segment_mask(q, tail, wing_d, angle, scale, depth, 0.75);
+    }
+    frame = step(0.5, frame);
 
-    float eye = ellipse_mask(q, vec2(0.012, 0.007));
+    vec2 core = project_forward_vertex(vec3(0.3, 0.0, 0.0), angle, scale, depth);
+    float eye = box_mask(q - core, vec2(1.3, 1.3) * px);
     vec3 tint = palette(seed * 0.19 + time * 0.015);
     tint = mix(tint, tint.gbr, 0.25);
+    float destroyed = step(0.001, explode);
 
-    vec3 color = tint * frame * (1.0 - explode);
-    color += vec3(1.0, 0.90, 0.30) * eye * step(0.45, sin(time * 8.0 + seed * 11.0) * 0.5 + 0.5) * (1.0 - explode);
-    color += tint.brg * explosion_mask(p - enemy_pos, explode);
+    vec3 color = tint * frame * (1.0 - destroyed);
+    color += vec3(1.0, 0.90, 0.30) * eye * step(0.45, sin(time * 8.0 + seed * 11.0) * 0.5 + 0.5) * (1.0 - destroyed);
     return color;
 }
 
 vec3 render_population(vec2 p, float time)
 {
     vec3 color = vec3(0.0);
+    float px = viewport_pixel();
     float cell_origin = floor((time * 1.15) / 0.42);
 
     for (int i = 0; i < 12; ++i)
@@ -187,10 +417,10 @@ vec3 render_population(vec2 p, float time)
         float screen_x = (world_x - time * 1.15) / 3.2;
         float terrain = ground_height(world_x);
         float tower_height = 0.035 + floor(hash11(id + 9.0) * 4.0) * 0.014;
-        float tower = line_mask(p, vec2(screen_x, terrain + 0.008), vec2(screen_x, terrain + tower_height), 0.004);
-        float cap = box_mask(p - vec2(screen_x, terrain + tower_height + 0.005), vec2(0.006, 0.005));
-        float human_offset = mix(-0.018, 0.018, step(0.5, fract(id * 0.37)));
-        float human = box_mask(p - vec2(screen_x + human_offset, terrain + 0.012), vec2(0.003, 0.005));
+        float tower = line_mask(p, vec2(screen_x, terrain + 0.008), vec2(screen_x, terrain + tower_height), 0.75);
+        float cap = box_mask(p - vec2(screen_x, terrain + tower_height + 2.0 * px), vec2(2.0, 1.5) * px);
+        float human_offset = mix(-5.0, 5.0, step(0.5, fract(id * 0.37))) * px;
+        float human = box_mask(p - vec2(screen_x + human_offset, terrain + 3.0 * px), vec2(1.0, 2.0) * px);
         vec3 tint = palette(id * 0.07 + 0.15);
 
         color += tint * tower * 0.30;
@@ -331,6 +561,14 @@ float glyph3(vec2 local, int glyph)
     {
         mask = glyph_rows(cell, 7.0, 4.0, 6.0, 4.0, 7.0);
     }
+    else if (glyph == GLYPH_T)
+    {
+        mask = glyph_rows(cell, 7.0, 2.0, 2.0, 2.0, 2.0);
+    }
+    else if (glyph == GLYPH_B)
+    {
+        mask = glyph_rows(cell, 6.0, 5.0, 6.0, 5.0, 6.0);
+    }
 
     return step(0.5, mask);
 }
@@ -359,109 +597,258 @@ float draw_number(vec2 cell, vec2 origin, float value, int digits)
     return step(0.5, mask);
 }
 
+float seven_seg_digit(vec2 local, int digit)
+{
+    vec2 cell = floor(local);
+    if (cell.x < 0.0 || cell.x > 5.0 || cell.y < 0.0 || cell.y > 8.0)
+    {
+        return 0.0;
+    }
+
+    float seg_a = rect_fill(cell, vec2(1.0, 0.0), vec2(4.0, 0.0));
+    float seg_b = rect_fill(cell, vec2(5.0, 1.0), vec2(5.0, 3.0));
+    float seg_c = rect_fill(cell, vec2(5.0, 5.0), vec2(5.0, 7.0));
+    float seg_d = rect_fill(cell, vec2(1.0, 8.0), vec2(4.0, 8.0));
+    float seg_e = rect_fill(cell, vec2(0.0, 5.0), vec2(0.0, 7.0));
+    float seg_f = rect_fill(cell, vec2(0.0, 1.0), vec2(0.0, 3.0));
+    float seg_g = rect_fill(cell, vec2(1.0, 4.0), vec2(4.0, 4.0));
+
+    float mask = 0.0;
+    if (digit == 0 || digit == 2 || digit == 3 || digit == 5 || digit == 6 || digit == 7 || digit == 8 || digit == 9)
+    {
+        mask += seg_a;
+    }
+    if (digit == 0 || digit == 1 || digit == 2 || digit == 3 || digit == 4 || digit == 7 || digit == 8 || digit == 9)
+    {
+        mask += seg_b;
+    }
+    if (digit == 0 || digit == 1 || digit == 3 || digit == 4 || digit == 5 || digit == 6 || digit == 7 || digit == 8 ||
+        digit == 9)
+    {
+        mask += seg_c;
+    }
+    if (digit == 0 || digit == 2 || digit == 3 || digit == 5 || digit == 6 || digit == 8 || digit == 9)
+    {
+        mask += seg_d;
+    }
+    if (digit == 0 || digit == 2 || digit == 6 || digit == 8)
+    {
+        mask += seg_e;
+    }
+    if (digit == 0 || digit == 4 || digit == 5 || digit == 6 || digit == 8 || digit == 9)
+    {
+        mask += seg_f;
+    }
+    if (digit == 2 || digit == 3 || digit == 4 || digit == 5 || digit == 6 || digit == 8 || digit == 9)
+    {
+        mask += seg_g;
+    }
+
+    return step(0.5, mask);
+}
+
+float draw_seven_seg_number(vec2 cell, vec2 origin, float value, int digits)
+{
+    float safe_value = floor(max(value, 0.0));
+    float mask = 0.0;
+
+    for (int i = 0; i < 8; ++i)
+    {
+        if (i < digits)
+        {
+            int place = digits - 1 - i;
+            float divisor = pow(10.0, float(place));
+            int digit = int(mod(floor(safe_value / divisor), 10.0));
+            vec2 local = cell - (origin + vec2(float(i) * 8.0, 0.0));
+            mask += seven_seg_digit(local, digit);
+        }
+    }
+
+    return step(0.5, mask);
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-    float pixel_scale = max(floor(iResolution.y / 150.0), 1.0);
-    vec2 raster_coord = floor(fragCoord / pixel_scale);
-    vec2 raster_res = max(floor(iResolution.xy / pixel_scale), vec2(1.0));
-    vec2 uv = (raster_coord + 0.5) / raster_res;
-    vec2 p = (raster_coord + 0.5 - 0.5 * raster_res) / raster_res.y;
+    float px = viewport_pixel();
+    vec2 uv = fragCoord / iResolution.xy;
+    vec2 p = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
     float time = iTime;
 
-    vec3 color = vec3(0.01, 0.01, 0.04);
-    color = mix(color, vec3(0.01, 0.05, 0.12), step(0.32, uv.y));
-    color = mix(color, vec3(0.02, 0.10, 0.22), step(0.68, uv.y));
-    color += vec3(1.0, 0.22, 0.56) * step(abs(p.y - 0.01), 0.006);
+    vec3 color = vec3(0.0);
 
-    float stars_a = star_layer(uv + vec2(0.0, 0.00), 46.0, 0.05, 0.982, 3.0);
-    float stars_b = star_layer(uv + vec2(0.0, 0.11), 62.0, 0.09, 0.988, 9.0);
-    float stars_c = star_layer(uv + vec2(0.0, 0.19), 78.0, 0.15, 0.992, 15.0);
-    color += vec3(0.70, 0.90, 1.0) * stars_a;
-    color += vec3(1.0, 0.55, 0.80) * stars_b;
-    color += vec3(1.0, 0.90, 0.35) * stars_c;
-
-    float far_ridge = ridge_far(p.x * 2.0 + time * 0.10);
-    float mid_ridge = ridge_mid(p.x * 2.5 + time * 0.18);
-    color = mix(color, vec3(0.04, 0.02, 0.08), step(p.y, far_ridge));
-    color += vec3(0.78, 0.28, 0.92) * step(abs(p.y - far_ridge), 0.008);
-    color = mix(color, vec3(0.02, 0.08, 0.10), step(p.y, mid_ridge));
-    color += vec3(0.10, 0.86, 1.0) * step(abs(p.y - mid_ridge), 0.008);
-
-    float world_x = p.x * 3.2 + time * 1.15;
+    float world_x = screen_to_world_x(p.x, time);
     float ground = ground_height(world_x);
+    float sky_floor = ground + px;
+    float sky_mask = step(sky_floor, p.y);
+
+    float stars_a = star_layer(uv, 220.0, 0.020, 0.9970, 3.0) * sky_mask;
+    float stars_b = star_layer(uv + vec2(0.0, 0.07), 300.0, 0.035, 0.9980, 9.0) * sky_mask;
+    float stars_c = star_layer(uv + vec2(0.0, 0.12), 380.0, 0.050, 0.9988, 15.0) * sky_mask;
+    color += vec3(0.55, 0.78, 1.0) * stars_a;
+    color += vec3(1.0, 0.52, 0.76) * stars_b;
+    color += vec3(1.0, 0.88, 0.32) * stars_c;
+
     vec3 ground_line_color = mix(palette(world_x * 0.03 + 0.22), vec3(0.24, 1.0, 0.55), 0.50);
-    color = mix(color, vec3(0.02, 0.08, 0.03), step(p.y, ground));
-    color += ground_line_color * step(abs(p.y - ground), 0.009);
+    color += ground_line_color * step(abs(p.y - ground), px * 0.75);
     color += render_population(p, time);
 
     vec2 ship_pos = ship_position(time);
     color += render_ship(p, ship_pos, time);
 
-    float current_score = 1250.0;
-    for (int i = 0; i < 6; ++i)
+    float collision_score = 0.0;
+    float collision_pulse_score = 0.0;
+    for (int i = 0; i < 12; ++i)
     {
         float fi = float(i);
         float seed = fi + 1.0;
-        float cycle = fract(time * (0.18 + fi * 0.015) + seed * 0.173);
-        float enemy_x = mix(1.12, -1.14, cycle);
-        float enemy_y = 0.10 + 0.22 * sin(time * (0.95 + fi * 0.12) + seed * 1.7) + 0.07 * sin(time * 2.2 + seed * 2.7);
-        vec2 enemy_pos = vec2(enemy_x, enemy_y);
+        vec2 enemy_pos = enemy_position(fi, seed, time);
+        float variant = enemy_variant(seed);
+        vec2 enemy_hit_half = enemy_hit_half_extent(variant);
+        float enemy_ground = ground_screen_y(enemy_pos.x, time);
 
         float shot_rate = 0.25 + fi * 0.018;
         float shot_phase = fract(time * shot_rate + seed * 0.21);
-        float beam = step(abs(shot_phase - 0.72), 0.06);
-        float explode = 0.0;
-        if (shot_phase >= 0.74 && shot_phase < 0.92)
+        float projectile_live = step(0.48, shot_phase) * (1.0 - step(0.62, shot_phase));
+        float projectile_t = clamp((shot_phase - 0.48) / 0.14, 0.0, 1.0);
+
+        float shot_start_time = time;
+        vec2 muzzle = vec2(0.0);
+        vec2 projectile_center = vec2(0.0);
+        vec2 projectile_start = vec2(0.0);
+        vec2 projectile_end = vec2(0.0);
+        float enemy_hit_phase = 2.0;
+        float ground_hit_phase = 2.0;
+        float enemy_impact_world_x = screen_to_world_x(enemy_pos.x, time);
+        float enemy_impact_y = enemy_pos.y;
+        float projectile_ground_world_x = screen_to_world_x(projectile_center.x, time);
+        float projectile_ground_y = 0.0;
+
+        if (shot_phase >= 0.48)
         {
-            explode = (shot_phase - 0.74) / 0.18;
+            shot_start_time = time - (shot_phase - 0.48) / max(shot_rate, 0.001);
+            vec2 shot_ship_pos = ship_position(shot_start_time);
+            muzzle =
+                shot_ship_pos + project_forward_vertex(vec3(1.7, 0.0, 0.0), ship_angle(shot_start_time), 24.0, 1.0);
+            projectile_center = muzzle + vec2(projectile_t * 2.20, 0.0);
+            projectile_start = projectile_center - vec2(5.0 * px, 0.0);
+            projectile_end = projectile_center + vec2(4.0 * px, 0.0);
+
+            vec2 expanded_enemy_hit = enemy_hit_half + vec2(7.0 * px, 9.0 * px);
+            float shot_window_end = min(shot_phase, 0.62);
+            for (int sample = 0; sample < 12; ++sample)
+            {
+                float sample_t = float(sample) / 11.0;
+                float sample_phase = mix(0.48, 0.62, sample_t);
+                if (sample_phase > shot_window_end)
+                {
+                    continue;
+                }
+
+                float sample_time = time - (shot_phase - sample_phase) / max(shot_rate, 0.001);
+                vec2 sample_enemy_pos = enemy_position(fi, seed, sample_time);
+                float sample_projectile_t = (sample_phase - 0.48) / 0.14;
+                vec2 sample_center = muzzle + vec2(sample_projectile_t * 2.20, 0.0);
+                vec2 sample_start = sample_center - vec2(5.0 * px, 0.0);
+                vec2 sample_end = sample_center + vec2(4.0 * px, 0.0);
+                float sample_ground_y =
+                    max(ground_screen_y(sample_start.x, sample_time),
+                        max(ground_screen_y(sample_center.x, sample_time), ground_screen_y(sample_end.x, sample_time)));
+
+                if (enemy_hit_phase > 1.5 &&
+                    horizontal_segment_hits_box(sample_start, sample_end, sample_enemy_pos, expanded_enemy_hit) > 0.5)
+                {
+                    enemy_hit_phase = sample_phase;
+                    enemy_impact_world_x = screen_to_world_x(sample_enemy_pos.x, sample_time);
+                    enemy_impact_y = sample_enemy_pos.y;
+                }
+                if (ground_hit_phase > 1.5 && sample_center.y <= sample_ground_y + px)
+                {
+                    ground_hit_phase = sample_phase;
+                    projectile_ground_world_x = screen_to_world_x(sample_center.x, sample_time);
+                    projectile_ground_y = sample_ground_y;
+                }
+            }
         }
 
-        float kills = max(floor(time * shot_rate + seed * 0.21 - 0.74) + 1.0, 0.0);
-        current_score += kills * (150.0 + fi * 25.0);
+        float enemy_explosion = 0.0;
+        float enemy_hit_started = 0.0;
+        if (enemy_hit_phase < 1.5 && shot_phase >= enemy_hit_phase)
+        {
+            enemy_hit_started = 1.0 - step(enemy_hit_phase + 0.03, shot_phase);
+            enemy_explosion = clamp((shot_phase - enemy_hit_phase) / 0.24 + 0.04, 0.0, 1.0);
+        }
+
+        float ground_explosion = 0.0;
+        if (ground_hit_phase < 1.5 && shot_phase >= ground_hit_phase)
+        {
+            ground_explosion = clamp((shot_phase - ground_hit_phase) / 0.18 + 0.05, 0.0, 1.0);
+        }
+
+        float enemy_ground_hit = step(enemy_pos.y - enemy_hit_half.y, enemy_ground + px);
+        float enemy_ground_explosion = enemy_ground_hit * 0.70;
+        float enemy_destroyed = max(enemy_explosion, enemy_ground_explosion);
+        float projectile_blocked = max(step(enemy_hit_phase, shot_phase) * (1.0 - step(1.5, enemy_hit_phase)),
+                                       step(ground_hit_phase, shot_phase) * (1.0 - step(1.5, ground_hit_phase)));
+        float projectile_visible = projectile_live * (1.0 - projectile_blocked);
+
+        collision_score += enemy_points(fi) * step(0.001, enemy_explosion);
+        collision_pulse_score += enemy_points(fi) * enemy_hit_started;
 
         vec3 beam_color = mix(vec3(0.16, 0.92, 1.0), vec3(1.0, 0.90, 0.22), hash11(seed + 8.0));
-        color += render_enemy(p, enemy_pos, seed, time, explode);
-        color += beam_color * line_mask(p, ship_pos + vec2(0.065, 0.0), enemy_pos, 0.006) * beam;
-        color += beam_color * box_mask(p - (ship_pos + vec2(0.070, 0.0)), vec2(0.006, 0.006)) * beam;
+        color += render_enemy(p, enemy_pos, seed, time, enemy_destroyed);
+        color += beam_color * line_mask(p, projectile_start, projectile_end, 0.75) * projectile_visible;
+        color += render_debris_cluster(p, enemy_impact_world_x, enemy_impact_y, enemy_explosion, seed,
+                                       vec3(1.0, 0.58, 0.18), time);
+        color += render_debris_cluster(p, projectile_ground_world_x, projectile_ground_y, ground_explosion, seed + 19.0,
+                                       vec3(1.0, 0.85, 0.25), time);
     }
 
-    float zone = floor(time / 18.0) + 1.0;
-    float high_score = max(24000.0, current_score + 3650.0);
+    float total_score = floor((3200.0 + floor(time * 110.0) * 10.0 + collision_score * 2.0) / 5.0) * 5.0;
+    float hit_score = floor((collision_pulse_score + hash12(vec2(floor(time * 10.0), 7.0)) * 125.0) / 5.0) * 5.0;
+    float bonus_score =
+        floor((600.0 + floor(time * 14.0) * 15.0 + hash12(vec2(floor(time * 6.0), 19.0)) * 900.0) / 5.0) * 5.0;
 
-    vec2 cell = raster_coord;
-    float hud_bg = rect_fill(cell, vec2(0.0, 0.0), vec2(raster_res.x - 1.0, 16.0));
-    float hud_frame = rect_outline(cell, vec2(1.0, 1.0), vec2(raster_res.x - 2.0, 15.0));
-    color = mix(color, vec3(0.00, 0.02, 0.06), hud_bg);
-    color += vec3(0.10, 0.58, 1.0) * hud_frame;
+    float hud_scale = max(floor(iResolution.y / 300.0), 2.0);
+    vec2 cell = floor(fragCoord / hud_scale);
+    vec2 hud_res = max(floor(iResolution.xy / hud_scale), vec2(1.0));
+    float hud_band = rect_fill(cell, vec2(0.0, 0.0), vec2(hud_res.x - 1.0, 16.0));
+    color = mix(color, vec3(0.0), hud_band * 0.18);
 
-    float left_label = 0.0;
-    left_label += draw_char(cell, vec2(5.0, 5.0), 1);
-    left_label += draw_char(cell, vec2(9.0, 5.0), GLYPH_U);
-    left_label += draw_char(cell, vec2(13.0, 5.0), GLYPH_P);
-    float left_score = draw_number(cell, vec2(19.0, 5.0), current_score, 6);
+    float panel_width = floor((hud_res.x - 18.0) / 3.0);
+    float group_a_x = 6.0;
+    float group_b_x = 8.0 + panel_width;
+    float group_c_x = 10.0 + panel_width * 2.0;
 
-    float hi_label = 0.0;
-    hi_label += draw_char(cell, vec2(100.0, 5.0), GLYPH_H);
-    hi_label += draw_char(cell, vec2(104.0, 5.0), GLYPH_I);
-    float hi_score_digits = draw_number(cell, vec2(112.0, 5.0), high_score, 6);
+    float underline_a = rect_fill(cell, vec2(group_a_x, 15.0), vec2(group_a_x + panel_width - 8.0, 15.0));
+    float underline_b = rect_fill(cell, vec2(group_b_x, 15.0), vec2(group_b_x + panel_width - 8.0, 15.0));
+    float underline_c = rect_fill(cell, vec2(group_c_x, 15.0), vec2(group_c_x + panel_width - 8.0, 15.0));
 
-    float zone_label = 0.0;
-    zone_label += draw_char(cell, vec2(196.0, 5.0), GLYPH_Z);
-    zone_label += draw_char(cell, vec2(200.0, 5.0), GLYPH_O);
-    zone_label += draw_char(cell, vec2(204.0, 5.0), GLYPH_N);
-    zone_label += draw_char(cell, vec2(208.0, 5.0), GLYPH_E);
-    float zone_digits = draw_number(cell, vec2(216.0, 5.0), zone, 2);
+    float left_prefix = 0.0;
+    left_prefix += draw_char(cell, vec2(group_a_x, 2.0), 1);
+    left_prefix += draw_char(cell, vec2(group_a_x + 4.0, 2.0), GLYPH_U);
+    left_prefix += draw_char(cell, vec2(group_a_x + 8.0, 2.0), GLYPH_P);
+    float left_score_digits = draw_seven_seg_number(cell, vec2(group_a_x + 16.0, 4.0), total_score, 6);
 
-    color += vec3(1.0, 0.35, 0.25) * step(0.5, left_label);
-    color += vec3(1.0, 0.82, 0.35) * step(0.5, left_score);
-    color += vec3(0.15, 0.92, 1.0) * step(0.5, hi_label);
-    color += vec3(0.95, 0.95, 1.0) * step(0.5, hi_score_digits);
-    color += vec3(1.0, 0.92, 0.35) * step(0.5, zone_label + zone_digits);
+    float mid_prefix = 0.0;
+    mid_prefix += draw_char(cell, vec2(group_b_x, 2.0), GLYPH_H);
+    mid_prefix += draw_char(cell, vec2(group_b_x + 4.0, 2.0), GLYPH_I);
+    mid_prefix += draw_char(cell, vec2(group_b_x + 8.0, 2.0), GLYPH_T);
+    float mid_score_digits = draw_seven_seg_number(cell, vec2(group_b_x + 16.0, 4.0), hit_score, 6);
 
-    float scanline = 1.0 - 0.08 * mod(fragCoord.y, 2.0);
-    float dither = (mod(raster_coord.x + raster_coord.y * 2.0, 4.0) - 1.5) / 28.0;
+    float right_prefix = 0.0;
+    right_prefix += draw_char(cell, vec2(group_c_x, 2.0), GLYPH_B);
+    right_prefix += draw_char(cell, vec2(group_c_x + 4.0, 2.0), GLYPH_O);
+    right_prefix += draw_char(cell, vec2(group_c_x + 8.0, 2.0), GLYPH_N);
+    float right_score_digits = draw_seven_seg_number(cell, vec2(group_c_x + 16.0, 4.0), bonus_score, 6);
+
+    color += vec3(1.0, 0.46, 0.24) * (left_prefix + left_score_digits + underline_a);
+    color += vec3(0.22, 0.95, 1.0) * (mid_prefix + mid_score_digits + underline_b);
+    color += vec3(1.0, 0.92, 0.35) * (right_prefix + right_score_digits + underline_c);
+
+    float scanline = 1.0 - 0.04 * mod(fragCoord.y, 2.0);
+    float dither = (mod(floor(fragCoord.x) + floor(fragCoord.y) * 2.0, 4.0) - 1.5) / 36.0;
     color = clamp(color + dither, 0.0, 1.0);
-    color = floor(color * 6.0 + 0.5) / 6.0;
+    color = floor(color * 7.0 + 0.5) / 7.0;
     color *= scanline;
 
     fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);

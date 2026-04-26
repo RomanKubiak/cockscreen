@@ -56,17 +56,17 @@
         },
         /* Audio input used for global uniforms like u_audio_rms and u_audio_fft[16]. */
         "audio": {
-            "enabled": true,
+            "enabled": false,
             "device": "@default_input@"
         },
         /* MIDI input used for global note / CC state and mapping targets. */
         "midi": {
-            "enabled": true,
+            "enabled": false,
             "device": "through"
         }
     },
     /* Status overlay in the top-left diagnostic HUD. */
-    "show_status_overlay": true,
+    "show_status_overlay": false,
     /* Burned-in timecode overlay on the playback image. */
     "timecode": false,
     /*
@@ -86,7 +86,7 @@
         ]
     },
     "playback": {
-        "enabled": true,
+        "enabled": false,
         "shaders": [
             "pink_key.glsl"
         ]
@@ -94,7 +94,9 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "defender_autoplay.glsl"
+            "defender_autoplay.glsl",
+            "rorschach_inkblot.glsl",
+            "crt_noise.glsl"
         ]
     },
     /* Back-to-front final compositing order. */
