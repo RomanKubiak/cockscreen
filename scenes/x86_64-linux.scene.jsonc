@@ -95,7 +95,6 @@
         "enabled": true,
         "shaders": [
             "defender_autoplay.glsl",
-            "rorschach_inkblot.glsl",
             "crt_noise.glsl"
         ]
     },
