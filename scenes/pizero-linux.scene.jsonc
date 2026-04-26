@@ -1,11 +1,11 @@
 {
-    // Raspberry Pi Zero 2 W preset for fullscreen device use.
+    /* Raspberry Pi Zero 2 W preset for fullscreen device use. */
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
-    // Background image object form supports file + placement.
+    /* Background image object form supports file + placement. */
     "background_image": {
         "file": "textures/masazer.jpg",
-        // Parser accepts centered as an alias for center.
+        /* Parser accepts centered as an alias for center. */
         "placement": "centered"
     },
     "shader_directory": "../shaders/",
@@ -35,7 +35,7 @@
                 "x": 0.02,
                 "y": 0.02
             },
-            // Null or omitted loop_end_ms disables a custom loop end.
+            /* Null or omitted loop_end_ms disables a custom loop end. */
             "start_ms": 0,
             "loop_start_ms": 0,
             "loop_end_ms": null,
@@ -65,7 +65,7 @@
         "audio_reactivity": 0.45,
         "midi_reactivity": 0.35
     },
-    // Enabled layer + ordered shader chain per compositing stage.
+    /* Enabled layer + ordered shader chain per compositing stage. */
     "video": {
         "enabled": true,
         "shaders": [
@@ -85,7 +85,7 @@
             "kaleidoscope.glsl"
         ]
     },
-    // Compositing order from back to front.
+    /* Compositing order from back to front. */
     "layer_order": [
         "screen",
         "playback",
@@ -143,7 +143,7 @@
             "exponent": 1.0
         }
     ],
-    // OSC mappings use address -> uniform translation with min/max/exponent shaping.
+    /* OSC mappings use address -> uniform translation with min/max/exponent shaping. */
     "osc_mappings": [
         {
             "address": "/cockscreen/key/hue",

@@ -25,11 +25,12 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
-#include <optional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace cockscreen::runtime
@@ -125,6 +126,62 @@ QStringList wrap_overlay_line(const QString &text, int preferred_chars)
     }
 
     return wrapped_lines.isEmpty() ? QStringList{text} : wrapped_lines;
+}
+
+QString build_peak_bar(float peak_level, int width)
+{
+    const int clamped_width = std::max(width, 1);
+    const float normalized = std::clamp(peak_level, 0.0F, 1.0F);
+    const int filled_width = std::clamp(static_cast<int>(normalized * static_cast<float>(clamped_width) + 0.5F), 0,
+                                        clamped_width);
+    return QStringLiteral("[%1%2]")
+        .arg(QString{filled_width, QLatin1Char('#')})
+        .arg(QString{clamped_width - filled_width, QLatin1Char('.')});
+}
+
+QString build_audio_peak_overlay_line(const AudioAnalysisWindow &audio_analysis)
+{
+    const int channel_count = audio_analysis.opened_channel_count();
+    if (channel_count <= 0)
+    {
+        return QString{};
+    }
+
+    QStringList segments;
+    segments << QStringLiteral("Peaks %1ch").arg(channel_count);
+
+    const int visible_channel_count = std::min(channel_count, 2);
+    for (int channel = 0; channel < visible_channel_count; ++channel)
+    {
+        const QString label = channel_count == 1 ? QStringLiteral("M")
+                                                 : (channel == 0 ? QStringLiteral("L") : QStringLiteral("R"));
+        segments << QStringLiteral("%1 %2").arg(label, build_peak_bar(audio_analysis.channel_peak_level(channel), 10));
+    }
+
+    if (channel_count > visible_channel_count)
+    {
+        segments << QStringLiteral("+%1 more").arg(channel_count - visible_channel_count);
+    }
+
+    return segments.join(QStringLiteral(" | "));
+}
+
+QString build_audio_overlay_text(const AudioAnalysisWindow &audio_analysis, const QString &audio_label)
+{
+    QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+                             .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
+                             .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
+                             .arg(audio_analysis.rms_level(), 0, 'f', 3)
+                             .arg(audio_analysis.peak_level(), 0, 'f', 3);
+
+    const QString peak_line = build_audio_peak_overlay_line(audio_analysis);
+    if (!peak_line.isEmpty())
+    {
+        audio_line.append(QStringLiteral(" | "));
+        audio_line.append(peak_line);
+    }
+
+    return audio_line;
 }
 
 QString build_overlay_text(const QString &fps_line, const QString &device_line, const QString &audio_line,
@@ -601,11 +658,7 @@ int Application::run(int argc, char *argv[])
                                             .arg(window.capture_format_label())
                                             .arg(shader_label)
                                             .arg(QString::fromStdString(settings_.render_path));
-            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
-                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
-                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
-                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
                                                                                      : midi_input.status_message())
@@ -636,11 +689,7 @@ int Application::run(int argc, char *argv[])
                                             .arg(window.capture_format_label())
                                             .arg(shader_label)
                                             .arg(QString::fromStdString(settings_.render_path));
-            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
-                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
-                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
-                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
                                                                                      : midi_input.status_message())
@@ -760,11 +809,7 @@ int Application::run(int argc, char *argv[])
                                             .arg(camera_format_text)
                                             .arg(top_layer_name)
                                             .arg(settings_.top_layer_opacity, 0, 'f', 2);
-            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
-                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
-                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
-                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
                                                                                      : midi_input.status_message())
@@ -796,11 +841,7 @@ int Application::run(int argc, char *argv[])
                                             .arg(camera_format_text)
                                             .arg(top_layer_name)
                                             .arg(settings_.top_layer_opacity, 0, 'f', 2);
-            const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
-                                           .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
-                                           .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
-                                           .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                                           .arg(audio_analysis.peak_level(), 0, 'f', 3);
+            const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
                                                                                      : midi_input.status_message())
@@ -879,11 +920,7 @@ int Application::run(int argc, char *argv[])
                                         .arg(camera_format_text)
                                         .arg(video_shader_label)
                                         .arg(screen_shader_label);
-        const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
-                                       .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
-                                       .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
-                                       .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                                       .arg(audio_analysis.peak_level(), 0, 'f', 3);
+        const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
         const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                       .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
                                                                                  : midi_input.status_message())
@@ -915,11 +952,7 @@ int Application::run(int argc, char *argv[])
                                         .arg(camera_format_text)
                                         .arg(video_shader_label)
                                         .arg(screen_shader_label);
-        const QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
-                                       .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
-                                       .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
-                                       .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                                       .arg(audio_analysis.peak_level(), 0, 'f', 3);
+        const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
         const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                       .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
                                                                                  : midi_input.status_message())

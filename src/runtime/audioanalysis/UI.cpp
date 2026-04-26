@@ -64,6 +64,21 @@ float AudioAnalysisWindow::peak_level() const
     return peak_level_;
 }
 
+int AudioAnalysisWindow::opened_channel_count() const
+{
+    return std::max(audio_format_.channelCount(), 0);
+}
+
+float AudioAnalysisWindow::channel_peak_level(int channel_index) const
+{
+    if (channel_index < 0 || channel_index >= static_cast<int>(channel_peak_levels_.size()))
+    {
+        return 0.0F;
+    }
+
+    return channel_peak_levels_[static_cast<std::size_t>(channel_index)];
+}
+
 const std::array<float, core::kAudioFftBandCount> &AudioAnalysisWindow::fft_bands() const
 {
     return fft_band_levels_;

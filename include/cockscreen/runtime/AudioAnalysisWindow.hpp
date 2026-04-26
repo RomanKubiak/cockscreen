@@ -33,6 +33,8 @@ class AudioAnalysisWindow final : public QWidget
     [[nodiscard]] float overall_level_db() const;
     [[nodiscard]] float rms_level() const;
     [[nodiscard]] float peak_level() const;
+    [[nodiscard]] int opened_channel_count() const;
+    [[nodiscard]] float channel_peak_level(int channel_index) const;
     [[nodiscard]] const std::array<float, core::kAudioFftBandCount> &fft_bands() const;
     [[nodiscard]] const std::array<float, core::kAudioWaveformSampleCount> &waveform_samples() const;
     [[nodiscard]] QString status_message() const;
@@ -73,6 +75,7 @@ class AudioAnalysisWindow final : public QWidget
     audio_analysis::WasapiLoopbackCapture *wasapi_loopback_{nullptr};
 #endif
     std::array<float, 2> channel_levels_db_{kSilenceDb, kSilenceDb};
+    std::array<float, 2> channel_peak_levels_{};
     float overall_level_db_{kSilenceDb};
     float rms_level_{0.0F};
     float peak_level_{0.0F};

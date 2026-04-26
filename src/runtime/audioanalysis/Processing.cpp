@@ -9,6 +9,7 @@
 #include <QByteArray>
 #include <QIODevice>
 #include <QProcess>
+#include <QStandardPaths>
 
 #include <algorithm>
 #include <cmath>
@@ -17,6 +18,123 @@
 
 namespace cockscreen::runtime
 {
+
+namespace
+{
+
+#ifndef _WIN32
+
+struct PulseSourceCaptureFormat
+{
+    int channel_count{2};
+    int sample_rate{48000};
+};
+
+struct ExternalMonitorCaptureCommand
+{
+    QString program;
+    QStringList arguments;
+    QString backend_name;
+};
+
+ExternalMonitorCaptureCommand build_external_monitor_capture_command(const QString &source_name, int channel_count,
+                                                                    int sample_rate)
+{
+    if (!QStandardPaths::findExecutable(QStringLiteral("pw-record")).isEmpty())
+    {
+        return ExternalMonitorCaptureCommand{QStringLiteral("pw-record"),
+                                             QStringList{QStringLiteral("--raw"),
+                                                         QStringLiteral("--format"),
+                                                         QStringLiteral("s16"),
+                                                         QStringLiteral("--channels"),
+                                                         QString::number(channel_count),
+                                                         QStringLiteral("--rate"),
+                                                         QString::number(sample_rate),
+                                                         QStringLiteral("--target"),
+                                                         source_name,
+                                                         QStringLiteral("-")},
+                                             QStringLiteral("pw-record")};
+    }
+
+    if (!QStandardPaths::findExecutable(QStringLiteral("pw-cat")).isEmpty())
+    {
+        return ExternalMonitorCaptureCommand{QStringLiteral("pw-cat"),
+                                             QStringList{QStringLiteral("--record"),
+                                                         QStringLiteral("--raw"),
+                                                         QStringLiteral("--format"),
+                                                         QStringLiteral("s16"),
+                                                         QStringLiteral("--channels"),
+                                                         QString::number(channel_count),
+                                                         QStringLiteral("--rate"),
+                                                         QString::number(sample_rate),
+                                                         QStringLiteral("--target"),
+                                                         source_name,
+                                                         QStringLiteral("-")},
+                                             QStringLiteral("pw-cat")};
+    }
+
+    return ExternalMonitorCaptureCommand{QStringLiteral("parec"),
+                                         QStringList{QStringLiteral("-r"),
+                                                     QStringLiteral("-d"),
+                                                     source_name,
+                                                     QStringLiteral("--raw"),
+                                                     QStringLiteral("--format=s16"),
+                                                     QStringLiteral("--channels=%1").arg(channel_count),
+                                                     QStringLiteral("--rate=%1").arg(sample_rate),
+                                                     QStringLiteral("-")},
+                                         QStringLiteral("parec")};
+}
+
+std::optional<PulseSourceCaptureFormat> detect_pulse_source_capture_format(const QString &source_name)
+{
+    if (source_name.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    QProcess sources_process;
+    sources_process.start(QStringLiteral("pactl"),
+                          QStringList{QStringLiteral("list"), QStringLiteral("short"), QStringLiteral("sources")});
+    if (!sources_process.waitForFinished(1000) || sources_process.exitStatus() != QProcess::NormalExit ||
+        sources_process.exitCode() != 0)
+    {
+        return std::nullopt;
+    }
+
+    const QString sources_output = QString::fromUtf8(sources_process.readAllStandardOutput());
+    for (const auto &line : sources_output.split('\n', Qt::SkipEmptyParts))
+    {
+        const auto fields = line.simplified().split(' ', Qt::SkipEmptyParts);
+        if (fields.size() < 6 || fields[1] != source_name)
+        {
+            continue;
+        }
+
+        const QString channels_field = fields[4];
+        const QString rate_field = fields[5];
+        if (!channels_field.endsWith(QStringLiteral("ch")) || !rate_field.endsWith(QStringLiteral("Hz")))
+        {
+            continue;
+        }
+
+        bool channel_count_ok = false;
+        bool sample_rate_ok = false;
+        const int channel_count = channels_field.left(channels_field.size() - 2).toInt(&channel_count_ok);
+        const int sample_rate = rate_field.left(rate_field.size() - 2).toInt(&sample_rate_ok);
+        if (!channel_count_ok || !sample_rate_ok || channel_count <= 0 || sample_rate <= 0)
+        {
+            continue;
+        }
+
+        return PulseSourceCaptureFormat{channel_count, sample_rate};
+    }
+
+    return std::nullopt;
+}
+
+#endif // !_WIN32
+
+} // namespace
 
 void AudioAnalysisWindow::start_audio_capture()
 {
@@ -78,16 +196,19 @@ void AudioAnalysisWindow::start_monitor_capture()
         return;
     }
 
+    const auto monitor_source_format = detect_pulse_source_capture_format(*monitor_source_name);
+    const int monitor_channel_count = monitor_source_format.has_value() ? monitor_source_format->channel_count : 2;
+    const int monitor_sample_rate = monitor_source_format.has_value() ? monitor_source_format->sample_rate : 48000;
+
     using_external_capture_ = true;
-    audio_format_.setChannelCount(2);
-    audio_format_.setSampleRate(48000);
+    audio_format_.setChannelCount(monitor_channel_count);
+    audio_format_.setSampleRate(monitor_sample_rate);
     audio_format_.setSampleFormat(QAudioFormat::Int16);
 
-    audio_process_.setProgram(QStringLiteral("parec"));
-    audio_process_.setArguments({QStringLiteral("-r"), QStringLiteral("-d"), *monitor_source_name, QStringLiteral("--raw"),
-                                 QStringLiteral("--format=s16"),
-                                 QStringLiteral("--channels=2"), QStringLiteral("--rate=48000"),
-                                 QStringLiteral("-")});
+    const auto capture_command = build_external_monitor_capture_command(*monitor_source_name, monitor_channel_count,
+                                                                        monitor_sample_rate);
+    audio_process_.setProgram(capture_command.program);
+    audio_process_.setArguments(capture_command.arguments);
 
     QObject::connect(&audio_process_, &QProcess::readyReadStandardOutput, this, &AudioAnalysisWindow::process_audio_chunk);
     QObject::connect(&audio_process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
@@ -103,7 +224,11 @@ void AudioAnalysisWindow::start_monitor_capture()
     }
 
     audio_io_ = &audio_process_;
-    set_status_message(QStringLiteral("Opened monitor: %1").arg(*monitor_source_name));
+    set_status_message(QStringLiteral("Opened monitor: %1 (%2 ch @ %3 Hz via %4)")
+                           .arg(*monitor_source_name)
+                           .arg(monitor_channel_count)
+                           .arg(monitor_sample_rate)
+                           .arg(capture_command.backend_name));
 #endif
 }
 
@@ -153,6 +278,7 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
     }
 
     std::array<double, 2> sum_squares{0.0, 0.0};
+    std::array<float, 2> channel_chunk_peaks{0.0F, 0.0F};
     float chunk_peak = 0.0F;
     int samples_per_channel = 0;
 
@@ -197,7 +323,9 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
             }
 
             sum_squares[channel] += value * value;
-            chunk_peak = std::max(chunk_peak, static_cast<float>(std::abs(value)));
+            const float absolute_value = static_cast<float>(std::abs(value));
+            channel_chunk_peaks[channel] = std::max(channel_chunk_peaks[channel], absolute_value);
+            chunk_peak = std::max(chunk_peak, absolute_value);
             mono_value_sum += value;
             ++mono_value_count;
         }
@@ -215,11 +343,13 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
         const double rms = samples_per_channel > 0 ? std::sqrt(sum_squares[channel] / samples_per_channel) : 0.0;
         const float level_db = rms_to_db(rms);
         channel_levels_db_[channel] = channel_levels_db_[channel] * 0.85F + level_db * 0.15F;
+        channel_peak_levels_[channel] = std::max(channel_chunk_peaks[channel], channel_peak_levels_[channel] * 0.92F);
     }
 
     if (channel_count == 1)
     {
         channel_levels_db_[1] = channel_levels_db_[0];
+        channel_peak_levels_[1] = channel_peak_levels_[0];
     }
 
     overall_level_db_ = std::max(channel_levels_db_[0], channel_levels_db_[1]);
