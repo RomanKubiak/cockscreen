@@ -1,0 +1,84 @@
+{
+    /* Generated-only shader showcase for local preview. */
+    "resources_directory": "../../resources/",
+    "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
+    "shader_directory": "../../shaders/",
+    "render_path": "qt-shader",
+    "geometry": {
+        "width": 1024,
+        "height": 600
+    },
+    "inputs": {
+        "video": {
+            "enabled": false,
+            "device": "/dev/video0",
+            "format": "vga",
+            "scale": 1.0,
+            "on_top": false,
+            "position": {
+                "x": 0.5,
+                "y": 0.5
+            }
+        },
+        "playback": {
+            "enabled": false,
+            "file": "../../resources/videos/example.mp4",
+            "scale": 1.0,
+            "on_top": true,
+            "position": {
+                "x": 0.0,
+                "y": 0.0
+            },
+            "start_ms": 0,
+            "loop_start_ms": 0,
+            "loop_end_ms": null,
+            "loop_repeat": 0,
+            "playback_rate": 1.0,
+            "playback_rate_looping": 1.0
+        },
+        "background_color": {
+            "r": 0.0,
+            "g": 0.0,
+            "b": 0.0,
+            "a": 1.0
+        },
+        "audio": {
+            "enabled": false,
+            "device": "@default_input@"
+        },
+        "midi": {
+            "enabled": false,
+            "device": "through"
+        }
+    },
+    "show_status_overlay": false,
+    "timecode": false,
+    "pink_key": {
+        "audio_algorithm": 0,
+        "audio_reactivity": 0.0,
+        "midi_reactivity": 0.0
+    },
+    "video": {
+        "enabled": false,
+        "shaders": [
+            "pink_key.glsl"
+        ]
+    },
+    "playback": {
+        "enabled": false,
+        "shaders": [
+            "pixelize_loop.glsl"
+        ]
+    },
+    "screen": {
+        "enabled": true,
+        "shaders": [
+            "defender_autoplay.glsl"
+        ]
+    },
+    "layer_order": [
+        "screen",
+        "playback",
+        "video"
+    ]
+}

@@ -1,33 +1,35 @@
 {
-    // Desktop Linux preset used for local development.
-    // Paths are resolved relative to this file unless already absolute.
+    /*
+     * Desktop Linux preset used for local development.
+     * Paths are resolved relative to this file unless already absolute.
+     */
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     "shader_directory": "/home/atom/devel/cockscreen/shaders/",
-    // Render path choices are qt, qt-shader, and v4l2-dmabuf-egl.
+    /* Render path choices are qt, qt-shader, and v4l2-dmabuf-egl. */
     "render_path": "qt-shader",
-    // Window size in pixels.
+    /* Window size in pixels. */
     "geometry": {
         "width": 1024,
         "height": 600
     },
     "inputs": {
-        // Live camera / capture-device input.
+        /* Live camera / capture-device input. */
         "video": {
             "enabled": false,
             "device": "/dev/video0",
             "format": "vga",
             "scale": 0.25,
-            // Legacy fallback if layer_order is omitted.
+            /* Legacy fallback if layer_order is omitted. */
             "on_top": false,
             "position": {
                 "x": 0.5,
                 "y": 0.5
             }
         },
-        // File playback input. Position is normalized in viewport space.
+        /* File playback input. Position is normalized in viewport space. */
         "playback": {
-            "enabled": true,
+            "enabled": false,
             "file": "/home/atom/Videos/pizza.mp4",
             "scale": 1.0,
             "on_top": true,
@@ -35,46 +37,48 @@
                 "x": 0,
                 "y": 0
             },
-            // Playback transport controls.
+            /* Playback transport controls. */
             "start_ms": 14000,
             "loop_start_ms": 18000,
             "loop_end_ms": 20000,
-            // 0 means infinite looping.
+            /* 0 means infinite looping. */
             "loop_repeat": 0,
-            // Normal playback speed outside and inside the loop range.
+            /* Normal playback speed outside and inside the loop range. */
             "playback_rate": 1.0,
             "playback_rate_looping": 0.5
         },
-        // Clear color used behind all layers.
+        /* Clear color used behind all layers. */
         "background_color": {
             "r": 0.0,
             "g": 0.0,
             "b": 0.0,
             "a": 1.0
         },
-        // Audio input used for global uniforms like u_audio_rms and u_audio_fft[16].
+        /* Audio input used for global uniforms like u_audio_rms and u_audio_fft[16]. */
         "audio": {
             "enabled": true,
-            "device": "@default_monitor_output@"
+            "device": "@default_input@"
         },
-        // MIDI input used for global note / CC state and mapping targets.
+        /* MIDI input used for global note / CC state and mapping targets. */
         "midi": {
             "enabled": true,
             "device": "through"
         }
     },
-    // Status overlay in the top-left diagnostic HUD.
+    /* Status overlay in the top-left diagnostic HUD. */
     "show_status_overlay": true,
-    // Burned-in timecode overlay on the playback image.
-    "timecode": true,
-    // Scene-level defaults consumed by pink_key.glsl.
-    // audio_algorithm: 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 centroid, 5 full average.
+    /* Burned-in timecode overlay on the playback image. */
+    "timecode": false,
+    /*
+     * Scene-level defaults consumed by pink_key.glsl.
+     * audio_algorithm: 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 centroid, 5 full average.
+     */
     "pink_key": {
-        "audio_algorithm": 0,
-        "audio_reactivity": 0.45,
-        "midi_reactivity": 0.35
+        "audio_algorithm": 3,
+        "audio_reactivity": 0.4,
+        "midi_reactivity": 0.6
     },
-    // Shader chains per compositing layer.
+    /* Shader chains per compositing layer. */
     "video": {
         "enabled": false,
         "shaders": [
@@ -88,18 +92,18 @@
         ]
     },
     "screen": {
-        "enabled": false,
+        "enabled": true,
         "shaders": [
-            "toy_synthwave.glsl"
+            "defender_autoplay.glsl"
         ]
     },
-    // Back-to-front final compositing order.
+    /* Back-to-front final compositing order. */
     "layer_order": [
         "screen",
         "video",
         "playback"
     ],
-    // MIDI CC mappings: layer + shader identify the target stage, uniform receives the mapped value.
+    /* MIDI CC mappings: layer + shader identify the target stage, uniform receives the mapped value. */
     "midi_cc_mappings": [
         {
             "layer": "screen",
@@ -152,7 +156,7 @@
             "exponent": 1.0
         }
     ],
-    // OSC mappings use the same min/max/exponent shaping as MIDI mappings.
+    /* OSC mappings use the same min/max/exponent shaping as MIDI mappings. */
     "osc_mappings": [
         {
             "address": "/cockscreen/key/hue",
