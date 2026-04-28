@@ -194,18 +194,18 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
 
                     if (is_rgb24)
                     {
-                        // RGB24 → RGBA8888: insert opaque alpha after every 3 bytes.
-                        const int pixels = width * height;
-                        for (int p = 0; p < pixels; ++p)
+                        // RGB24 → RGBA8888: row-by-row pointer walk, no per-pixel division.
+                        for (int row = 0; row < height; ++row)
                         {
-                            const int src_row = p / width;
-                            const int src_col = p % width;
-                            const auto *s = src + src_row * stride + src_col * 3;
-                            auto *d = dst + p * 4;
-                            d[0] = s[0]; // R
-                            d[1] = s[1]; // G
-                            d[2] = s[2]; // B
-                            d[3] = 0xFF; // A
+                            const auto *s = src + row * stride;
+                            auto *d = dst + row * width * 4;
+                            for (int col = 0; col < width; ++col, s += 3, d += 4)
+                            {
+                                d[0] = s[0]; // R
+                                d[1] = s[1]; // G
+                                d[2] = s[2]; // B
+                                d[3] = 0xFF; // A
+                            }
                         }
                     }
                     else // YUYV
