@@ -472,30 +472,6 @@ bool LoopbackPipeline::check_prerequisites(const LoopbackParams &params, QString
         }
     }
 
-    // Verify that exclusive_caps=1 is set. Without it Qt6's FFmpeg v4l2
-    // backend negotiates a format that doesn't match the GStreamer writer and
-    // VIDIOC_STREAMON fails with a black window.
-    QFile caps_file(QStringLiteral("/sys/module/v4l2loopback/parameters/exclusive_caps"));
-    if (caps_file.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
-        const QString caps_str = QString::fromUtf8(caps_file.readAll()).trimmed();
-        caps_file.close();
-        // The value is a comma-separated list of 0/1, one entry per device.
-        if (!caps_str.contains(QLatin1Char('1')))
-        {
-            if (error_message != nullptr)
-            {
-                *error_message = QStringLiteral(
-                    "v4l2loopback is loaded without exclusive_caps=1 (current: %1).\n"
-                    "Reload it with:\n"
-                    "  sudo modprobe -r v4l2loopback\n"
-                    "  sudo modprobe v4l2loopback devices=1 video_nr=10 card_label=cockscreen-lb exclusive_caps=1")
-                        .arg(caps_str);
-            }
-            return false;
-        }
-    }
-
     // Verify the output device file exists.
     const QString device_path = QString::fromStdString(params.loopback_device);
     if (!QFile::exists(device_path))

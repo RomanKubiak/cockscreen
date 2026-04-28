@@ -191,6 +191,20 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                         {
                             playback_loopback_camera_ = new QCamera{dev, this};
 
+                            // Force YUY2 at whatever resolution VIDIOC_G_FMT reported.
+                            // Without this Qt6's FFmpeg backend may negotiate a different
+                            // format from the ones v4l2loopback advertises, causing
+                            // VIDIOC_STREAMON to fail even when exclusive_caps=0.
+                            const auto formats = dev.videoFormats();
+                            for (const QCameraFormat &fmt : formats)
+                            {
+                                if (fmt.pixelFormat() == QVideoFrameFormat::Format_YUYV)
+                                {
+                                    playback_loopback_camera_->setCameraFormat(fmt);
+                                    break;
+                                }
+                            }
+
                             // Propagate async camera errors into fatal_render_error_ so
                             // Application.cpp can exit cleanly instead of showing a black window.
                             QObject::connect(
