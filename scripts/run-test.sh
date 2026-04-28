@@ -25,6 +25,19 @@ if [[ -n "$existing_pids" ]]; then
 	sleep 0.5
 fi
 
+# Kill any orphaned gst-launch processes (they survive cockscreen kills because
+# they run with setsid and therefore aren't in cockscreen's process group).
+orphan_gst="$(pgrep -f 'gst-launch.*v4l2sink\|gst-launch.*udpsink\|gst-launch.*udpsrc' || true)"
+if [[ -n "$orphan_gst" ]]; then
+	echo "[run-test] Killing orphaned gst-launch process(es): $orphan_gst"
+	sudo kill $orphan_gst 2>/dev/null || true
+	sleep 0.3
+fi
+
+# Release any process still holding /dev/video10.
+sudo fuser -k /dev/video10 2>/dev/null || true
+sleep 0.2
+
 mkdir -p "$(dirname "$log_file")"
 echo "[run-test] Running for ${duration}s → $log_file"
 echo "[run-test] $(date '+%F %T')" >"$log_file"
