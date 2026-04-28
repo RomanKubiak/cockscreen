@@ -326,15 +326,15 @@ LoopbackPipeline &LoopbackPipeline::operator=(LoopbackPipeline &&other) noexcept
 }
 
 // Clear any stale format left on the v4l2loopback device by a previous run.
-// Opens the device as a V4L2 output (writer) and sets a zeroed format, which
-// resets the device state so that wait_for_device_ready() always has to wait
-// for the new GStreamer receiver to negotiate a fresh format.
 static void reset_device_format(const std::string &device)
 {
     const int fd = ::open(device.c_str(), O_RDWR | O_NONBLOCK);
     if (fd < 0)
     {
-        return; // device not accessible — fail silently, let the pipeline deal with it
+        std::cerr << "[LoopbackPipeline] reset_device_format: open failed on "
+                  << device << ": " << strerror(errno)
+                  << " — device may be held by another process\n";
+        return;
     }
 
     v4l2_format fmt{};
@@ -531,6 +531,34 @@ bool LoopbackPipeline::check_prerequisites(const LoopbackParams &params, QString
                     .arg(device_path);
         }
         return false;
+    }
+
+    // Try to open the device as output to detect exclusive_caps conflicts.
+    // v4l2loopback with exclusive_caps=1 returns EBUSY from open() if another
+    // process already holds the device as an output writer.
+    {
+        const int test_fd = ::open(params.loopback_device.c_str(), O_RDWR | O_NONBLOCK);
+        if (test_fd < 0)
+        {
+            if (errno == EBUSY)
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral(
+                        "Loopback device '%1' is held exclusively by another process.\n"
+                        "Find what has it open:\n"
+                        "  sudo fuser %1\n"
+                        "Release it:\n"
+                        "  sudo fuser -k %1").arg(device_path);
+                }
+                return false;
+            }
+            // Other errors (permissions etc.) — let the pipeline fail with its own message.
+        }
+        else
+        {
+            ::close(test_fd);
+        }
     }
 
     return true;
