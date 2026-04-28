@@ -68,7 +68,10 @@ QString LoopbackPipeline::build_sender_pipeline_device(const std::string &device
     }
     else
     {
-        encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast");
+        // key-int-max=30 limits keyframe interval to ~1 s at 30 fps so that a
+        // keyframe dropped by tc-netem packet loss causes at most ~1 s of
+        // decoder stall instead of the ~8 s default (250 frames).
+        encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast key-int-max=30");
     }
 
     return QStringLiteral("gst-launch-1.0 "
@@ -95,7 +98,7 @@ QString LoopbackPipeline::build_sender_pipeline_file(const std::string &file,
     }
     else
     {
-        encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast");
+        encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast key-int-max=30");
     }
 
     // decodebin handles any container/codec the system GStreamer supports.
