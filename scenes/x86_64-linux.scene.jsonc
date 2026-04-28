@@ -86,22 +86,16 @@
         ]
     },
     "playback": {
-        "enabled": false,
-        "shaders": [
-            "pink_key.glsl"
-        ]
+        "enabled": true,
+        "shaders": []
     },
     "screen": {
         "enabled": true,
-        "shaders": [
-            "defender_autoplay.glsl",
-            "crt_noise.glsl"
-        ]
+        "shaders": []
     },
     /* Back-to-front final compositing order. */
     "layer_order": [
         "screen",
-        "video",
         "playback"
     ],
     /* MIDI CC mappings: layer + shader identify the target stage, uniform receives the mapped value. */
