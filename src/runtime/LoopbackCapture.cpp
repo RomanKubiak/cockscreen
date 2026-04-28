@@ -57,19 +57,52 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
             }
         }
 
-        // --- 2. Wait for v4l2sink (writer) to call STREAMON(OUTPUT) ----------
-        // v4l2loopback sets ready_for_capture=1 only when the writer calls
-        // STREAMON(OUTPUT). Until then STREAMON(CAPTURE) returns EIO.
-        // We probe with a temporary fd (no REQBUFS) each iteration:
-        //   EIO    -> writer not streaming yet
-        //   EINVAL -> writer streaming, capture buffers not yet allocated (ready!)
-        //   0      -> succeeded (treat as ready)
-        // The probe fd is closed between retries to avoid holding a reader fd
-        // open while v4l2sink negotiates its output buffer pool.
+        // --- 2. Wait for v4l2sink (writer) to open the device ---------------
+        // With exclusive_caps=1, VIDIOC_QUERYCAP reports V4L2_CAP_VIDEO_CAPTURE
+        // only while a writer (v4l2sink) has the device open.  This is the most
+        // reliable signal that v4l2sink is running — independent of STREAMON
+        // state or buffer allocation, so it has no false positives.
+        // After the writer is confirmed open, we do a short STREAMON retry to
+        // wait for it to call STREAMON(OUTPUT) (sets ready_for_capture=1).
         {
-            constexpr int kMax = 300; // 30 s
-            bool ready = false;
-            for (int n = 0; running_ && n <= kMax; ++n)
+            constexpr int kOpenMax    = 300; // 300 x 100 ms = 30 s
+            constexpr int kStreamMax  = 50;  // 50  x 100 ms = 5 s
+
+            // Phase A: wait for writer to open
+            bool writer_open = false;
+            for (int n = 0; running_ && n <= kOpenMax; ++n)
+            {
+                const int pfd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
+                if (pfd >= 0)
+                {
+                    v4l2_capability cap{};
+                    const bool got = (::ioctl(pfd, VIDIOC_QUERYCAP, &cap) == 0);
+                    ::close(pfd);
+                    if (got && (cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
+                    {
+                        std::cerr << "[LoopbackCapture] writer opened device (probe " << n << ")\n";
+                        writer_open = true;
+                        break;
+                    }
+                }
+                if (n % 10 == 0)
+                    std::cerr << "[LoopbackCapture] waiting for writer to open, probe "
+                              << n << "/" << kOpenMax << "\n";
+                ::usleep(100000);
+            }
+            if (!writer_open)
+            {
+                std::cerr << "[LoopbackCapture] writer never opened device\n";
+                status_message_ = QStringLiteral("LoopbackCapture: writer never opened device");
+                running_ = false;
+                return;
+            }
+
+            // Phase B: wait for writer to call STREAMON(OUTPUT) — open a fresh
+            // temporary fd each time so we never hold a reader fd during
+            // v4l2sink's buffer pool setup.
+            bool writer_streaming = false;
+            for (int n = 0; running_ && n <= kStreamMax; ++n)
             {
                 const int pfd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
                 if (pfd >= 0)
@@ -78,23 +111,27 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
                     const int rc = ::ioctl(pfd, VIDIOC_STREAMON, &bt);
                     const int er = (rc == 0) ? 0 : errno;
                     ::close(pfd);
-                    if (rc == 0 || er != EIO)
+                    // EIO  = ready_for_capture==0 (writer not yet streaming)
+                    // Any other result means ready_for_capture==1 and vb2 is
+                    // responding (e.g. EINVAL = no capture buffers yet, but writer IS streaming)
+                    if (er != EIO)
                     {
-                        std::cerr << "[LoopbackCapture] writer ready after " << n << " probe(s)\n";
-                        ready = true;
+                        std::cerr << "[LoopbackCapture] writer streaming (rc=" << rc
+                                  << " er=" << er << " probe " << n << ")\n";
+                        writer_streaming = true;
                         break;
                     }
                 }
-                if (n % 10 == 0)
-                    std::cerr << "[LoopbackCapture] waiting for writer, probe " << n << "/" << kMax << "\n";
+                if (n % 5 == 0)
+                    std::cerr << "[LoopbackCapture] waiting for STREAMON(OUTPUT), probe "
+                              << n << "/" << kStreamMax << "\n";
                 ::usleep(100000);
             }
-            if (!ready)
+            if (!writer_streaming)
             {
-                std::cerr << "[LoopbackCapture] writer never became ready\n";
-                status_message_ = QStringLiteral("LoopbackCapture: writer never became ready");
-                running_ = false;
-                return;
+                // If we time out here, proceed anyway and let the STREAMON attempt
+                // in step 5 give us a definitive result.
+                std::cerr << "[LoopbackCapture] writer may not be streaming yet, proceeding\n";
             }
         }
 
