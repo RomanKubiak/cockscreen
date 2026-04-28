@@ -170,13 +170,12 @@ static QString build_netem_opts(const LoopbackParams &params)
 bool LoopbackPipeline::run_tc_command(const QStringList &args, QString *error_message)
 {
     QProcess proc;
+    proc.setProcessChannelMode(QProcess::MergedChannels);
     proc.start(QStringLiteral("tc"), args);
     if (!proc.waitForFinished(5000))
     {
         if (error_message != nullptr)
-        {
             *error_message = QStringLiteral("tc command timed out");
-        }
         return false;
     }
 
@@ -184,7 +183,10 @@ bool LoopbackPipeline::run_tc_command(const QStringList &args, QString *error_me
     {
         if (error_message != nullptr)
         {
+            const QString out = QString::fromLocal8Bit(proc.readAllStandardOutput()).trimmed();
             *error_message = QStringLiteral("tc-netem setup failed; CAP_NET_ADMIN or root is required");
+            if (!out.isEmpty())
+                *error_message += QStringLiteral(": ") + out;
         }
         return false;
     }
@@ -204,6 +206,14 @@ bool LoopbackPipeline::install_netem(const LoopbackParams &params)
     //   lo root: prio (4 bands, all normal by default)
     //     band 1:4 → netem (handles our UDP port)
     //   tc filter routes dport <udp_port> → 1:4
+
+    // 0. Remove any leftover qdisc from a previous run that was hard-killed.
+    //    This makes install_netem() idempotent; ignore failure (no existing qdisc is fine).
+    run_tc_command(QStringList{
+        QStringLiteral("qdisc"), QStringLiteral("del"),
+        QStringLiteral("dev"), QStringLiteral("lo"),
+        QStringLiteral("root"),
+    }, nullptr);
 
     // 1. Root prio qdisc (4 bands; default priomap sends everything to band 0).
     QString error_message;
