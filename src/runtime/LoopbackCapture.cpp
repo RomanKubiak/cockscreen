@@ -137,15 +137,42 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
         }
 
         // --- 4. Start streaming -----------------------------------------
+        // With exclusive_caps=1, STREAMON on the capture side requires the
+        // output side (v4l2sink) to have already called STREAMON.  That happens
+        // when the GStreamer pipeline transitions to PLAYING, which is slightly
+        // after the format is negotiated (PREROLLING).  Retry on EIO until the
+        // writer is ready, or until we are asked to stop.
         int stream_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        if (::ioctl(fd, VIDIOC_STREAMON, &stream_type) != 0)
+        constexpr int kStreamon_retries = 75;  // 75 × 100 ms = 7.5 s
         {
-            std::cerr << "[LoopbackCapture] VIDIOC_STREAMON failed: " << strerror(errno) << "\n";
-            status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_STREAMON failed");
-            for (auto &b : bufs) if (b.ptr) ::munmap(b.ptr, b.len);
-            ::close(fd);
-            running_ = false;
-            return;
+            int attempt = 0;
+            while (running_)
+            {
+                if (::ioctl(fd, VIDIOC_STREAMON, &stream_type) == 0)
+                    break;
+
+                const int err = errno;
+                if (err != EIO || attempt >= kStreamon_retries)
+                {
+                    std::cerr << "[LoopbackCapture] VIDIOC_STREAMON failed: "
+                              << strerror(err) << "\n";
+                    status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_STREAMON failed");
+                    for (auto &b : bufs) if (b.ptr) ::munmap(b.ptr, b.len);
+                    ::close(fd);
+                    running_ = false;
+                    return;
+                }
+                ++attempt;
+                std::cerr << "[LoopbackCapture] STREAMON not ready (EIO), retry "
+                          << attempt << "/" << kStreamon_retries << "\n";
+                ::usleep(100000);
+            }
+            if (!running_)
+            {
+                for (auto &b : bufs) if (b.ptr) ::munmap(b.ptr, b.len);
+                ::close(fd);
+                return;
+            }
         }
         std::cerr << "[LoopbackCapture] STREAMON ok, entering capture loop\n";
 
