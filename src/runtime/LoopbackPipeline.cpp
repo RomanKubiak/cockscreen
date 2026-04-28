@@ -451,20 +451,14 @@ bool LoopbackPipeline::is_running() const
 bool LoopbackPipeline::check_prerequisites(const LoopbackParams &params, QString *error_message)
 {
     // Verify that the v4l2loopback kernel module is loaded.
+    // Use readAll() — /proc files report size 0 so atEnd()-based loops never run.
     QFile modules_file(QStringLiteral("/proc/modules"));
     if (modules_file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-        bool found = false;
-        while (!modules_file.atEnd())
-        {
-            if (QString::fromUtf8(modules_file.readLine()).startsWith(QStringLiteral("v4l2loopback ")))
-            {
-                found = true;
-                break;
-            }
-        }
+        const QString content = QString::fromUtf8(modules_file.readAll());
         modules_file.close();
-        if (!found)
+        // Match "v4l2loopback " (with trailing space) to avoid partial matches.
+        if (!content.contains(QStringLiteral("v4l2loopback ")))
         {
             if (error_message != nullptr)
             {
