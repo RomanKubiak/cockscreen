@@ -400,7 +400,10 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
 
     reset_device_format(params.loopback_device);
 
-    const QString recv_cmd = build_receiver_pipeline(params);
+    // Receiver: run in its own session (setsid) so that when the sender's
+    // gst-launch-1.0 exits via kill(0,SIGTERM) on EOS it doesn't propagate
+    // SIGTERM to the receiver process group.
+    const QString recv_cmd = QStringLiteral("setsid ") + build_receiver_pipeline(params);
     std::cerr << "[LoopbackPipeline] receiver cmd: " << recv_cmd.toStdString() << "\n";
     receiver_ = new QProcess;
     receiver_->setProcessChannelMode(QProcess::MergedChannels);
@@ -409,8 +412,15 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
         if (!out.trimmed().isEmpty())
             std::cerr << "[gst-receiver] " << out.toStdString();
     });
-    QObject::connect(receiver_, &QProcess::finished, receiver_, [](int code, QProcess::ExitStatus) {
+    QObject::connect(receiver_, &QProcess::finished, receiver_, [this](int code, QProcess::ExitStatus) {
         std::cerr << "[LoopbackPipeline] receiver exited with code " << code << "\n";
+        if (!stopping_ && receiver_ != nullptr)
+        {
+            std::cerr << "[LoopbackPipeline] restarting receiver\n";
+            receiver_->start(QStringLiteral("/bin/sh"),
+                             QStringList{QStringLiteral("-c"),
+                                         QStringLiteral("setsid ") + build_receiver_pipeline(params_)});
+        }
     });
     receiver_->start(QStringLiteral("/bin/sh"), QStringList{QStringLiteral("-c"), recv_cmd});
     if (!receiver_->waitForStarted(3000))
@@ -429,23 +439,14 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     }
     QThread::msleep(200);
 
-    const QString send_cmd = build_sender_pipeline_file(source_file, params);
-    std::cerr << "[LoopbackPipeline] sender cmd: " << send_cmd.toStdString() << "\n";
-    sender_ = new QProcess;
-    sender_->setProcessChannelMode(QProcess::MergedChannels);
-    QObject::connect(sender_, &QProcess::readyReadStandardOutput, sender_, [this]() {
-        const QByteArray out = sender_->readAllStandardOutput();
-        if (!out.trimmed().isEmpty())
-            std::cerr << "[gst-sender] " << out.toStdString();
-    });
-    QObject::connect(sender_, &QProcess::finished, sender_, [](int code, QProcess::ExitStatus) {
-        std::cerr << "[LoopbackPipeline] sender exited with code " << code << "\n";
-    });
-    sender_->start(QStringLiteral("/bin/sh"), QStringList{QStringLiteral("-c"), send_cmd});
-    if (!sender_->waitForStarted(3000))
+    // Sender: also in its own session. Stored as sender_cmd_ so connect_sender_restart()
+    // can restart it automatically when gst-launch-1.0 exits on EOS.
+    sender_cmd_ = QStringLiteral("setsid ") + build_sender_pipeline_file(source_file, params);
+    std::cerr << "[LoopbackPipeline] sender cmd: " << sender_cmd_.toStdString() << "\n";
+    start_sender_process();
+    if (sender_ == nullptr || !sender_->waitForStarted(3000))
     {
-        status_message_ = QStringLiteral("LoopbackPipeline: sender failed to start: ") +
-                          sender_->errorString();
+        status_message_ = QStringLiteral("LoopbackPipeline: sender failed to start");
         stop();
         return false;
     }
@@ -454,8 +455,40 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     return true;
 }
 
+void LoopbackPipeline::start_sender_process()
+{
+    if (sender_ != nullptr)
+    {
+        sender_->disconnect();
+        sender_->deleteLater();
+    }
+
+    sender_ = new QProcess;
+    sender_->setProcessChannelMode(QProcess::MergedChannels);
+    QObject::connect(sender_, &QProcess::readyReadStandardOutput, sender_, [this]() {
+        const QByteArray out = sender_->readAllStandardOutput();
+        if (!out.trimmed().isEmpty())
+            std::cerr << "[gst-sender] " << out.toStdString();
+    });
+    QObject::connect(sender_, &QProcess::finished, sender_, [this](int code, QProcess::ExitStatus) {
+        std::cerr << "[LoopbackPipeline] sender exited with code " << code;
+        if (stopping_)
+        {
+            std::cerr << " (stopped)\n";
+            return;
+        }
+        // gst-launch-1.0 exits via kill(0,SIGTERM) on EOS — restart to loop.
+        std::cerr << " — restarting for loop\n";
+        start_sender_process();
+        if (sender_ != nullptr)
+            sender_->start(QStringLiteral("/bin/sh"), QStringList{QStringLiteral("-c"), sender_cmd_});
+    });
+    sender_->start(QStringLiteral("/bin/sh"), QStringList{QStringLiteral("-c"), sender_cmd_});
+}
+
 void LoopbackPipeline::stop()
 {
+    stopping_ = true;
     remove_netem();
 
     if (sender_ != nullptr)
@@ -479,6 +512,8 @@ void LoopbackPipeline::stop()
         delete receiver_;
         receiver_ = nullptr;
     }
+
+    stopping_ = false;
 }
 
 std::string LoopbackPipeline::output_device() const

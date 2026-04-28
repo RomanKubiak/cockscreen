@@ -104,7 +104,12 @@ class LoopbackPipeline
     QProcess *receiver_{nullptr};
     LoopbackParams params_;
     bool netem_installed_{false};
+    bool stopping_{false};
+    QString sender_cmd_;
     QString status_message_;
+
+    void connect_sender_restart();
+    void start_sender_process();
 };
 
 } // namespace cockscreen::runtime
