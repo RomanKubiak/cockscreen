@@ -9,6 +9,7 @@
 #include <QThread>
 
 #include <chrono>
+#include <iostream>
 #include <utility>
 
 #include <fcntl.h>
@@ -374,7 +375,17 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     params_ = params;
 
     const QString recv_cmd = build_receiver_pipeline(params);
+    std::cerr << "[LoopbackPipeline] receiver cmd: " << recv_cmd.toStdString() << "\n";
     receiver_ = new QProcess;
+    receiver_->setProcessChannelMode(QProcess::MergedChannels);
+    QObject::connect(receiver_, &QProcess::readyReadStandardOutput, receiver_, [this]() {
+        const QByteArray out = receiver_->readAllStandardOutput();
+        if (!out.trimmed().isEmpty())
+            std::cerr << "[gst-receiver] " << out.toStdString();
+    });
+    QObject::connect(receiver_, &QProcess::finished, receiver_, [](int code, QProcess::ExitStatus) {
+        std::cerr << "[LoopbackPipeline] receiver exited with code " << code << "\n";
+    });
     receiver_->start(QStringLiteral("/bin/sh"), QStringList{QStringLiteral("-c"), recv_cmd});
     if (!receiver_->waitForStarted(3000))
     {
@@ -393,7 +404,17 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     QThread::msleep(200);
 
     const QString send_cmd = build_sender_pipeline_file(source_file, params);
+    std::cerr << "[LoopbackPipeline] sender cmd: " << send_cmd.toStdString() << "\n";
     sender_ = new QProcess;
+    sender_->setProcessChannelMode(QProcess::MergedChannels);
+    QObject::connect(sender_, &QProcess::readyReadStandardOutput, sender_, [this]() {
+        const QByteArray out = sender_->readAllStandardOutput();
+        if (!out.trimmed().isEmpty())
+            std::cerr << "[gst-sender] " << out.toStdString();
+    });
+    QObject::connect(sender_, &QProcess::finished, sender_, [](int code, QProcess::ExitStatus) {
+        std::cerr << "[LoopbackPipeline] sender exited with code " << code << "\n";
+    });
     sender_->start(QStringLiteral("/bin/sh"), QStringList{QStringLiteral("-c"), send_cmd});
     if (!sender_->waitForStarted(3000))
     {
@@ -491,9 +512,11 @@ bool LoopbackPipeline::check_prerequisites(const LoopbackParams &params, QString
 
 bool LoopbackPipeline::wait_for_device_ready(int timeout_ms)
 {
-    // Poll the v4l2loopback device until VIDIOC_G_FMT reports a non-zero
-    // pixel format, which only happens once the GStreamer receiver has written
-    // its first frame and negotiated a format with the kernel driver.
+    // Poll the v4l2loopback device until VIDIOC_G_FMT reports RGB24, which is
+    // the exact format our receiver pipeline writes. Checking for any non-zero
+    // format is insufficient — a previous run may have left a stale YUYV entry
+    // on the device, causing a false-positive before this run's receiver has
+    // had a chance to open the device.
     const auto deadline = std::chrono::steady_clock::now() +
                           std::chrono::milliseconds(timeout_ms);
     const std::string device = params_.loopback_device;
@@ -507,9 +530,14 @@ bool LoopbackPipeline::wait_for_device_ready(int timeout_ms)
             fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
             const bool got_format = (::ioctl(fd, VIDIOC_G_FMT, &fmt) == 0);
             ::close(fd);
-            if (got_format && fmt.fmt.pix.pixelformat != 0 &&
+            if (got_format && fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24 &&
                 fmt.fmt.pix.width > 0 && fmt.fmt.pix.height > 0)
             {
+                std::cerr << "[LoopbackPipeline] device ready: "
+                          << fmt.fmt.pix.width << "x" << fmt.fmt.pix.height
+                          << " fourcc=RGB24"
+                          << " stride=" << fmt.fmt.pix.bytesperline
+                          << "\n";
                 return true;
             }
         }

@@ -6,7 +6,9 @@
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 
+#include <cerrno>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 #include <fcntl.h>
@@ -64,6 +66,16 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
         //   V4L2_PIX_FMT_YUYV   → 2 bytes per macro-pixel pair
         const bool is_rgb24 = (fourcc == V4L2_PIX_FMT_RGB24);
         const bool is_yuyv  = (fourcc == V4L2_PIX_FMT_YUYV);
+
+        char cc[5] = {};
+        std::memcpy(cc, &fourcc, 4);
+        std::cerr << "[LoopbackCapture] opened " << device_path
+                  << " " << width << "x" << height
+                  << " stride=" << stride
+                  << " fourcc=" << cc
+                  << " is_rgb24=" << is_rgb24
+                  << " is_yuyv=" << is_yuyv << "\n";
+
         if (!is_rgb24 && !is_yuyv)
         {
             char cc[5] = {};
@@ -128,18 +140,21 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
         int stream_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         if (::ioctl(fd, VIDIOC_STREAMON, &stream_type) != 0)
         {
+            std::cerr << "[LoopbackCapture] VIDIOC_STREAMON failed: " << strerror(errno) << "\n";
             status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_STREAMON failed");
             for (auto &b : bufs) if (b.ptr) ::munmap(b.ptr, b.len);
             ::close(fd);
             running_ = false;
             return;
         }
+        std::cerr << "[LoopbackCapture] STREAMON ok, entering capture loop\n";
 
         // QVideoFrameFormat — always use RGBA8888 so Qt6 handles it natively.
         const QVideoFrameFormat frame_format(
             QSize(width, height), QVideoFrameFormat::Format_RGBA8888);
 
         // --- 5. Capture loop --------------------------------------------
+        int frame_count = 0;
         while (running_)
         {
             v4l2_buffer dqbuf{};
@@ -154,10 +169,19 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
                     continue;
                 }
                 // Fatal read error — stop the thread.
+                std::cerr << "[LoopbackCapture] VIDIOC_DQBUF error after "
+                          << frame_count << " frames: " << strerror(errno) << "\n";
                 status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_DQBUF error");
                 break;
             }
 
+            ++frame_count;
+            if (frame_count <= 3 || frame_count % 60 == 0)
+            {
+                std::cerr << "[LoopbackCapture] frame " << frame_count
+                          << " bytesused=" << dqbuf.bytesused
+                          << " buf_idx=" << dqbuf.index << "\n";
+            }
             const auto *src = static_cast<const std::uint8_t *>(bufs[dqbuf.index].ptr);
             const int bytes_used = static_cast<int>(dqbuf.bytesused);
 
@@ -219,6 +243,8 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
             // Re-queue the buffer immediately.
             if (::ioctl(fd, VIDIOC_QBUF, &dqbuf) != 0)
             {
+                std::cerr << "[LoopbackCapture] VIDIOC_QBUF failed after "
+                          << frame_count << " frames: " << strerror(errno) << "\n";
                 status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_QBUF failed");
                 break;
             }
