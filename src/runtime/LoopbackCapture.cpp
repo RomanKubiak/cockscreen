@@ -33,7 +33,11 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
     thread_ = QThread::create([this, device_path, sink]() {
 
         // --- 1. Open the device -----------------------------------------
-        const int fd = ::open(device_path.c_str(), O_RDWR | O_NONBLOCK);
+        // Must be O_RDONLY: v4l2loopback checks (file->f_mode & FMODE_WRITE) to
+        // decide if the opener is a WRITER (output) or READER (capture).
+        // Opening O_RDWR makes it a WRITER, so VIDIOC_STREAMON(VIDEO_CAPTURE)
+        // always returns EIO with exclusive_caps=1.
+        const int fd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
         if (fd < 0)
         {
             status_message_ = QStringLiteral("LoopbackCapture: failed to open '%1'")
@@ -116,8 +120,10 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
                 return;
             }
             bufs[i].len = qbuf.length;
+            // PROT_READ is sufficient: the kernel fills the capture buffer;
+            // userspace only reads from it.
             bufs[i].ptr = ::mmap(nullptr, qbuf.length,
-                                 PROT_READ | PROT_WRITE, MAP_SHARED,
+                                 PROT_READ, MAP_SHARED,
                                  fd, qbuf.m.offset);
             if (bufs[i].ptr == MAP_FAILED)
             {
