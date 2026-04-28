@@ -22,6 +22,22 @@
 			"group": "test"
 		},
 		{
+			"label": "Local: Test & Analyze",
+			"type": "shell",
+			"command": "${workspaceFolder}/scripts/run-test.sh",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Local: Build Debug",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true,
+				"focus": true
+			}
+		},
+		{
 			"label": "Local: Cross Build Debug",
 			"type": "shell",
 			"command": "cmake --preset cross-pi-zero2w-debug && cmake --build --preset cross-pi-zero2w-debug",

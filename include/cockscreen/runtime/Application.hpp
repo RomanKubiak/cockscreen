@@ -26,6 +26,7 @@ struct ApplicationSettings
     int width{1024};
     int height{600};
     int frame_rate{30};
+    bool verbose_debug{false};
 };
 
 class Application

@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -481,6 +482,17 @@ Application::Application(ApplicationSettings settings) : settings_{std::move(set
 
 int Application::run(int argc, char *argv[])
 {
+    if (settings_.verbose_debug)
+    {
+        // Enable GStreamer pipeline debug output (level 2 = warnings+errors, 3 = info).
+        // Don't override if the caller already set a value.
+        ::setenv("GST_DEBUG", "2", /*overwrite=*/0);
+        // Enable Qt category debug messages.
+        ::setenv("QT_LOGGING_RULES", "*.debug=true", 0);
+        std::cerr << "[Application] verbose debug enabled (GST_DEBUG=" << ::getenv("GST_DEBUG")
+                  << " QT_LOGGING_RULES=" << ::getenv("QT_LOGGING_RULES") << ")\n";
+    }
+
     if (!print_startup_preflight())
     {
         return 1;
