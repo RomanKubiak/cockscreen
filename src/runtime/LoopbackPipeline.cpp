@@ -411,22 +411,11 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     // Kill any orphaned gst-launch processes left over from a previous run.
     // They run with setsid so they survive cockscreen being killed and hold
     // the loopback OUTPUT fd or UDP port open, preventing state=capture.
-    // Kill both the sender (matches udpsink port=<port>) and the receiver
-    // (matches v4l2sink device=<device>) by using two separate patterns.
-    {
-        const QString device = QString::fromStdString(params.loopback_device);
-        const QString port   = QString::number(params.udp_port);
-        // Kill receiver: holds the v4l2loopback OUTPUT fd
-        QProcess::execute(QStringLiteral("pkill"),
-                          {QStringLiteral("-9"), QStringLiteral("-f"),
-                           QString("gst-launch.*%1").arg(device)});
-        // Kill sender: holds the UDP port
-        QProcess::execute(QStringLiteral("pkill"),
-                          {QStringLiteral("-9"), QStringLiteral("-f"),
-                           QString("gst-launch.*port=%1 ").arg(port)});
-        // Give the kernel time to release the fd and reset the sysfs state.
-        QThread::msleep(400);
-    }
+    // Simplest safe approach: kill ALL gst-launch-1.0 instances — they are
+    // exclusively cockscreen's subprocesses so no third-party process is harmed.
+    QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-9"), QStringLiteral("gst-launch-1.0")});
+    // Give the kernel time to release fds and let sysfs state reset.
+    QThread::msleep(400);
 
     reset_device_format(params.loopback_device);
 
