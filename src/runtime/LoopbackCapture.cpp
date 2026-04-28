@@ -2,18 +2,17 @@
 
 #ifndef _WIN32
 
-#include "cockscreen/runtime/V4l2Capture.hpp"
-
 #include <QSize>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 
-#include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include <fcntl.h>
 #include <linux/videodev2.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 
 namespace cockscreen::runtime
@@ -27,96 +26,209 @@ LoopbackCapture::~LoopbackCapture()
 bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
 {
     stop();
-
-    // Query the format the GStreamer receiver has already negotiated so we can
-    // open V4l2Capture with the exact dimensions — v4l2loopback may reject
-    // VIDIOC_S_FMT requests that differ from what the writer set.
-    int actual_width = 0;
-    int actual_height = 0;
-    {
-        const int probe_fd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
-        if (probe_fd >= 0)
-        {
-            v4l2_format fmt{};
-            fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-            if (::ioctl(probe_fd, VIDIOC_G_FMT, &fmt) == 0)
-            {
-                actual_width = static_cast<int>(fmt.fmt.pix.width);
-                actual_height = static_cast<int>(fmt.fmt.pix.height);
-            }
-            ::close(probe_fd);
-        }
-    }
-
     running_ = true;
 
-    thread_ = QThread::create([this, device_path, sink, actual_width, actual_height]() {
-        V4l2Capture capture;
-        if (!capture.open(device_path, actual_width, actual_height))
+    thread_ = QThread::create([this, device_path, sink]() {
+
+        // --- 1. Open the device -----------------------------------------
+        const int fd = ::open(device_path.c_str(), O_RDWR | O_NONBLOCK);
+        if (fd < 0)
         {
-            status_message_ = QString::fromStdString(capture.error_message());
+            status_message_ = QStringLiteral("LoopbackCapture: failed to open '%1'")
+                                  .arg(QString::fromStdString(device_path));
             running_ = false;
             return;
         }
 
-        if (!capture.start())
+        // --- 2. Read the format GStreamer already set — NO VIDIOC_S_FMT -----
+        // Calling VIDIOC_S_FMT on a v4l2loopback device where a writer is
+        // already active (exclusive_caps=0) returns EBUSY and confuses the
+        // writer. We accept whatever format is already negotiated.
+        v4l2_format fmt{};
+        fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        if (::ioctl(fd, VIDIOC_G_FMT, &fmt) != 0)
         {
-            status_message_ = QString::fromStdString(capture.error_message());
+            status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_G_FMT failed");
+            ::close(fd);
             running_ = false;
             return;
         }
 
-        const int width = capture.width();
-        const int height = capture.height();
+        const int width  = static_cast<int>(fmt.fmt.pix.width);
+        const int height = static_cast<int>(fmt.fmt.pix.height);
+        const int stride = static_cast<int>(fmt.fmt.pix.bytesperline);
+        const std::uint32_t fourcc = fmt.fmt.pix.pixelformat;
 
-        // Map our V4l2PixelFormat to QVideoFrameFormat. We only handle YUYV/UYVY
-        // because the GStreamer receiver pipeline forces YUY2 output. RGB24/BGR24
-        // have no direct QVideoFrameFormat equivalent in Qt6 and are not emitted
-        // by the loopback pipeline.
-        QVideoFrameFormat::PixelFormat qt_fmt = QVideoFrameFormat::Format_Invalid;
-        switch (capture.pixel_format())
+        // We only handle the two formats the receiver pipeline emits:
+        //   V4L2_PIX_FMT_RGB24  → 3 bytes per pixel, R G B
+        //   V4L2_PIX_FMT_YUYV   → 2 bytes per macro-pixel pair
+        const bool is_rgb24 = (fourcc == V4L2_PIX_FMT_RGB24);
+        const bool is_yuyv  = (fourcc == V4L2_PIX_FMT_YUYV);
+        if (!is_rgb24 && !is_yuyv)
         {
-        case V4l2PixelFormat::yuyv:
-            qt_fmt = QVideoFrameFormat::Format_YUYV;
-            break;
-        case V4l2PixelFormat::uyvy:
-            qt_fmt = QVideoFrameFormat::Format_UYVY;
-            break;
-        default:
-            status_message_ = QStringLiteral("LoopbackCapture: unsupported pixel format from V4L2 device");
+            char cc[5] = {};
+            std::memcpy(cc, &fourcc, 4);
+            status_message_ = QStringLiteral("LoopbackCapture: unsupported pixel format '%1'")
+                                  .arg(QString::fromLatin1(cc));
+            ::close(fd);
             running_ = false;
             return;
         }
 
-        const QVideoFrameFormat frame_format(QSize(width, height), qt_fmt);
+        // --- 3. Allocate MMAP buffers ------------------------------------
+        v4l2_requestbuffers req{};
+        req.count  = 4;
+        req.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        req.memory = V4L2_MEMORY_MMAP;
+        if (::ioctl(fd, VIDIOC_REQBUFS, &req) != 0 || req.count == 0)
+        {
+            status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_REQBUFS failed");
+            ::close(fd);
+            running_ = false;
+            return;
+        }
 
+        struct Buf { void *ptr{nullptr}; std::size_t len{0}; };
+        std::vector<Buf> bufs(req.count);
+        for (unsigned i = 0; i < req.count; ++i)
+        {
+            v4l2_buffer qbuf{};
+            qbuf.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            qbuf.memory = V4L2_MEMORY_MMAP;
+            qbuf.index  = i;
+            if (::ioctl(fd, VIDIOC_QUERYBUF, &qbuf) != 0)
+            {
+                status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_QUERYBUF failed");
+                ::close(fd);
+                running_ = false;
+                return;
+            }
+            bufs[i].len = qbuf.length;
+            bufs[i].ptr = ::mmap(nullptr, qbuf.length,
+                                 PROT_READ | PROT_WRITE, MAP_SHARED,
+                                 fd, qbuf.m.offset);
+            if (bufs[i].ptr == MAP_FAILED)
+            {
+                bufs[i].ptr = nullptr;
+                status_message_ = QStringLiteral("LoopbackCapture: mmap failed");
+                ::close(fd);
+                running_ = false;
+                return;
+            }
+            if (::ioctl(fd, VIDIOC_QBUF, &qbuf) != 0)
+            {
+                status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_QBUF priming failed");
+                ::close(fd);
+                running_ = false;
+                return;
+            }
+        }
+
+        // --- 4. Start streaming -----------------------------------------
+        int stream_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        if (::ioctl(fd, VIDIOC_STREAMON, &stream_type) != 0)
+        {
+            status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_STREAMON failed");
+            for (auto &b : bufs) if (b.ptr) ::munmap(b.ptr, b.len);
+            ::close(fd);
+            running_ = false;
+            return;
+        }
+
+        // QVideoFrameFormat — always use RGBA8888 so Qt6 handles it natively.
+        const QVideoFrameFormat frame_format(
+            QSize(width, height), QVideoFrameFormat::Format_RGBA8888);
+
+        // --- 5. Capture loop --------------------------------------------
         while (running_)
         {
-            auto frame_view = capture.dequeue();
-            if (!frame_view.has_value())
+            v4l2_buffer dqbuf{};
+            dqbuf.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            dqbuf.memory = V4L2_MEMORY_MMAP;
+
+            if (::ioctl(fd, VIDIOC_DQBUF, &dqbuf) != 0)
             {
-                // Non-blocking: no frame ready yet, yield briefly.
-                QThread::usleep(1000);
-                continue;
+                if (errno == EAGAIN)
+                {
+                    QThread::usleep(2000); // 2 ms — ~half a 60fps frame
+                    continue;
+                }
+                // Fatal read error — stop the thread.
+                status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_DQBUF error");
+                break;
             }
 
-            // Create a system-memory QVideoFrame and copy the MMAP data into it.
-            // QVideoSink::setVideoFrame() is thread-safe; the videoFrameChanged
-            // signal will be queued to ShaderVideoWindow's handle_playback_frame
-            // on the main thread.
-            QVideoFrame video_frame(frame_format);
-            if (video_frame.map(QVideoFrame::WriteOnly))
+            const auto *src = static_cast<const std::uint8_t *>(bufs[dqbuf.index].ptr);
+            const int bytes_used = static_cast<int>(dqbuf.bytesused);
+
+            if (src != nullptr && bytes_used > 0)
             {
-                const auto bytes_to_copy =
-                    std::min(frame_view->size,
-                             static_cast<std::size_t>(video_frame.mappedBytes(0)));
-                std::memcpy(video_frame.bits(0), frame_view->data, bytes_to_copy);
-                video_frame.unmap();
-                sink->setVideoFrame(video_frame);
+                QVideoFrame video_frame(frame_format);
+                if (video_frame.map(QVideoFrame::WriteOnly))
+                {
+                    auto *dst = video_frame.bits(0);
+
+                    if (is_rgb24)
+                    {
+                        // RGB24 → RGBA8888: insert opaque alpha after every 3 bytes.
+                        const int pixels = width * height;
+                        for (int p = 0; p < pixels; ++p)
+                        {
+                            const int src_row = p / width;
+                            const int src_col = p % width;
+                            const auto *s = src + src_row * stride + src_col * 3;
+                            auto *d = dst + p * 4;
+                            d[0] = s[0]; // R
+                            d[1] = s[1]; // G
+                            d[2] = s[2]; // B
+                            d[3] = 0xFF; // A
+                        }
+                    }
+                    else // YUYV
+                    {
+                        // YUYV 4:2:2 → RGBA8888: one macro-pixel (4 bytes) → 2 RGBA pixels.
+                        // Conversion: R = Y + 1.402*(V-128)
+                        //             G = Y - 0.344*(U-128) - 0.714*(V-128)
+                        //             B = Y + 1.772*(U-128)
+                        auto clamp = [](int v) -> std::uint8_t {
+                            return static_cast<std::uint8_t>(v < 0 ? 0 : v > 255 ? 255 : v);
+                        };
+                        const int macro_cols = width / 2;
+                        for (int row = 0; row < height; ++row)
+                        {
+                            const auto *s = src + row * stride;
+                            auto *d = dst + row * width * 4;
+                            for (int mc = 0; mc < macro_cols; ++mc, s += 4, d += 8)
+                            {
+                                const int y0 = s[0], u = s[1], y1 = s[2], v = s[3];
+                                const int pu = u - 128, pv = v - 128;
+                                const int r_off = 1402 * pv / 1000;
+                                const int g_off = 344  * pu / 1000 + 714 * pv / 1000;
+                                const int b_off = 1772 * pu / 1000;
+                                d[0] = clamp(y0 + r_off); d[1] = clamp(y0 - g_off); d[2] = clamp(y0 + b_off); d[3] = 0xFF;
+                                d[4] = clamp(y1 + r_off); d[5] = clamp(y1 - g_off); d[6] = clamp(y1 + b_off); d[7] = 0xFF;
+                            }
+                        }
+                    }
+
+                    video_frame.unmap();
+                    sink->setVideoFrame(video_frame);
+                }
             }
 
-            capture.release();
+            // Re-queue the buffer immediately.
+            if (::ioctl(fd, VIDIOC_QBUF, &dqbuf) != 0)
+            {
+                status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_QBUF failed");
+                break;
+            }
         }
+
+        // --- 6. Cleanup -------------------------------------------------
+        ::ioctl(fd, VIDIOC_STREAMOFF, &stream_type);
+        for (auto &b : bufs) if (b.ptr) ::munmap(b.ptr, b.len);
+        ::close(fd);
+        running_ = false;
     });
 
     thread_->start();

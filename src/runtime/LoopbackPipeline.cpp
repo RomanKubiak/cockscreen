@@ -131,7 +131,7 @@ QString LoopbackPipeline::build_receiver_pipeline(const LoopbackParams &params)
                           "! h264parse "
                           "! %2 "
                           "! videoconvert "
-                          "! video/x-raw,format=YUY2 "
+                          "! video/x-raw,format=RGB "
                           "! v4l2sink device=%3 sync=false")
         .arg(params.udp_port)
         .arg(decode)
