@@ -408,16 +408,24 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     stop();
     params_ = params;
 
-    // Kill any orphaned gst-launch processes left over from a previous run that
-    // still hold the loopback device open (they run with setsid so they survive
-    // cockscreen being killed and keep the OUTPUT fd in "output" state, which
-    // prevents the sysfs state from ever reaching "capture").
+    // Kill any orphaned gst-launch processes left over from a previous run.
+    // They run with setsid so they survive cockscreen being killed and hold
+    // the loopback OUTPUT fd or UDP port open, preventing state=capture.
+    // Kill both the sender (matches udpsink port=<port>) and the receiver
+    // (matches v4l2sink device=<device>) by using two separate patterns.
     {
         const QString device = QString::fromStdString(params.loopback_device);
-        const QString pattern = QString("gst-launch.*%1").arg(device);
-        QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-9"), QStringLiteral("-f"), pattern});
+        const QString port   = QString::number(params.udp_port);
+        // Kill receiver: holds the v4l2loopback OUTPUT fd
+        QProcess::execute(QStringLiteral("pkill"),
+                          {QStringLiteral("-9"), QStringLiteral("-f"),
+                           QString("gst-launch.*%1").arg(device)});
+        // Kill sender: holds the UDP port
+        QProcess::execute(QStringLiteral("pkill"),
+                          {QStringLiteral("-9"), QStringLiteral("-f"),
+                           QString("gst-launch.*port=%1 ").arg(port)});
         // Give the kernel time to release the fd and reset the sysfs state.
-        QThread::msleep(300);
+        QThread::msleep(400);
     }
 
     reset_device_format(params.loopback_device);
