@@ -30,6 +30,7 @@
 #include "Application.hpp"
 #include "ArtifactInjector.hpp"
 #ifndef _WIN32
+#include "LoopbackCapture.hpp"
 #include "LoopbackPipeline.hpp"
 #endif
 #include "Scene.hpp"
@@ -191,11 +192,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     std::uint64_t playback_artifact_frame_counter_{0};
 #ifndef _WIN32
     // Playback-layer loopback (Step 2): GStreamer file-source pipeline →
-    // RTP/UDP → tc-netem → v4l2loopback → playback_loopback_camera_.
+    // RTP/UDP → tc-netem → v4l2loopback → LoopbackCapture (raw V4L2 MMAP).
     // Active only when scene_.playback_input.loopback.enabled.
     LoopbackPipeline playback_loopback_;
-    QCamera *playback_loopback_camera_{nullptr};
-    QMediaCaptureSession playback_loopback_capture_session_;
+    LoopbackCapture *playback_loopback_capture_{nullptr};
 #endif
 };
 

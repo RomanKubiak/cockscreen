@@ -77,6 +77,7 @@ target_sources(cockscreen_core
 if(NOT WIN32)
     target_sources(cockscreen_core
         PRIVATE
+            src/runtime/LoopbackCapture.cpp
             src/runtime/LoopbackPipeline.cpp
             src/runtime/directvideo/Lifecycle.cpp
             src/runtime/directvideo/Rendering.cpp

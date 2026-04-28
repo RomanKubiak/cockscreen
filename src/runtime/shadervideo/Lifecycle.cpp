@@ -4,10 +4,8 @@
 #include "cockscreen/runtime/shadervideo/Support.hpp"
 
 #include <QColor>
-#include <QMediaDevices>
 #include <QOpenGLShader>
 #include <QResizeEvent>
-#include <QThread>
 #include <QUrl>
 
 #include <algorithm>
@@ -182,58 +180,21 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                 }
                 else
                 {
-                    // Find the v4l2loopback QCameraDevice by matching its id() (device path).
-                    const QByteArray loopback_id =
-                        QByteArray::fromStdString(scene_.playback_input.loopback.loopback_device);
-                    for (const QCameraDevice &dev : QMediaDevices::videoInputs())
-                    {
-                        if (dev.id() == loopback_id)
-                        {
-                            playback_loopback_camera_ = new QCamera{dev, this};
-
-                            // Force YUY2 at whatever resolution VIDIOC_G_FMT reported.
-                            // Without this Qt6's FFmpeg backend may negotiate a different
-                            // format from the ones v4l2loopback advertises, causing
-                            // VIDIOC_STREAMON to fail even when exclusive_caps=0.
-                            const auto formats = dev.videoFormats();
-                            for (const QCameraFormat &fmt : formats)
-                            {
-                                if (fmt.pixelFormat() == QVideoFrameFormat::Format_YUYV)
-                                {
-                                    playback_loopback_camera_->setCameraFormat(fmt);
-                                    break;
-                                }
-                            }
-
-                            // Propagate async camera errors into fatal_render_error_ so
-                            // Application.cpp can exit cleanly instead of showing a black window.
-                            QObject::connect(
-                                playback_loopback_camera_, &QCamera::errorOccurred, this,
-                                [this](QCamera::Error error, const QString &error_string) {
-                                    if (error != QCamera::NoError)
-                                    {
-                                        const QString msg =
-                                            QStringLiteral("Playback loopback camera error: %1")
-                                                .arg(error_string);
-                                        fatal_render_error_ = msg;
-                                        status_message_ = msg;
-                                    }
-                                });
-
-                            playback_loopback_capture_session_.setCamera(playback_loopback_camera_);
-                            playback_loopback_capture_session_.setVideoSink(&playback_sink_);
-                            playback_loopback_camera_->start();
-                            break;
-                        }
-                    }
-
-                    if (playback_loopback_camera_ == nullptr)
+                    // Bypass QCamera entirely — Qt6's FFmpeg backend tries
+                    // V4L2_MEMORY_USERPTR which v4l2loopback does not support.
+                    // LoopbackCapture uses V4L2_MEMORY_MMAP directly, the same
+                    // path as DirectVideoWindow.
+                    playback_loopback_capture_ = new LoopbackCapture;
+                    if (!playback_loopback_capture_->start(
+                            scene_.playback_input.loopback.loopback_device, &playback_sink_))
                     {
                         const QString error_text =
-                            QStringLiteral("Playback loopback: device %1 not found in camera list")
-                                .arg(QString::fromStdString(scene_.playback_input.loopback.loopback_device));
-                        status_message_ = error_text;
+                            QStringLiteral("Playback loopback capture failed: %1")
+                                .arg(playback_loopback_capture_->status_message());
                         fatal_render_error_ = error_text;
+                        status_message_ = error_text;
+                        delete playback_loopback_capture_;
+                        playback_loopback_capture_ = nullptr;
                         playback_loopback_.stop();
                     }
                 }
