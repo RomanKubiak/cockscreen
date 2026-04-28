@@ -71,7 +71,7 @@ QString LoopbackPipeline::build_sender_pipeline_device(const std::string &device
         encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast");
     }
 
-    return QStringLiteral("gst-launch-1.0 -q "
+    return QStringLiteral("gst-launch-1.0 "
                           "v4l2src device=%1 "
                           "! %2 "
                           "! videoconvert "
@@ -100,7 +100,7 @@ QString LoopbackPipeline::build_sender_pipeline_file(const std::string &file,
 
     // decodebin handles any container/codec the system GStreamer supports.
     // "! queue" buffers between the async demuxer and the sync encoder.
-    return QStringLiteral("gst-launch-1.0 -q "
+    return QStringLiteral("gst-launch-1.0 "
                           "filesrc location=%1 "
                           "! decodebin "
                           "! queue max-size-buffers=4 leaky=downstream "
@@ -125,7 +125,7 @@ QString LoopbackPipeline::build_receiver_pipeline(const LoopbackParams &params)
         decode = QStringLiteral("avdec_h264");
     }
 
-    return QStringLiteral("gst-launch-1.0 -q "
+    return QStringLiteral("gst-launch-1.0 "
                           "udpsrc port=%1 "
                           "caps=\"application/x-rtp,payload=96,encoding-name=H264,clock-rate=90000\" "
                           "! rtph264depay "
@@ -540,15 +540,38 @@ bool LoopbackPipeline::wait_for_device_ready(int timeout_ms)
 {
     // Poll the v4l2loopback device until VIDIOC_G_FMT reports RGB24, which is
     // the exact format our receiver pipeline writes. Checking for any non-zero
-    // format is insufficient — a previous run may have left a stale YUYV entry
-    // on the device, causing a false-positive before this run's receiver has
-    // had a chance to open the device.
+    // format is insufficient — a previous run may have left a stale entry.
     const auto deadline = std::chrono::steady_clock::now() +
                           std::chrono::milliseconds(timeout_ms);
     const std::string device = params_.loopback_device;
 
     while (std::chrono::steady_clock::now() < deadline)
     {
+        // Flush any pending GStreamer output inline — the Qt event loop is
+        // blocked here so queued signals won't fire until we return.
+        if (receiver_ != nullptr)
+        {
+            const QByteArray recv_out = receiver_->readAllStandardOutput();
+            if (!recv_out.trimmed().isEmpty())
+                std::cerr << "[gst-receiver] " << recv_out.toStdString();
+
+            if (receiver_->state() != QProcess::Running)
+            {
+                status_message_ = QStringLiteral(
+                    "Loopback receiver process exited unexpectedly (code %1) "
+                    "before the device became ready")
+                    .arg(receiver_->exitCode());
+                std::cerr << "[LoopbackPipeline] " << status_message_.toStdString() << "\n";
+                return false;
+            }
+        }
+        if (sender_ != nullptr)
+        {
+            const QByteArray send_out = sender_->readAllStandardOutput();
+            if (!send_out.trimmed().isEmpty())
+                std::cerr << "[gst-sender] " << send_out.toStdString();
+        }
+
         const int fd = ::open(device.c_str(), O_RDONLY | O_NONBLOCK);
         if (fd >= 0)
         {
@@ -556,6 +579,12 @@ bool LoopbackPipeline::wait_for_device_ready(int timeout_ms)
             fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
             const bool got_format = (::ioctl(fd, VIDIOC_G_FMT, &fmt) == 0);
             ::close(fd);
+
+            char cc[5] = {};
+            std::memcpy(cc, &fmt.fmt.pix.pixelformat, 4);
+            std::cerr << "[LoopbackPipeline] poll: fourcc=" << (got_format ? cc : "?")
+                      << " " << fmt.fmt.pix.width << "x" << fmt.fmt.pix.height << "\n";
+
             if (got_format && fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24 &&
                 fmt.fmt.pix.width > 0 && fmt.fmt.pix.height > 0)
             {

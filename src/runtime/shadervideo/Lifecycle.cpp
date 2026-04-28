@@ -229,6 +229,20 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
 
 ShaderVideoWindow::~ShaderVideoWindow()
 {
+#ifndef _WIN32
+    // Stop the loopback capture thread and GStreamer subprocesses first so the
+    // V4L2 file descriptors are closed before the GL context is torn down.
+    // If this is skipped, the fd stays open across runs and the next run's
+    // GStreamer receiver gets EBUSY when trying to open the same device.
+    if (playback_loopback_capture_ != nullptr)
+    {
+        playback_loopback_capture_->stop();
+        delete playback_loopback_capture_;
+        playback_loopback_capture_ = nullptr;
+    }
+    playback_loopback_.stop();
+#endif
+
     if (context() == nullptr)
     {
         delete video_scene_fbo_;
