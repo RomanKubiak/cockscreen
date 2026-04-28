@@ -325,11 +325,35 @@ LoopbackPipeline &LoopbackPipeline::operator=(LoopbackPipeline &&other) noexcept
     return *this;
 }
 
+// Clear any stale format left on the v4l2loopback device by a previous run.
+// Opens the device as a V4L2 output (writer) and sets a zeroed format, which
+// resets the device state so that wait_for_device_ready() always has to wait
+// for the new GStreamer receiver to negotiate a fresh format.
+static void reset_device_format(const std::string &device)
+{
+    const int fd = ::open(device.c_str(), O_RDWR | O_NONBLOCK);
+    if (fd < 0)
+    {
+        return; // device not accessible — fail silently, let the pipeline deal with it
+    }
+
+    v4l2_format fmt{};
+    fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    // Setting width=0/height=0/pixelformat=0 clears the format in v4l2loopback
+    // when no reader currently has STREAMON active.
+    ::ioctl(fd, VIDIOC_S_FMT, &fmt);
+    ::close(fd);
+
+    std::cerr << "[LoopbackPipeline] cleared stale format on " << device << "\n";
+}
+
 bool LoopbackPipeline::start_for_device(const std::string &source_device, int width, int height,
                                          const LoopbackParams &params)
 {
     stop();
     params_ = params;
+
+    reset_device_format(params.loopback_device);
 
     // Start the receiver first so udpsrc is listening before the sender fires.
     const QString recv_cmd = build_receiver_pipeline(params);
@@ -373,6 +397,8 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
 {
     stop();
     params_ = params;
+
+    reset_device_format(params.loopback_device);
 
     const QString recv_cmd = build_receiver_pipeline(params);
     std::cerr << "[LoopbackPipeline] receiver cmd: " << recv_cmd.toStdString() << "\n";
