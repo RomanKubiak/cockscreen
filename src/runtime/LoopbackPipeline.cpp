@@ -408,6 +408,18 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     stop();
     params_ = params;
 
+    // Kill any orphaned gst-launch processes left over from a previous run that
+    // still hold the loopback device open (they run with setsid so they survive
+    // cockscreen being killed and keep the OUTPUT fd in "output" state, which
+    // prevents the sysfs state from ever reaching "capture").
+    {
+        const QString device = QString::fromStdString(params.loopback_device);
+        const QString pattern = QString("gst-launch.*%1").arg(device);
+        QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-9"), QStringLiteral("-f"), pattern});
+        // Give the kernel time to release the fd and reset the sysfs state.
+        QThread::msleep(300);
+    }
+
     reset_device_format(params.loopback_device);
 
     // Receiver: run in its own session (setsid) so that when the sender's
