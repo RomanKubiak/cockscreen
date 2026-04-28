@@ -28,6 +28,10 @@
 
 #include "../core/ControlFrame.hpp"
 #include "Application.hpp"
+#include "ArtifactInjector.hpp"
+#ifndef _WIN32
+#include "LoopbackPipeline.hpp"
+#endif
 #include "Scene.hpp"
 #include "RuntimeHelpers.hpp"
 
@@ -183,6 +187,16 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     std::optional<std::uintmax_t> playback_file_size_bytes_;
     double processing_fps_{0.0};
     double render_fps_{0.0};
+    std::uint64_t video_artifact_frame_counter_{0};
+    std::uint64_t playback_artifact_frame_counter_{0};
+#ifndef _WIN32
+    // Playback-layer loopback (Step 2): GStreamer file-source pipeline →
+    // RTP/UDP → tc-netem → v4l2loopback → playback_loopback_camera_.
+    // Active only when scene_.playback_input.loopback.enabled.
+    LoopbackPipeline playback_loopback_;
+    QCamera *playback_loopback_camera_{nullptr};
+    QMediaCaptureSession playback_loopback_capture_session_;
+#endif
 };
 
 } // namespace cockscreen::runtime

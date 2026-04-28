@@ -18,7 +18,9 @@
 #include <QWidget>
 
 #include "Application.hpp"
+#include "ArtifactInjector.hpp"
 #include "RuntimeHelpers.hpp"
+#include "Scene.hpp"
 #include "V4l2Capture.hpp"
 
 namespace cockscreen::runtime
@@ -32,6 +34,7 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 {
   public:
     explicit DirectVideoWindow(const ApplicationSettings &settings, QString shader_label, bool show_status_overlay,
+                               ArtifactParams artifact_params = {},
                                QWidget *parent = nullptr);
     ~DirectVideoWindow() override;
 
@@ -116,6 +119,8 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     double render_fps_{0.0};
     double upload_ms_{0.0};
     double render_ms_{0.0};
+    ArtifactParams artifact_params_;
+    std::uint64_t artifact_frame_counter_{0};
 };
 
 } // namespace cockscreen::runtime

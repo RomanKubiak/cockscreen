@@ -1,6 +1,9 @@
 #include "../../include/cockscreen/runtime/Application.hpp"
 #include "../../include/cockscreen/runtime/AudioAnalysisWindow.hpp"
 #include "../../include/cockscreen/runtime/DirectVideoWindow.hpp"
+#ifndef _WIN32
+#include "../../include/cockscreen/runtime/LoopbackPipeline.hpp"
+#endif
 #include "../../include/cockscreen/runtime/MidiInputMonitor.hpp"
 #include "../../include/cockscreen/runtime/OscInputMonitor.hpp"
 #if defined(__linux__) && defined(__aarch64__)
@@ -19,9 +22,11 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QHostAddress>
+#include <QMediaDevices>
 #include <QMimeDatabase>
 #include <QPainter>
 #include <QSurfaceFormat>
+#include <QThread>
 #include <QTimer>
 #include <QUrl>
 
@@ -634,7 +639,33 @@ int Application::run(int argc, char *argv[])
         return 2;
 #else
         const QString shader_label = shader_label_for(settings_);
-        DirectVideoWindow window{settings_, shader_label, scene.show_status_overlay};
+
+        // --- Step 2: start loopback pipeline if configured for the video input.
+        LoopbackPipeline loopback_pipeline;
+        std::string effective_video_device = settings_.video_device;
+        if (scene.video_input.loopback.enabled)
+        {
+            const bool started = loopback_pipeline.start_for_device(
+                settings_.video_device, settings_.width, settings_.height,
+                scene.video_input.loopback);
+            if (started)
+            {
+                effective_video_device = loopback_pipeline.output_device();
+                // Give the pipeline time to produce the first frames.
+                QThread::msleep(500);
+            }
+            else
+            {
+                std::cerr << "LoopbackPipeline: " << loopback_pipeline.status_message().toStdString() << "\n";
+            }
+        }
+
+        // Temporarily override the video device with the loopback output device.
+        ApplicationSettings effective_settings = settings_;
+        effective_settings.video_device = effective_video_device;
+
+        DirectVideoWindow window{effective_settings, shader_label, scene.show_status_overlay,
+                                 scene.video_input.artifact};
         if (is_pi_target())
         {
             window.showFullScreen();
@@ -736,8 +767,42 @@ int Application::run(int argc, char *argv[])
     if (settings_.render_path == "qt-shader")
     {
         QString selected_video_label;
-        const auto video_device = select_video_input(settings_, &selected_video_label);
+        auto video_device = select_video_input(settings_, &selected_video_label);
         const auto [requested_width, requested_height] = support::requested_video_dimensions(scene);
+
+#ifndef _WIN32
+        // --- Step 2: start video-layer loopback pipeline if configured.
+        LoopbackPipeline qt_video_loopback;
+        if (scene.video_input.loopback.enabled && video_device.has_value())
+        {
+            const bool started = qt_video_loopback.start_for_device(
+                settings_.video_device, requested_width, requested_height,
+                scene.video_input.loopback);
+
+            if (started)
+            {
+                QThread::msleep(500);
+                const QByteArray loopback_id =
+                    QByteArray::fromStdString(scene.video_input.loopback.loopback_device);
+                for (const QCameraDevice &dev : QMediaDevices::videoInputs())
+                {
+                    if (dev.id() == loopback_id)
+                    {
+                        video_device = dev;
+                        selected_video_label =
+                            QStringLiteral("loopback:%1")
+                                .arg(QString::fromStdString(scene.video_input.loopback.loopback_device));
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                std::cerr << "Video loopback: " << qt_video_loopback.status_message().toStdString() << "\n";
+            }
+        }
+#endif
+
         const auto selected_format = video_device.has_value()
                                          ? select_camera_format(*video_device, requested_width, requested_height)
                                          : std::nullopt;

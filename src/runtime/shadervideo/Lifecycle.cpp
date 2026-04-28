@@ -4,8 +4,10 @@
 #include "cockscreen/runtime/shadervideo/Support.hpp"
 
 #include <QColor>
+#include <QMediaDevices>
 #include <QOpenGLShader>
 #include <QResizeEvent>
+#include <QThread>
 #include <QUrl>
 
 #include <algorithm>
@@ -147,7 +149,55 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     }
 
     playback_player_.setVideoSink(&playback_sink_);
-    restart_playback_source(true);
+
+#ifndef _WIN32
+    // --- Step 2 (playback layer): start the loopback pipeline if configured.
+    // When active, a QCamera reading from the v4l2loopback device replaces
+    // QMediaPlayer so decoded-but-corrupted frames reach the playback sink.
+    if (scene_.playback_input.loopback.enabled && !scene_.playback_input.file.empty())
+    {
+        const bool started = playback_loopback_.start_for_file(
+            scene_.playback_input.file, scene_.playback_input.loopback);
+
+        if (started)
+        {
+            // Give the GStreamer pipeline time to produce the first frames and
+            // register the v4l2loopback device with the kernel.
+            QThread::msleep(500);
+
+            // Find the v4l2loopback QCameraDevice by matching its id() (device path).
+            const QByteArray loopback_id =
+                QByteArray::fromStdString(scene_.playback_input.loopback.loopback_device);
+            for (const QCameraDevice &dev : QMediaDevices::videoInputs())
+            {
+                if (dev.id() == loopback_id)
+                {
+                    playback_loopback_camera_ = new QCamera{dev, this};
+                    playback_loopback_capture_session_.setCamera(playback_loopback_camera_);
+                    playback_loopback_capture_session_.setVideoSink(&playback_sink_);
+                    playback_loopback_camera_->start();
+                    break;
+                }
+            }
+
+            if (playback_loopback_camera_ == nullptr)
+            {
+                status_message_ = QStringLiteral("Playback loopback: device %1 not found in camera list")
+                                      .arg(QString::fromStdString(scene_.playback_input.loopback.loopback_device));
+                playback_loopback_.stop();
+            }
+        }
+        else
+        {
+            status_message_ = QStringLiteral("Playback loopback failed to start: ") +
+                              playback_loopback_.status_message();
+        }
+    }
+    else
+#endif
+    {
+        restart_playback_source(true);
+    }
 
     if (camera_ != nullptr)
     {

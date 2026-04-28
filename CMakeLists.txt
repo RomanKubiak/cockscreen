@@ -47,6 +47,7 @@ target_sources(cockscreen_core
         src/app/Arguments.cpp
         src/app/StartupPaths.cpp
         src/app/DeviceDiscovery.cpp
+        src/runtime/ArtifactInjector.cpp
         src/runtime/audioanalysis/Processing.cpp
         src/runtime/audioanalysis/UI.cpp
         src/core/ModulationBus.cpp
@@ -76,6 +77,7 @@ target_sources(cockscreen_core
 if(NOT WIN32)
     target_sources(cockscreen_core
         PRIVATE
+            src/runtime/LoopbackPipeline.cpp
             src/runtime/directvideo/Lifecycle.cpp
             src/runtime/directvideo/Rendering.cpp
             src/runtime/directvideo/Support.cpp
