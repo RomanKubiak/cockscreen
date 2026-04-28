@@ -80,6 +80,17 @@ class LoopbackPipeline
 
     [[nodiscard]] bool is_running() const;
 
+    // Check that v4l2loopback is loaded and the output device file exists.
+    // Call this before start_for_device / start_for_file to get a clear
+    // error message instead of a silent GStreamer failure.
+    [[nodiscard]] static bool check_prerequisites(const LoopbackParams &params,
+                                                  QString *error_message = nullptr);
+
+    // Block until the v4l2loopback output device has a negotiated format,
+    // which only happens once GStreamer's receiver has written its first frame.
+    // Returns false (and sets status_message()) on timeout.
+    [[nodiscard]] bool wait_for_device_ready(int timeout_ms = 5000);
+
   private:
     bool install_netem(const LoopbackParams &params);
     void remove_netem();

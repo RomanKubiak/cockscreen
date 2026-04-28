@@ -156,44 +156,80 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     // QMediaPlayer so decoded-but-corrupted frames reach the playback sink.
     if (scene_.playback_input.loopback.enabled && !scene_.playback_input.file.empty())
     {
-        const bool started = playback_loopback_.start_for_file(
-            scene_.playback_input.file, scene_.playback_input.loopback);
-
-        if (started)
+        // Verify prerequisites before spending time on GStreamer startup.
+        QString prereq_error;
+        if (!LoopbackPipeline::check_prerequisites(scene_.playback_input.loopback, &prereq_error))
         {
-            // Give the GStreamer pipeline time to produce the first frames and
-            // register the v4l2loopback device with the kernel.
-            QThread::msleep(500);
-
-            // Find the v4l2loopback QCameraDevice by matching its id() (device path).
-            const QByteArray loopback_id =
-                QByteArray::fromStdString(scene_.playback_input.loopback.loopback_device);
-            for (const QCameraDevice &dev : QMediaDevices::videoInputs())
-            {
-                if (dev.id() == loopback_id)
-                {
-                    playback_loopback_camera_ = new QCamera{dev, this};
-                    playback_loopback_capture_session_.setCamera(playback_loopback_camera_);
-                    playback_loopback_capture_session_.setVideoSink(&playback_sink_);
-                    playback_loopback_camera_->start();
-                    break;
-                }
-            }
-
-            if (playback_loopback_camera_ == nullptr)
-            {
-                const QString error_text = QStringLiteral("Playback loopback: device %1 not found in camera list")
-                                               .arg(QString::fromStdString(scene_.playback_input.loopback.loopback_device));
-                status_message_ = error_text;
-                fatal_render_error_ = error_text;
-                playback_loopback_.stop();
-            }
+            fatal_render_error_ = prereq_error;
+            status_message_ = prereq_error;
         }
         else
         {
-            fatal_render_error_ = QStringLiteral("Playback loopback failed to start: ") +
-                                  playback_loopback_.status_message();
-            status_message_ = fatal_render_error_;
+            const bool started = playback_loopback_.start_for_file(
+                scene_.playback_input.file, scene_.playback_input.loopback);
+
+            if (started)
+            {
+                // Block until GStreamer's receiver has written its first frame and
+                // v4l2loopback reports a valid pixel format — this replaces the
+                // fixed 500 ms sleep which was too short for H.264 pipeline init.
+                if (!playback_loopback_.wait_for_device_ready(8000))
+                {
+                    fatal_render_error_ = QStringLiteral("Playback loopback device not ready: ") +
+                                          playback_loopback_.status_message();
+                    status_message_ = fatal_render_error_;
+                    playback_loopback_.stop();
+                }
+                else
+                {
+                    // Find the v4l2loopback QCameraDevice by matching its id() (device path).
+                    const QByteArray loopback_id =
+                        QByteArray::fromStdString(scene_.playback_input.loopback.loopback_device);
+                    for (const QCameraDevice &dev : QMediaDevices::videoInputs())
+                    {
+                        if (dev.id() == loopback_id)
+                        {
+                            playback_loopback_camera_ = new QCamera{dev, this};
+
+                            // Propagate async camera errors into fatal_render_error_ so
+                            // Application.cpp can exit cleanly instead of showing a black window.
+                            QObject::connect(
+                                playback_loopback_camera_, &QCamera::errorOccurred, this,
+                                [this](QCamera::Error error, const QString &error_string) {
+                                    if (error != QCamera::NoError)
+                                    {
+                                        const QString msg =
+                                            QStringLiteral("Playback loopback camera error: %1")
+                                                .arg(error_string);
+                                        fatal_render_error_ = msg;
+                                        status_message_ = msg;
+                                    }
+                                });
+
+                            playback_loopback_capture_session_.setCamera(playback_loopback_camera_);
+                            playback_loopback_capture_session_.setVideoSink(&playback_sink_);
+                            playback_loopback_camera_->start();
+                            break;
+                        }
+                    }
+
+                    if (playback_loopback_camera_ == nullptr)
+                    {
+                        const QString error_text =
+                            QStringLiteral("Playback loopback: device %1 not found in camera list")
+                                .arg(QString::fromStdString(scene_.playback_input.loopback.loopback_device));
+                        status_message_ = error_text;
+                        fatal_render_error_ = error_text;
+                        playback_loopback_.stop();
+                    }
+                }
+            }
+            else
+            {
+                fatal_render_error_ = QStringLiteral("Playback loopback failed to start: ") +
+                                      playback_loopback_.status_message();
+                status_message_ = fatal_render_error_;
+            }
         }
     }
     else

@@ -2,12 +2,19 @@
 
 #ifndef _WIN32
 
+#include <QFile>
 #include <QProcess>
 #include <QString>
 #include <QStringList>
 #include <QThread>
 
+#include <chrono>
 #include <utility>
+
+#include <fcntl.h>
+#include <linux/videodev2.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace cockscreen::runtime
 {
@@ -439,6 +446,86 @@ QString LoopbackPipeline::status_message() const
 bool LoopbackPipeline::is_running() const
 {
     return sender_ != nullptr && receiver_ != nullptr;
+}
+
+bool LoopbackPipeline::check_prerequisites(const LoopbackParams &params, QString *error_message)
+{
+    // Verify that the v4l2loopback kernel module is loaded.
+    QFile modules_file(QStringLiteral("/proc/modules"));
+    if (modules_file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        bool found = false;
+        while (!modules_file.atEnd())
+        {
+            if (QString::fromUtf8(modules_file.readLine()).startsWith(QStringLiteral("v4l2loopback ")))
+            {
+                found = true;
+                break;
+            }
+        }
+        modules_file.close();
+        if (!found)
+        {
+            if (error_message != nullptr)
+            {
+                *error_message = QStringLiteral(
+                    "v4l2loopback kernel module is not loaded.\n"
+                    "Load it with:\n"
+                    "  sudo modprobe v4l2loopback devices=1 video_nr=10 card_label=cockscreen-lb");
+            }
+            return false;
+        }
+    }
+
+    // Verify the output device file exists.
+    const QString device_path = QString::fromStdString(params.loopback_device);
+    if (!QFile::exists(device_path))
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral(
+                "Loopback output device '%1' does not exist.\n"
+                "Check that v4l2loopback was loaded with the correct video_nr.")
+                    .arg(device_path);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool LoopbackPipeline::wait_for_device_ready(int timeout_ms)
+{
+    // Poll the v4l2loopback device until VIDIOC_G_FMT reports a non-zero
+    // pixel format, which only happens once the GStreamer receiver has written
+    // its first frame and negotiated a format with the kernel driver.
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(timeout_ms);
+    const std::string device = params_.loopback_device;
+
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        const int fd = ::open(device.c_str(), O_RDONLY | O_NONBLOCK);
+        if (fd >= 0)
+        {
+            v4l2_format fmt{};
+            fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            const bool got_format = (::ioctl(fd, VIDIOC_G_FMT, &fmt) == 0);
+            ::close(fd);
+            if (got_format && fmt.fmt.pix.pixelformat != 0 &&
+                fmt.fmt.pix.width > 0 && fmt.fmt.pix.height > 0)
+            {
+                return true;
+            }
+        }
+        QThread::msleep(150);
+    }
+
+    status_message_ = QStringLiteral(
+        "Timed out waiting for loopback device '%1' to become ready. "
+        "GStreamer may not have written its first frame in time.")
+                          .arg(QString::fromStdString(device));
+    return false;
 }
 
 } // namespace cockscreen::runtime

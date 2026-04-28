@@ -645,18 +645,28 @@ int Application::run(int argc, char *argv[])
         std::string effective_video_device = settings_.video_device;
         if (scene.video_input.loopback.enabled)
         {
+            QString prereq_error;
+            if (!LoopbackPipeline::check_prerequisites(scene.video_input.loopback, &prereq_error))
+            {
+                std::cerr << prereq_error.toStdString() << "\n";
+                return 2;
+            }
             const bool started = loopback_pipeline.start_for_device(
                 settings_.video_device, settings_.width, settings_.height,
                 scene.video_input.loopback);
             if (started)
             {
                 effective_video_device = loopback_pipeline.output_device();
-                // Give the pipeline time to produce the first frames.
-                QThread::msleep(500);
+                if (!loopback_pipeline.wait_for_device_ready(8000))
+                {
+                    std::cerr << loopback_pipeline.status_message().toStdString() << "\n";
+                    return 2;
+                }
             }
             else
             {
                 std::cerr << "LoopbackPipeline: " << loopback_pipeline.status_message().toStdString() << "\n";
+                return 2;
             }
         }
 
@@ -775,13 +785,23 @@ int Application::run(int argc, char *argv[])
         LoopbackPipeline qt_video_loopback;
         if (scene.video_input.loopback.enabled && video_device.has_value())
         {
+            QString prereq_error;
+            if (!LoopbackPipeline::check_prerequisites(scene.video_input.loopback, &prereq_error))
+            {
+                std::cerr << prereq_error.toStdString() << "\n";
+                return 2;
+            }
             const bool started = qt_video_loopback.start_for_device(
                 settings_.video_device, requested_width, requested_height,
                 scene.video_input.loopback);
 
             if (started)
             {
-                QThread::msleep(500);
+                if (!qt_video_loopback.wait_for_device_ready(8000))
+                {
+                    std::cerr << qt_video_loopback.status_message().toStdString() << "\n";
+                    return 2;
+                }
                 const QByteArray loopback_id =
                     QByteArray::fromStdString(scene.video_input.loopback.loopback_device);
                 for (const QCameraDevice &dev : QMediaDevices::videoInputs())
