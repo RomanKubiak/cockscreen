@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <poll.h>
 #include <linux/videodev2.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -57,81 +58,54 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
             }
         }
 
-        // --- 2. Wait for v4l2sink (writer) to open the device ---------------
-        // With exclusive_caps=1, VIDIOC_QUERYCAP reports V4L2_CAP_VIDEO_CAPTURE
-        // only while a writer (v4l2sink) has the device open.  This is the most
-        // reliable signal that v4l2sink is running — independent of STREAMON
-        // state or buffer allocation, so it has no false positives.
-        // After the writer is confirmed open, we do a short STREAMON retry to
-        // wait for it to call STREAMON(OUTPUT) (sets ready_for_capture=1).
+        // --- 2. Wait for the first frame from v4l2sink (writer) via poll() --------
+        // poll(POLLIN) on a reader fd is the only reliable synchronisation point:
+        // v4l2loopback sets POLLIN only when ready_for_capture==1 (writer called
+        // STREAMON_OUTPUT) AND at least one frame has been written.
+        // - QUERYCAP(V4L2_CAP_VIDEO_CAPTURE) has false positives: stale format or
+        //   the writer opening in READY state (before STREAMON) triggers it.
+        // - STREAMON probe without REQBUFS returns EINVAL (from vb2_streamon for
+        //   "no buffers") before the ready_for_capture check — always fires.
+        // - Only poll() is unconditionally correct and requires no REQBUFS.
+        //
+        // We hold a single reader fd open during polling; because the poll fd is
+        // only READING (no REQBUFS) it does not interfere with v4l2sink's output
+        // buffer pool setup (which uses a separate vb2 queue).
         {
-            constexpr int kOpenMax    = 300; // 300 x 100 ms = 30 s
-            constexpr int kStreamMax  = 50;  // 50  x 100 ms = 5 s
-
-            // Phase A: wait for writer to open
-            bool writer_open = false;
-            for (int n = 0; running_ && n <= kOpenMax; ++n)
+            const int poll_fd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
+            if (poll_fd < 0)
             {
-                const int pfd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
-                if (pfd >= 0)
-                {
-                    v4l2_capability cap{};
-                    const bool got = (::ioctl(pfd, VIDIOC_QUERYCAP, &cap) == 0);
-                    ::close(pfd);
-                    if (got && (cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
-                    {
-                        std::cerr << "[LoopbackCapture] writer opened device (probe " << n << ")\n";
-                        writer_open = true;
-                        break;
-                    }
-                }
-                if (n % 10 == 0)
-                    std::cerr << "[LoopbackCapture] waiting for writer to open, probe "
-                              << n << "/" << kOpenMax << "\n";
-                ::usleep(100000);
-            }
-            if (!writer_open)
-            {
-                std::cerr << "[LoopbackCapture] writer never opened device\n";
-                status_message_ = QStringLiteral("LoopbackCapture: writer never opened device");
+                status_message_ = QStringLiteral("LoopbackCapture: cannot open device for poll");
                 running_ = false;
                 return;
             }
 
-            // Phase B: wait for writer to call STREAMON(OUTPUT) — open a fresh
-            // temporary fd each time so we never hold a reader fd during
-            // v4l2sink's buffer pool setup.
-            bool writer_streaming = false;
-            for (int n = 0; running_ && n <= kStreamMax; ++n)
+            constexpr int kPoll_max_ms = 30000; // 30 s total
+            constexpr int kPoll_step   = 100;   // 100 ms per iteration
+            bool got_frame = false;
+            for (int elapsed = 0; running_ && elapsed < kPoll_max_ms; elapsed += kPoll_step)
             {
-                const int pfd = ::open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
-                if (pfd >= 0)
+                struct pollfd pfd{poll_fd, POLLIN, 0};
+                const int ret = ::poll(&pfd, 1, kPoll_step);
+                if (ret > 0 && (pfd.revents & POLLIN))
                 {
-                    int bt = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-                    const int rc = ::ioctl(pfd, VIDIOC_STREAMON, &bt);
-                    const int er = (rc == 0) ? 0 : errno;
-                    ::close(pfd);
-                    // EIO  = ready_for_capture==0 (writer not yet streaming)
-                    // Any other result means ready_for_capture==1 and vb2 is
-                    // responding (e.g. EINVAL = no capture buffers yet, but writer IS streaming)
-                    if (er != EIO)
-                    {
-                        std::cerr << "[LoopbackCapture] writer streaming (rc=" << rc
-                                  << " er=" << er << " probe " << n << ")\n";
-                        writer_streaming = true;
-                        break;
-                    }
+                    std::cerr << "[LoopbackCapture] first frame detected via poll after "
+                              << elapsed + kPoll_step << " ms\n";
+                    got_frame = true;
+                    break;
                 }
-                if (n % 5 == 0)
-                    std::cerr << "[LoopbackCapture] waiting for STREAMON(OUTPUT), probe "
-                              << n << "/" << kStreamMax << "\n";
-                ::usleep(100000);
+                if ((elapsed / kPoll_step) % 20 == 0)
+                    std::cerr << "[LoopbackCapture] poll: waiting for first frame ("
+                              << elapsed << " ms elapsed)\n";
             }
-            if (!writer_streaming)
+            ::close(poll_fd);
+
+            if (!got_frame)
             {
-                // If we time out here, proceed anyway and let the STREAMON attempt
-                // in step 5 give us a definitive result.
-                std::cerr << "[LoopbackCapture] writer may not be streaming yet, proceeding\n";
+                std::cerr << "[LoopbackCapture] timed out waiting for first frame\n";
+                status_message_ = QStringLiteral("LoopbackCapture: timed out waiting for writer");
+                running_ = false;
+                return;
             }
         }
 
