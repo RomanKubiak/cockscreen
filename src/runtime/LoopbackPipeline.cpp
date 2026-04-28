@@ -158,23 +158,37 @@ static QString build_netem_opts(const LoopbackParams &params)
     return opts.trimmed();
 }
 
-bool LoopbackPipeline::run_tc_command(const QStringList &args)
+bool LoopbackPipeline::run_tc_command(const QStringList &args, QString *error_message)
 {
     QProcess proc;
     proc.start(QStringLiteral("tc"), args);
     if (!proc.waitForFinished(5000))
     {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("tc command timed out");
+        }
         return false;
     }
-    return proc.exitCode() == 0;
+
+    if (proc.exitCode() != 0)
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("tc-netem setup failed; CAP_NET_ADMIN or root is required");
+        }
+        return false;
+    }
+
+    return true;
 }
 
-void LoopbackPipeline::install_netem(const LoopbackParams &params)
+bool LoopbackPipeline::install_netem(const LoopbackParams &params)
 {
     const QString netem_opts = build_netem_opts(params);
     if (netem_opts.isEmpty())
     {
-        return; // Nothing to configure.
+        return true; // Nothing to configure.
     }
 
     // Topology:
@@ -183,7 +197,8 @@ void LoopbackPipeline::install_netem(const LoopbackParams &params)
     //   tc filter routes dport <udp_port> → 1:4
 
     // 1. Root prio qdisc (4 bands; default priomap sends everything to band 0).
-    run_tc_command(QStringList{
+    QString error_message;
+    if (!run_tc_command(QStringList{
         QStringLiteral("qdisc"), QStringLiteral("add"),
         QStringLiteral("dev"), QStringLiteral("lo"),
         QStringLiteral("root"), QStringLiteral("handle"), QStringLiteral("1:"),
@@ -194,7 +209,11 @@ void LoopbackPipeline::install_netem(const LoopbackParams &params)
         QStringLiteral("0"), QStringLiteral("0"), QStringLiteral("0"), QStringLiteral("0"),
         QStringLiteral("0"), QStringLiteral("0"), QStringLiteral("0"), QStringLiteral("0"),
         QStringLiteral("0"), QStringLiteral("0"), QStringLiteral("0"), QStringLiteral("0"),
-    });
+    }, &error_message))
+    {
+        status_message_ = error_message;
+        return false;
+    }
 
     // 2. netem on band 4 (1:4).
     QStringList netem_args{
@@ -208,10 +227,14 @@ void LoopbackPipeline::install_netem(const LoopbackParams &params)
     {
         netem_args << opt;
     }
-    run_tc_command(netem_args);
+    if (!run_tc_command(netem_args, &error_message))
+    {
+        status_message_ = error_message;
+        return false;
+    }
 
     // 3. u32 filter: UDP destination port → band 1:4.
-    run_tc_command(QStringList{
+    if (!run_tc_command(QStringList{
         QStringLiteral("filter"), QStringLiteral("add"),
         QStringLiteral("dev"), QStringLiteral("lo"),
         QStringLiteral("protocol"), QStringLiteral("ip"),
@@ -221,9 +244,14 @@ void LoopbackPipeline::install_netem(const LoopbackParams &params)
         QStringLiteral("match"), QStringLiteral("ip"),
         QStringLiteral("dport"), QString::number(params.udp_port), QStringLiteral("0xffff"),
         QStringLiteral("flowid"), QStringLiteral("1:4"),
-    });
+    }, &error_message))
+    {
+        status_message_ = error_message;
+        return false;
+    }
 
     netem_installed_ = true;
+    return true;
 }
 
 void LoopbackPipeline::remove_netem()
@@ -308,7 +336,11 @@ bool LoopbackPipeline::start_for_device(const std::string &source_device, int wi
     }
 
     // Install tc-netem before the sender starts sending packets.
-    install_netem(params);
+    if (!install_netem(params))
+    {
+        stop();
+        return false;
+    }
 
     // Small delay so the receiver is fully initialised.
     QThread::msleep(200);
@@ -345,7 +377,11 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
         return false;
     }
 
-    install_netem(params);
+    if (!install_netem(params))
+    {
+        stop();
+        return false;
+    }
     QThread::msleep(200);
 
     const QString send_cmd = build_sender_pipeline_file(source_file, params);

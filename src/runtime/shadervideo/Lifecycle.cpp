@@ -182,15 +182,18 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
 
             if (playback_loopback_camera_ == nullptr)
             {
-                status_message_ = QStringLiteral("Playback loopback: device %1 not found in camera list")
-                                      .arg(QString::fromStdString(scene_.playback_input.loopback.loopback_device));
+                const QString error_text = QStringLiteral("Playback loopback: device %1 not found in camera list")
+                                               .arg(QString::fromStdString(scene_.playback_input.loopback.loopback_device));
+                status_message_ = error_text;
+                fatal_render_error_ = error_text;
                 playback_loopback_.stop();
             }
         }
         else
         {
-            status_message_ = QStringLiteral("Playback loopback failed to start: ") +
-                              playback_loopback_.status_message();
+            fatal_render_error_ = QStringLiteral("Playback loopback failed to start: ") +
+                                  playback_loopback_.status_message();
+            status_message_ = fatal_render_error_;
         }
     }
     else

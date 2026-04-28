@@ -81,9 +81,9 @@ class LoopbackPipeline
     [[nodiscard]] bool is_running() const;
 
   private:
-    void install_netem(const LoopbackParams &params);
+    bool install_netem(const LoopbackParams &params);
     void remove_netem();
-    static bool run_tc_command(const QStringList &args);
+    static bool run_tc_command(const QStringList &args, QString *error_message = nullptr);
     static QString build_sender_pipeline_device(const std::string &device, int width, int height,
                                                 const LoopbackParams &params);
     static QString build_sender_pipeline_file(const std::string &file, const LoopbackParams &params);

@@ -799,9 +799,16 @@ int Application::run(int argc, char *argv[])
             else
             {
                 std::cerr << "Video loopback: " << qt_video_loopback.status_message().toStdString() << "\n";
+                return 2;
             }
         }
 #endif
+
+        if (scene.video_input.loopback.enabled && !video_device.has_value())
+        {
+            std::cerr << "Video loopback requested but no capture device was selected.\n";
+            return 2;
+        }
 
         const auto selected_format = video_device.has_value()
                                          ? select_camera_format(*video_device, requested_width, requested_height)
@@ -814,6 +821,11 @@ int Application::run(int argc, char *argv[])
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
                      camera_format_text, video_on_top, show_status_overlay};
+        if (!window.fatal_render_error().isEmpty())
+        {
+            std::cerr << window.fatal_render_error().toStdString() << '\n';
+            return 2;
+        }
         SceneControlDeviceInfo web_device_info;
         web_device_info.opened_video = selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label;
         web_device_info.opened_audio = audio_label.isEmpty() ? QStringLiteral("<none>") : audio_label;
