@@ -61,27 +61,27 @@
             /* Set false to prevent the device capture from driving u_audio_fft etc.
                Useful when fft_analysis_from_playback is true and you want only
                the audio file to drive the FFT uniforms. */
-            "fft_analysis_enabled": true
+            "fft_analysis_enabled": false
         },
         /* Audio file playback — same transport controls as video playback. */
         "audio_playback": {
-            "enabled": false,
-            "file": "/home/atom/Music/example.mp3",
+            "enabled": true,
+            "file": "/home/atom/Music/We_Are_Dead.mp3",
             /* Start position in ms. */
             "start_ms": 0,
             /* Loop window: set loop_end_ms to enable; 0 = full file. */
             "loop_start_ms": 0,
             "loop_end_ms": 0,
             /* 0 = infinite loop. */
-            "loop_repeat": 0,
+            "loop_repeat": 1,
             /* Playback speed outside and inside the loop window. */
-            "playback_rate": 1.0,
-            "playback_rate_looping": 1.0,
+            "playback_rate": 2.0,
+            "playback_rate_looping": 0.5,
             /* Volume controls. All times in milliseconds. */
             /* Peak volume [0.0 – 1.0] applied once fully faded in. */
-            "volume": 1.0,
+            "volume": 0.01,
             /* Volume level at t=0 before any intro fade. */
-            "volume_initial": 0.0,
+            "volume_initial": 0.05,
             /* ms to ramp from volume_initial → volume at the very start. */
             "volume_fade_in_ms": 0,
             /* ms at the start of each loop iteration to ramp up to volume. */
@@ -93,7 +93,7 @@
             /* Route this audio file through the FFT/level pipeline so that
                u_audio_fft, u_audio_rms, u_audio_peak, u_audio_level reflect
                the playing file instead of the external capture device. */
-            "fft_analysis_from_playback": false
+            "fft_analysis_from_playback": true
         },
         /* MIDI input used for global note / CC state and mapping targets. */
         "midi": {
@@ -130,8 +130,7 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "psychotherapy.glsl",
-            "font_awesome_burst.glsl"
+            "toy_synthwave.glsl"
         ]
     },
     /* Back-to-front final compositing order. */

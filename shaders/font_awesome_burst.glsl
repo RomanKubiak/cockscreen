@@ -42,7 +42,7 @@ vec4 sample_icon(float icon_idx, vec2 local_uv)
 
 void main()
 {
-    const int kWords = 3;
+    const int kWords = 1;
     const int kCharsWord = 5;
     const float kIconCount = 64.0;
 
@@ -50,7 +50,7 @@ void main()
     float t = floor(u_time * 10.0);
 
     float aspect = u_viewport_size.x / max(u_viewport_size.y, 1.0);
-    float glyph_h = 0.15;
+    float glyph_h = 0.05;
     float glyph_w = glyph_h / aspect;
 
     const float kWordGap = 0.025;
