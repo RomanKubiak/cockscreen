@@ -298,6 +298,10 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         {
             scene.audio_input = parse_input(audio.toObject());
         }
+        if (const auto audio_playback = inputs_object.value(QStringLiteral("audio_playback")); audio_playback.isObject())
+        {
+            scene.audio_playback_input = parse_input(audio_playback.toObject());
+        }
         if (const auto midi = inputs_object.value(QStringLiteral("midi")); midi.isObject())
         {
             scene.midi_input = parse_input(midi.toObject());

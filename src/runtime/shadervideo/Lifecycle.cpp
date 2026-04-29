@@ -255,6 +255,40 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         restart_playback_source(true);
     }
 
+    audio_playback_player_.setAudioOutput(&audio_playback_audio_output_);
+    QObject::connect(&audio_playback_player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        handle_audio_playback_position_changed(static_cast<std::int64_t>(position));
+    });
+    QObject::connect(&audio_playback_player_, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+        audio_playback_duration_ms_ = std::max<std::int64_t>(0, static_cast<std::int64_t>(duration));
+    });
+    QObject::connect(&audio_playback_player_, &QMediaPlayer::mediaStatusChanged, this,
+                     [this](QMediaPlayer::MediaStatus status) {
+                         audio_playback_status_text_ = playback_media_status_text(status);
+                         if (!audio_playback_transport_pending_seek_)
+                         {
+                             return;
+                         }
+                         if (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::BufferedMedia ||
+                             status == QMediaPlayer::BufferingMedia)
+                         {
+                             audio_playback_transport_pending_seek_ = false;
+                             configure_audio_playback_transport(true, true);
+                         }
+                     });
+    QObject::connect(&audio_playback_player_, &QMediaPlayer::errorOccurred, this,
+                     [this](QMediaPlayer::Error error, const QString &error_string) {
+                         if (error == QMediaPlayer::NoError)
+                         {
+                             audio_playback_error_text_.clear();
+                             return;
+                         }
+                         audio_playback_error_text_ = error_string.trimmed().isEmpty()
+                                                          ? QStringLiteral("Audio playback error %1").arg(static_cast<int>(error))
+                                                          : error_string.trimmed();
+                     });
+    restart_audio_playback_source(true);
+
     if (camera_ != nullptr)
     {
         camera_->start();
@@ -431,6 +465,17 @@ void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
                                                 scene.playback_input.playback_rate_looping;
     const bool playback_start_changed = scene_.playback_input.start_ms != scene.playback_input.start_ms;
 
+    const bool audio_source_changed = scene_.audio_playback_input.enabled != scene.audio_playback_input.enabled ||
+                                      scene_.audio_playback_input.file != scene.audio_playback_input.file;
+    const bool audio_transport_changed = scene_.audio_playback_input.start_ms != scene.audio_playback_input.start_ms ||
+                                         scene_.audio_playback_input.loop_start_ms != scene.audio_playback_input.loop_start_ms ||
+                                         scene_.audio_playback_input.loop_end_ms != scene.audio_playback_input.loop_end_ms ||
+                                         scene_.audio_playback_input.loop_repeat != scene.audio_playback_input.loop_repeat ||
+                                         scene_.audio_playback_input.playback_rate != scene.audio_playback_input.playback_rate ||
+                                         scene_.audio_playback_input.playback_rate_looping !=
+                                             scene.audio_playback_input.playback_rate_looping;
+    const bool audio_start_changed = scene_.audio_playback_input.start_ms != scene.audio_playback_input.start_ms;
+
     scene_ = std::move(scene);
     status_message_.clear();
     fatal_render_error_.clear();
@@ -466,6 +511,15 @@ void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
     else if (playback_transport_changed)
     {
         configure_playback_transport(playback_start_changed, true);
+    }
+
+    if (audio_source_changed)
+    {
+        restart_audio_playback_source(true);
+    }
+    else if (audio_transport_changed)
+    {
+        configure_audio_playback_transport(audio_start_changed, true);
     }
 
     update();
@@ -616,6 +670,143 @@ void ShaderVideoWindow::handle_playback_position_changed(std::int64_t position_m
     }
 
     apply_playback_rate_for_position(playback_position_ms_);
+}
+
+// ---- Audio-only playback ---------------------------------------------------
+
+void ShaderVideoWindow::stop_audio_playback_source()
+{
+    audio_playback_player_.stop();
+    audio_playback_player_.setSource(QUrl{});
+    audio_playback_position_ms_ = 0;
+    audio_playback_duration_ms_ = 0;
+    audio_playback_loops_completed_ = 0;
+    audio_playback_transport_pending_seek_ = false;
+    audio_playback_error_text_.clear();
+    audio_playback_status_text_ = QStringLiteral("idle");
+}
+
+void ShaderVideoWindow::restart_audio_playback_source(bool seek_to_start)
+{
+    audio_playback_position_ms_ = 0;
+    audio_playback_duration_ms_ = 0;
+    audio_playback_loops_completed_ = 0;
+    audio_playback_error_text_.clear();
+    audio_playback_status_text_ = QStringLiteral("idle");
+
+    if (!scene_.audio_playback_input.enabled || scene_.audio_playback_input.file.empty())
+    {
+        stop_audio_playback_source();
+        return;
+    }
+
+    const auto audio_path = helper::resolve_scene_resource_path(scene_.resources_directory,
+                                                                scene_.audio_playback_input.file);
+    if (!audio_path.has_value())
+    {
+        stop_audio_playback_source();
+        status_message_ = QStringLiteral("Audio playback file not found");
+        return;
+    }
+
+    audio_playback_transport_pending_seek_ = seek_to_start;
+    audio_playback_status_text_ = QStringLiteral("loading");
+    audio_playback_player_.stop();
+    audio_playback_player_.setSource(QUrl::fromLocalFile(QString::fromStdString(audio_path->string())));
+    audio_playback_player_.play();
+    configure_audio_playback_transport(seek_to_start, true);
+}
+
+void ShaderVideoWindow::configure_audio_playback_transport(bool seek_to_start, bool reset_loop_count)
+{
+    if (audio_playback_player_.source().isEmpty())
+    {
+        return;
+    }
+
+    if (reset_loop_count)
+    {
+        audio_playback_loops_completed_ = 0;
+    }
+
+    if (seek_to_start)
+    {
+        audio_playback_position_ms_ = std::max<std::int64_t>(0, scene_.audio_playback_input.start_ms);
+        audio_playback_player_.setPosition(audio_playback_position_ms_);
+    }
+
+    apply_audio_playback_rate_for_position(audio_playback_position_ms_);
+}
+
+bool ShaderVideoWindow::audio_playback_loop_enabled() const
+{
+    return audio_playback_effective_loop_end_ms().has_value();
+}
+
+std::optional<std::int64_t> ShaderVideoWindow::audio_playback_effective_loop_end_ms() const
+{
+    const auto loop_start_ms = std::max<std::int64_t>(0, scene_.audio_playback_input.loop_start_ms);
+    if (scene_.audio_playback_input.loop_end_ms.has_value())
+    {
+        return *scene_.audio_playback_input.loop_end_ms > loop_start_ms
+                   ? std::optional<std::int64_t>{*scene_.audio_playback_input.loop_end_ms}
+                   : std::nullopt;
+    }
+
+    if (audio_playback_duration_ms_ > loop_start_ms)
+    {
+        return audio_playback_duration_ms_;
+    }
+
+    return std::nullopt;
+}
+
+void ShaderVideoWindow::apply_audio_playback_rate_for_position(std::int64_t position_ms)
+{
+    if (audio_playback_player_.source().isEmpty())
+    {
+        return;
+    }
+
+    const float base_rate = sanitized_playback_rate(scene_.audio_playback_input.playback_rate);
+    float target_rate = base_rate;
+    if (const auto loop_end_ms = audio_playback_effective_loop_end_ms(); loop_end_ms.has_value())
+    {
+        const auto loop_start_ms = std::max<std::int64_t>(0, scene_.audio_playback_input.loop_start_ms);
+        const bool loop_has_budget = scene_.audio_playback_input.loop_repeat == 0 ||
+                                     audio_playback_loops_completed_ < scene_.audio_playback_input.loop_repeat;
+        if (loop_has_budget && position_ms >= loop_start_ms && position_ms < *loop_end_ms)
+        {
+            target_rate = sanitized_playback_rate(scene_.audio_playback_input.playback_rate_looping, base_rate);
+        }
+    }
+
+    if (std::fabs(audio_playback_player_.playbackRate() - target_rate) > 0.0001F)
+    {
+        audio_playback_player_.setPlaybackRate(target_rate);
+    }
+}
+
+void ShaderVideoWindow::handle_audio_playback_position_changed(std::int64_t position_ms)
+{
+    audio_playback_position_ms_ = std::max<std::int64_t>(0, position_ms);
+
+    if (const auto loop_end_ms = audio_playback_effective_loop_end_ms(); loop_end_ms.has_value())
+    {
+        const auto loop_start_ms = std::max<std::int64_t>(0, scene_.audio_playback_input.loop_start_ms);
+        const bool loop_has_budget = scene_.audio_playback_input.loop_repeat == 0 ||
+                                     audio_playback_loops_completed_ < scene_.audio_playback_input.loop_repeat;
+        if (loop_has_budget && audio_playback_position_ms_ >= *loop_end_ms)
+        {
+            ++audio_playback_loops_completed_;
+            audio_playback_position_ms_ = loop_start_ms;
+            audio_playback_player_.setPosition(loop_start_ms);
+            apply_audio_playback_rate_for_position(loop_start_ms);
+            return;
+        }
+    }
+
+    apply_audio_playback_rate_for_position(audio_playback_position_ms_);
 }
 
 void ShaderVideoWindow::record_fatal_render_error(QString text)

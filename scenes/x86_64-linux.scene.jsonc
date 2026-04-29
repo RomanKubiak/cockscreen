@@ -169,11 +169,33 @@
             "device": "@default_input@"
         },
         /**
+         * @object audio_playback
+         * @description Audio file playback input. Uses the same transport controls as inputs.playback.
+         *   Decoded audio drives u_audio_rms / u_audio_fft when fft_analysis_enabled is true on the audio input.
+         */
+        "audio_playback": {
+            /** @field enabled {boolean} Activates audio file playback. */
+            "enabled": false,
+            /** @field file {string} Path to the audio file (mp3, wav, flac, etc.). */
+            "file": "/home/atom/Music/example.mp3",
+            /** @field start_ms {integer} [0, ∞) Initial seek position in milliseconds. */
+            "start_ms": 0,
+            /** @field loop_start_ms {integer} [0, ∞) Seek target when loop end is reached or EOS fires. */
+            "loop_start_ms": 0,
+            /** @field loop_end_ms {integer} [0, ∞) Stream position that triggers a loop-back. 0 = full file (no early loop). */
+            "loop_end_ms": 0,
+            /** @field loop_repeat {integer} [0, ∞) Number of extra loop passes. 0 = infinite looping. */
+            "loop_repeat": 0,
+            /** @field playback_rate {number} [0.01, ∞) Playback speed outside the loop segment. */
+            "playback_rate": 1.0,
+            /** @field playback_rate_looping {number} [0.01, ∞) Playback speed inside the active loop segment. */
+            "playback_rate_looping": 1.0
+        },
+        /**
          * @object midi
          * @description MIDI input providing global note/CC state, u_midi_* uniforms, and the targets for
          *   midi_cc_mappings and midi_note_mappings. On Linux uses ALSA sequencer; on Windows uses WinMM.
          */
-        "midi": {
             /** @field enabled {boolean} Activates MIDI input. When false all u_midi_* uniforms stay at 0. */
             "enabled": false,
             /** @field device {string} ALSA port name substring or numeric port (Linux). "through" selects the ALSA Through port. */
@@ -222,7 +244,10 @@
         /** @field enabled {boolean} Enables this layer in the composited output. */
         "enabled": true,
         /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
-        "shaders": []
+        "shaders": [
+            "psychotherapy.glsl",
+            "font_awesome_burst.glsl"
+        ]
     },
     /**
      * @object screen
