@@ -265,6 +265,10 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     QObject::connect(&audio_playback_player_, &QMediaPlayer::mediaStatusChanged, this,
                      [this](QMediaPlayer::MediaStatus status) {
                          audio_playback_status_text_ = playback_media_status_text(status);
+                         if (status == QMediaPlayer::EndOfMedia && !audio_playback_outro_active_)
+                         {
+                             audio_playback_outro_active_ = true;
+                         }
                          if (!audio_playback_transport_pending_seek_)
                          {
                              return;
@@ -288,6 +292,13 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                                                           : error_string.trimmed();
                      });
     restart_audio_playback_source(true);
+
+    // Volume-fade timer: fires every 50 ms, calls tick_audio_playback_volume().
+    audio_playback_volume_timer_.setInterval(50);
+    QObject::connect(&audio_playback_volume_timer_, &QTimer::timeout, this, [this]() {
+        tick_audio_playback_volume();
+    });
+    audio_playback_volume_timer_.start();
 
     if (camera_ != nullptr)
     {
@@ -684,6 +695,9 @@ void ShaderVideoWindow::stop_audio_playback_source()
     audio_playback_transport_pending_seek_ = false;
     audio_playback_error_text_.clear();
     audio_playback_status_text_ = QStringLiteral("idle");
+    audio_playback_current_volume_ = 0.0F;
+    audio_playback_outro_active_ = false;
+    audio_playback_audio_output_.setVolume(0.0F);
 }
 
 void ShaderVideoWindow::restart_audio_playback_source(bool seek_to_start)
@@ -693,6 +707,10 @@ void ShaderVideoWindow::restart_audio_playback_source(bool seek_to_start)
     audio_playback_loops_completed_ = 0;
     audio_playback_error_text_.clear();
     audio_playback_status_text_ = QStringLiteral("idle");
+    audio_playback_outro_active_ = false;
+    // Start at the configured initial volume.
+    audio_playback_current_volume_ = std::clamp(scene_.audio_playback_input.volume_initial, 0.0F, 1.0F);
+    audio_playback_audio_output_.setVolume(audio_playback_current_volume_);
 
     if (!scene_.audio_playback_input.enabled || scene_.audio_playback_input.file.empty())
     {
@@ -804,9 +822,98 @@ void ShaderVideoWindow::handle_audio_playback_position_changed(std::int64_t posi
             apply_audio_playback_rate_for_position(loop_start_ms);
             return;
         }
+
+        // Budget exhausted — begin outro fade if configured.
+        if (!loop_has_budget && !audio_playback_outro_active_ && audio_playback_position_ms_ >= *loop_end_ms)
+        {
+            audio_playback_outro_active_ = true;
+        }
     }
 
     apply_audio_playback_rate_for_position(audio_playback_position_ms_);
+}
+
+void ShaderVideoWindow::tick_audio_playback_volume()
+{
+    const auto &cfg = scene_.audio_playback_input;
+    if (!cfg.enabled || cfg.file.empty() || audio_playback_player_.source().isEmpty())
+    {
+        return;
+    }
+
+    const float peak   = std::clamp(cfg.volume, 0.0F, 1.0F);
+    const float init_v = std::clamp(cfg.volume_initial, 0.0F, 1.0F);
+    const std::int64_t pos = audio_playback_position_ms_;
+    const std::int64_t dur = audio_playback_duration_ms_;
+
+    float target = peak;
+
+    // ---- outro (after final loop or end-of-media) -------------------------
+    if (audio_playback_outro_active_)
+    {
+        if (cfg.volume_fade_out_ms > 0)
+        {
+            // outro_active_ is set when we detect the final loop end / EOM.
+            // We simply keep fading toward 0 at the configured rate each tick.
+            const float step = static_cast<float>(50) / static_cast<float>(cfg.volume_fade_out_ms);
+            audio_playback_current_volume_ = std::max(0.0F, audio_playback_current_volume_ - step * peak);
+            audio_playback_audio_output_.setVolume(audio_playback_current_volume_);
+        }
+        else
+        {
+            audio_playback_audio_output_.setVolume(0.0F);
+            audio_playback_current_volume_ = 0.0F;
+        }
+        return;
+    }
+
+    // ---- intro fade-in (from start_ms) ------------------------------------
+    const std::int64_t rel = pos - std::max<std::int64_t>(0, cfg.start_ms);
+    if (cfg.volume_fade_in_ms > 0 && rel >= 0 && rel < cfg.volume_fade_in_ms)
+    {
+        const float t = static_cast<float>(rel) / static_cast<float>(cfg.volume_fade_in_ms);
+        target = init_v + t * (peak - init_v);
+    }
+    // ---- per-loop fade-in/out ---------------------------------------------
+    else if (const auto loop_end_opt = audio_playback_effective_loop_end_ms(); loop_end_opt.has_value())
+    {
+        const std::int64_t loop_start = std::max<std::int64_t>(0, cfg.loop_start_ms);
+        const std::int64_t loop_end   = *loop_end_opt;
+        const std::int64_t loop_len   = loop_end - loop_start;
+
+        if (pos >= loop_start && pos < loop_end && loop_len > 0)
+        {
+            const std::int64_t rel_loop = pos - loop_start;
+            const std::int64_t rem_loop = loop_end - pos;
+
+            // Loop fade-in
+            if (cfg.volume_loop_fade_in_ms > 0 && rel_loop < cfg.volume_loop_fade_in_ms)
+            {
+                const float t = static_cast<float>(rel_loop) / static_cast<float>(cfg.volume_loop_fade_in_ms);
+                target = t * peak;
+            }
+            // Loop fade-out (takes priority if both overlap)
+            if (cfg.volume_loop_fade_out_ms > 0 && rem_loop < cfg.volume_loop_fade_out_ms)
+            {
+                const float t = static_cast<float>(rem_loop) / static_cast<float>(cfg.volume_loop_fade_out_ms);
+                target = std::min(target, t * peak);
+            }
+        }
+    }
+
+    // Smooth the volume toward target: step ≤ 50 ms worth of full-range change.
+    constexpr float kMaxStep = 0.02F; // at most 2% per 50 ms tick if no fade configured
+    const float delta = target - audio_playback_current_volume_;
+    if (std::fabs(delta) > kMaxStep)
+    {
+        audio_playback_current_volume_ += (delta > 0.0F ? kMaxStep : -kMaxStep);
+    }
+    else
+    {
+        audio_playback_current_volume_ = target;
+    }
+
+    audio_playback_audio_output_.setVolume(std::clamp(audio_playback_current_volume_, 0.0F, 1.0F));
 }
 
 void ShaderVideoWindow::record_fatal_render_error(QString text)

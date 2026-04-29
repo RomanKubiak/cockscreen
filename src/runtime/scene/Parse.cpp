@@ -181,6 +181,12 @@ SceneInput parse_input(const QJsonObject &object)
     input.loop_repeat = std::max(0, json_int(object, "loop_repeat", 0));
     input.playback_rate = std::max(0.01F, json_float(object, "playback_rate", 1.0F));
     input.playback_rate_looping = std::max(0.01F, json_float(object, "playback_rate_looping", 1.0F));
+    input.volume = std::clamp(json_float(object, "volume", 1.0F), 0.0F, 1.0F);
+    input.volume_initial = std::clamp(json_float(object, "volume_initial", 0.0F), 0.0F, 1.0F);
+    input.volume_fade_in_ms = std::max<std::int64_t>(0, json_int64(object, "volume_fade_in_ms", 0));
+    input.volume_loop_fade_in_ms = std::max<std::int64_t>(0, json_int64(object, "volume_loop_fade_in_ms", 0));
+    input.volume_loop_fade_out_ms = std::max<std::int64_t>(0, json_int64(object, "volume_loop_fade_out_ms", 0));
+    input.volume_fade_out_ms = std::max<std::int64_t>(0, json_int64(object, "volume_fade_out_ms", 0));
 
     input.artifact = parse_artifact(object.value(QStringLiteral("artifact")));
     input.loopback = parse_loopback(object.value(QStringLiteral("loopback")));

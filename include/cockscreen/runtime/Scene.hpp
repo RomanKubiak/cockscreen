@@ -66,6 +66,13 @@ struct SceneInput
     int loop_repeat{0};
     float playback_rate{1.0F};
     float playback_rate_looping{1.0F};
+    // Audio volume controls (used by audio_playback_input).
+    float volume{1.0F};          // peak playback volume [0, 1]
+    float volume_initial{0.0F};  // volume at t=0 (before intro fade-in)
+    std::int64_t volume_fade_in_ms{0};       // intro: ms to ramp volume_initial → volume
+    std::int64_t volume_loop_fade_in_ms{0};  // per-loop: ms at loop start to ramp up to volume
+    std::int64_t volume_loop_fade_out_ms{0}; // per-loop: ms before loop end to ramp down
+    std::int64_t volume_fade_out_ms{0};      // outro: ms to ramp to 0 after final loop / EOM
 
     ArtifactParams artifact;
     LoopbackParams loopback;

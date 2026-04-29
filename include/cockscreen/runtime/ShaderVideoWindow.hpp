@@ -21,6 +21,7 @@
 #include <QStringList>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QTimer>
 #include <QVector2D>
 #include <QVideoFrame>
 #include <QVideoSink>
@@ -119,6 +120,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void apply_audio_playback_rate_for_position(std::int64_t position_ms);
     [[nodiscard]] std::optional<std::int64_t> audio_playback_effective_loop_end_ms() const;
     [[nodiscard]] bool audio_playback_loop_enabled() const;
+    void tick_audio_playback_volume();
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
                    int frame_index, const QVector2D &channel0_resolution) const;
@@ -144,6 +146,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QVideoSink playback_sink_;
     QMediaPlayer audio_playback_player_;
     QAudioOutput audio_playback_audio_output_;
+    QTimer audio_playback_volume_timer_;
     QImage latest_frame_;
     QImage latest_playback_frame_;
     QString camera_format_label_{QStringLiteral("unknown")};
@@ -206,6 +209,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     bool audio_playback_transport_pending_seek_{false};
     QString audio_playback_error_text_;
     QString audio_playback_status_text_;
+    // Volume fade state for audio_playback
+    float audio_playback_current_volume_{0.0F};
+    bool audio_playback_outro_active_{false}; // fading out after final loop / EOM
     double processing_fps_{0.0};
     double render_fps_{0.0};
     std::uint64_t video_artifact_frame_counter_{0};

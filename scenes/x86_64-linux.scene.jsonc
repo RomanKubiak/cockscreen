@@ -189,7 +189,19 @@
             /** @field playback_rate {number} [0.01, ∞) Playback speed outside the loop segment. */
             "playback_rate": 1.0,
             /** @field playback_rate_looping {number} [0.01, ∞) Playback speed inside the active loop segment. */
-            "playback_rate_looping": 1.0
+            "playback_rate_looping": 1.0,
+            /** @field volume {number} [0, 1] Peak playback volume applied once fully faded in. */
+            "volume": 1.0,
+            /** @field volume_initial {number} [0, 1] Volume level at t=0 before the intro fade begins. */
+            "volume_initial": 0.0,
+            /** @field volume_fade_in_ms {integer} [0, ∞) Milliseconds to ramp from volume_initial to volume at startup. */
+            "volume_fade_in_ms": 0,
+            /** @field volume_loop_fade_in_ms {integer} [0, ∞) Milliseconds at the start of each loop iteration to ramp up to volume. */
+            "volume_loop_fade_in_ms": 0,
+            /** @field volume_loop_fade_out_ms {integer} [0, ∞) Milliseconds before the end of each loop iteration to ramp down to 0. */
+            "volume_loop_fade_out_ms": 0,
+            /** @field volume_fade_out_ms {integer} [0, ∞) Milliseconds to fade to 0 after the final loop ends or end-of-media. */
+            "volume_fade_out_ms": 0
         },
         /**
          * @object midi
