@@ -1,9 +1,6 @@
 #include "../../include/cockscreen/runtime/Application.hpp"
 #include "../../include/cockscreen/runtime/AudioAnalysisWindow.hpp"
 #include "../../include/cockscreen/runtime/DirectVideoWindow.hpp"
-#ifndef _WIN32
-#include "../../include/cockscreen/runtime/LoopbackPipeline.hpp"
-#endif
 #include "../../include/cockscreen/runtime/MidiInputMonitor.hpp"
 #include "../../include/cockscreen/runtime/OscInputMonitor.hpp"
 #if defined(__linux__) && defined(__aarch64__)
@@ -22,18 +19,15 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QHostAddress>
-#include <QMediaDevices>
 #include <QMimeDatabase>
 #include <QPainter>
 #include <QSurfaceFormat>
-#include <QThread>
 #include <QTimer>
 #include <QUrl>
 
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
-#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -482,17 +476,6 @@ Application::Application(ApplicationSettings settings) : settings_{std::move(set
 
 int Application::run(int argc, char *argv[])
 {
-    if (settings_.verbose_debug)
-    {
-        // Enable GStreamer pipeline debug output (level 2 = warnings+errors, 3 = info).
-        // Don't override if the caller already set a value.
-        ::setenv("GST_DEBUG", "2", /*overwrite=*/0);
-        // Enable Qt category debug messages.
-        ::setenv("QT_LOGGING_RULES", "*.debug=true", 0);
-        std::cerr << "[Application] verbose debug enabled (GST_DEBUG=" << ::getenv("GST_DEBUG")
-                  << " QT_LOGGING_RULES=" << ::getenv("QT_LOGGING_RULES") << ")\n";
-    }
-
     if (!print_startup_preflight())
     {
         return 1;
@@ -651,43 +634,7 @@ int Application::run(int argc, char *argv[])
         return 2;
 #else
         const QString shader_label = shader_label_for(settings_);
-
-        // --- Step 2: start loopback pipeline if configured for the video input.
-        LoopbackPipeline loopback_pipeline;
-        std::string effective_video_device = settings_.video_device;
-        if (scene.video_input.loopback.enabled)
-        {
-            QString prereq_error;
-            if (!LoopbackPipeline::check_prerequisites(scene.video_input.loopback, &prereq_error))
-            {
-                std::cerr << prereq_error.toStdString() << "\n";
-                return 2;
-            }
-            const bool started = loopback_pipeline.start_for_device(
-                settings_.video_device, settings_.width, settings_.height,
-                scene.video_input.loopback);
-            if (started)
-            {
-                effective_video_device = loopback_pipeline.output_device();
-                if (!loopback_pipeline.wait_for_device_ready(8000))
-                {
-                    std::cerr << loopback_pipeline.status_message().toStdString() << "\n";
-                    return 2;
-                }
-            }
-            else
-            {
-                std::cerr << "LoopbackPipeline: " << loopback_pipeline.status_message().toStdString() << "\n";
-                return 2;
-            }
-        }
-
-        // Temporarily override the video device with the loopback output device.
-        ApplicationSettings effective_settings = settings_;
-        effective_settings.video_device = effective_video_device;
-
-        DirectVideoWindow window{effective_settings, shader_label, scene.show_status_overlay,
-                                 scene.video_input.artifact};
+        DirectVideoWindow window{settings_, shader_label, scene.show_status_overlay};
         if (is_pi_target())
         {
             window.showFullScreen();
@@ -789,59 +736,8 @@ int Application::run(int argc, char *argv[])
     if (settings_.render_path == "qt-shader")
     {
         QString selected_video_label;
-        auto video_device = select_video_input(settings_, &selected_video_label);
+        const auto video_device = select_video_input(settings_, &selected_video_label);
         const auto [requested_width, requested_height] = support::requested_video_dimensions(scene);
-
-#ifndef _WIN32
-        // --- Step 2: start video-layer loopback pipeline if configured.
-        LoopbackPipeline qt_video_loopback;
-        if (scene.video_input.loopback.enabled && video_device.has_value())
-        {
-            QString prereq_error;
-            if (!LoopbackPipeline::check_prerequisites(scene.video_input.loopback, &prereq_error))
-            {
-                std::cerr << prereq_error.toStdString() << "\n";
-                return 2;
-            }
-            const bool started = qt_video_loopback.start_for_device(
-                settings_.video_device, requested_width, requested_height,
-                scene.video_input.loopback);
-
-            if (started)
-            {
-                if (!qt_video_loopback.wait_for_device_ready(8000))
-                {
-                    std::cerr << qt_video_loopback.status_message().toStdString() << "\n";
-                    return 2;
-                }
-                const QByteArray loopback_id =
-                    QByteArray::fromStdString(scene.video_input.loopback.loopback_device);
-                for (const QCameraDevice &dev : QMediaDevices::videoInputs())
-                {
-                    if (dev.id() == loopback_id)
-                    {
-                        video_device = dev;
-                        selected_video_label =
-                            QStringLiteral("loopback:%1")
-                                .arg(QString::fromStdString(scene.video_input.loopback.loopback_device));
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                std::cerr << "Video loopback: " << qt_video_loopback.status_message().toStdString() << "\n";
-                return 2;
-            }
-        }
-#endif
-
-        if (scene.video_input.loopback.enabled && !video_device.has_value())
-        {
-            std::cerr << "Video loopback requested but no capture device was selected.\n";
-            return 2;
-        }
-
         const auto selected_format = video_device.has_value()
                                          ? select_camera_format(*video_device, requested_width, requested_height)
                                          : std::nullopt;
@@ -853,11 +749,6 @@ int Application::run(int argc, char *argv[])
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
                      camera_format_text, video_on_top, show_status_overlay};
-        if (!window.fatal_render_error().isEmpty())
-        {
-            std::cerr << window.fatal_render_error().toStdString() << '\n';
-            return 2;
-        }
         SceneControlDeviceInfo web_device_info;
         web_device_info.opened_video = selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label;
         web_device_info.opened_audio = audio_label.isEmpty() ? QStringLiteral("<none>") : audio_label;

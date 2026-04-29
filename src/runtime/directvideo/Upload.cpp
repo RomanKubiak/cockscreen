@@ -1,6 +1,5 @@
 #include "cockscreen/runtime/DirectVideoWindow.hpp"
 
-#include "cockscreen/runtime/ArtifactInjector.hpp"
 #include "cockscreen/runtime/directvideo/Support.hpp"
 
 #include <QElapsedTimer>
@@ -54,28 +53,6 @@ void DirectVideoWindow::upload_latest_frame()
             }
             source = staging_.data();
         }
-
-        // --- Artifact injection (Step 1) ------------------------------------
-        // When enabled the buffer must be mutable; copy to staging_ if we are
-        // still pointing at the original read-only MMAP region.
-        if (artifact_params_.enabled)
-        {
-            if (source == frame->data)
-            {
-                staging_.resize(static_cast<std::size_t>(expected_stride) *
-                                static_cast<std::size_t>(frame->height));
-                for (int row = 0; row < frame->height; ++row)
-                {
-                    std::memcpy(staging_.data() + static_cast<std::size_t>(row) * expected_stride,
-                                frame->data + static_cast<std::size_t>(row) * frame->stride,
-                                static_cast<std::size_t>(expected_stride));
-                }
-                source = staging_.data();
-            }
-            apply_artifact(staging_.data(), expected_stride, frame->height, expected_stride,
-                           artifact_params_, artifact_frame_counter_++);
-        }
-        // --------------------------------------------------------------------
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_id_);

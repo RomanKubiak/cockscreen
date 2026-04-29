@@ -106,45 +106,6 @@ BackgroundImagePlacement parse_background_image_placement(const std::string &pla
     return BackgroundImagePlacement::Center;
 }
 
-ArtifactParams parse_artifact(const QJsonValue &value)
-{
-    ArtifactParams params;
-    if (!value.isObject())
-    {
-        return params;
-    }
-
-    const auto object = value.toObject();
-    params.enabled = json_bool(object, "enabled", false);
-    params.scanline_drop = json_bool(object, "scanline_drop", false);
-    params.block_corrupt = json_bool(object, "block_corrupt", false);
-    params.bit_flip = json_bool(object, "bit_flip", false);
-    params.smear = json_bool(object, "smear", false);
-    params.strength = std::clamp(json_float(object, "strength", 0.3F), 0.0F, 1.0F);
-    params.block_size = std::max(2, json_int(object, "block_size", 16));
-    params.seed = static_cast<std::uint32_t>(std::max(0, json_int(object, "seed", 42)));
-    return params;
-}
-
-LoopbackParams parse_loopback(const QJsonValue &value)
-{
-    LoopbackParams params;
-    if (!value.isObject())
-    {
-        return params;
-    }
-
-    const auto object = value.toObject();
-    params.enabled = json_bool(object, "enabled", false);
-    params.loss_percent = std::clamp(json_float(object, "loss_percent", 0.0F), 0.0F, 100.0F);
-    params.corrupt_percent = std::clamp(json_float(object, "corrupt_percent", 0.0F), 0.0F, 100.0F);
-    params.delay_ms = std::max(0, json_int(object, "delay_ms", 0));
-    params.reorder_percent = std::clamp(json_float(object, "reorder_percent", 0.0F), 0.0F, 100.0F);
-    params.udp_port = std::clamp(json_int(object, "udp_port", 5004), 1024, 65535);
-    params.loopback_device = json_string(object, "loopback_device", "/dev/video10");
-    return params;
-}
-
 SceneInput parse_input(const QJsonObject &object)
 {
     SceneInput input;
@@ -180,9 +141,6 @@ SceneInput parse_input(const QJsonObject &object)
     input.loop_repeat = std::max(0, json_int(object, "loop_repeat", 0));
     input.playback_rate = std::max(0.01F, json_float(object, "playback_rate", 1.0F));
     input.playback_rate_looping = std::max(0.01F, json_float(object, "playback_rate_looping", 1.0F));
-
-    input.artifact = parse_artifact(object.value(QStringLiteral("artifact")));
-    input.loopback = parse_loopback(object.value(QStringLiteral("loopback")));
 
     if (!input.enabled)
     {

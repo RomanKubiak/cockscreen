@@ -9,43 +9,6 @@
 namespace cockscreen::runtime
 {
 
-// ---------------------------------------------------------------------------
-// ArtifactParams — Step 1: direct CPU-buffer corruption before GPU upload.
-// Applied to the raw pixel buffer (YUYV / RGB24 / RGBA8888) per-frame.
-// All effects are reproducible given the same seed + frame index.
-// ---------------------------------------------------------------------------
-struct ArtifactParams
-{
-    bool enabled{false};
-
-    bool scanline_drop{false};  // randomly blank / freeze scan lines
-    bool block_corrupt{false};  // randomise aligned pixel blocks
-    bool bit_flip{false};       // burst XOR bit-flips at random offsets
-    bool smear{false};          // horizontal byte smear within rows
-
-    float strength{0.3F};       // 0.0–1.0 overall intensity
-    int block_size{16};         // pixel-block edge length for block_corrupt
-    std::uint32_t seed{42};     // reproducibility seed
-};
-
-// ---------------------------------------------------------------------------
-// LoopbackParams — Step 2: GStreamer RTP-over-UDP loopback with tc-netem.
-// Requires:  gst-launch-1.0, gst-plugins-good/bad/ugly, v4l2loopback module.
-// Requires CAP_NET_ADMIN (or root) for tc commands.
-// ---------------------------------------------------------------------------
-struct LoopbackParams
-{
-    bool enabled{false};
-
-    float loss_percent{0.0F};     // UDP packet loss  (0–100)
-    float corrupt_percent{0.0F};  // UDP packet corruption (0–100)
-    int delay_ms{0};              // additional one-way delay in ms
-    float reorder_percent{0.0F};  // packet reorder probability (0–100)
-
-    int udp_port{5004};           // loopback UDP port used for RTP stream
-    std::string loopback_device;  // output v4l2loopback device, e.g. /dev/video10
-};
-
 struct SceneInput
 {
     bool enabled{true};
@@ -62,9 +25,6 @@ struct SceneInput
     int loop_repeat{0};
     float playback_rate{1.0F};
     float playback_rate_looping{1.0F};
-
-    ArtifactParams artifact;
-    LoopbackParams loopback;
 };
 
 struct SceneColor

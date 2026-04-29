@@ -33,9 +33,9 @@ void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
 } // namespace
 
 DirectVideoWindow::DirectVideoWindow(const ApplicationSettings &settings, QString shader_label, bool show_status_overlay,
-                                     ArtifactParams artifact_params, QWidget *parent)
+                                     QWidget *parent)
     : QOpenGLWidget{parent}, settings_{settings}, shader_label_{std::move(shader_label)},
-      show_status_overlay_{show_status_overlay}, artifact_params_{std::move(artifact_params)}
+      show_status_overlay_{show_status_overlay}
 {
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
@@ -65,10 +65,7 @@ DirectVideoWindow::DirectVideoWindow(const ApplicationSettings &settings, QStrin
     }
 
     capture_format_label_ = QString::fromStdString(capture_.format_label());
-    // Artifact injection requires a CPU-side buffer; disable zero-copy DMABUF when active.
-    render_mode_ = (!artifact_params_.enabled && capture_.dmabuf_export_supported())
-                       ? RenderMode::dmabuf_egl
-                       : RenderMode::cpu_upload;
+    render_mode_ = capture_.dmabuf_export_supported() ? RenderMode::dmabuf_egl : RenderMode::cpu_upload;
 }
 
 DirectVideoWindow::~DirectVideoWindow()

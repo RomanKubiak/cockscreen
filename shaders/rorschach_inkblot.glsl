@@ -72,13 +72,10 @@ void main()
 
     // 7. Thresholding (The "Ink" look)
     // Values above the threshold become the visible ink region.
-    float ink = smoothstep(0.36, 0.48, n);
-    float inner = smoothstep(0.48, 0.74, n);
-    float highlights = smoothstep(0.62, 0.86, n);
+    float ink = smoothstep(0.4, 0.45, n);
 
-    // 8. Shift the blot into a brighter grayscale palette with white-hot cores.
-    vec3 inkColor = mix(vec3(0.62, 0.62, 0.66), vec3(0.88, 0.89, 0.92), inner);
-    inkColor = mix(inkColor, vec3(1.0), highlights * 0.6);
+    // 8. Output only the black ink shape; everything else stays transparent.
+    vec3 inkColor = vec3(0.0, 0.0, 0.0);
     vec3 color = mix(base.rgb, inkColor, ink);
 
     gl_FragColor = vec4(color, base.a);

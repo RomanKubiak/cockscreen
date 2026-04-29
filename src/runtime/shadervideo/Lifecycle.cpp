@@ -147,71 +147,7 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     }
 
     playback_player_.setVideoSink(&playback_sink_);
-
-#ifndef _WIN32
-    // --- Step 2 (playback layer): start the loopback pipeline if configured.
-    // When active, a QCamera reading from the v4l2loopback device replaces
-    // QMediaPlayer so decoded-but-corrupted frames reach the playback sink.
-    if (scene_.playback_input.loopback.enabled && !scene_.playback_input.file.empty())
-    {
-        // Verify prerequisites before spending time on GStreamer startup.
-        QString prereq_error;
-        if (!LoopbackPipeline::check_prerequisites(scene_.playback_input.loopback, &prereq_error))
-        {
-            fatal_render_error_ = prereq_error;
-            status_message_ = prereq_error;
-        }
-        else
-        {
-            const bool started = playback_loopback_.start_for_file(
-                scene_.playback_input.file, scene_.playback_input.loopback);
-
-            if (started)
-            {
-                // Block until GStreamer's receiver has written its first frame and
-                // v4l2loopback reports a valid pixel format — this replaces the
-                // fixed 500 ms sleep which was too short for H.264 pipeline init.
-                if (!playback_loopback_.wait_for_device_ready(8000))
-                {
-                    fatal_render_error_ = QStringLiteral("Playback loopback device not ready: ") +
-                                          playback_loopback_.status_message();
-                    status_message_ = fatal_render_error_;
-                    playback_loopback_.stop();
-                }
-                else
-                {
-                    // Bypass QCamera entirely — Qt6's FFmpeg backend tries
-                    // V4L2_MEMORY_USERPTR which v4l2loopback does not support.
-                    // LoopbackCapture uses V4L2_MEMORY_MMAP directly, the same
-                    // path as DirectVideoWindow.
-                    playback_loopback_capture_ = new LoopbackCapture;
-                    if (!playback_loopback_capture_->start(
-                            scene_.playback_input.loopback.loopback_device, &playback_sink_))
-                    {
-                        const QString error_text =
-                            QStringLiteral("Playback loopback capture failed: %1")
-                                .arg(playback_loopback_capture_->status_message());
-                        fatal_render_error_ = error_text;
-                        status_message_ = error_text;
-                        delete playback_loopback_capture_;
-                        playback_loopback_capture_ = nullptr;
-                        playback_loopback_.stop();
-                    }
-                }
-            }
-            else
-            {
-                fatal_render_error_ = QStringLiteral("Playback loopback failed to start: ") +
-                                      playback_loopback_.status_message();
-                status_message_ = fatal_render_error_;
-            }
-        }
-    }
-    else
-#endif
-    {
-        restart_playback_source(true);
-    }
+    restart_playback_source(true);
 
     if (camera_ != nullptr)
     {
@@ -229,20 +165,6 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
 
 ShaderVideoWindow::~ShaderVideoWindow()
 {
-#ifndef _WIN32
-    // Stop the loopback capture thread and GStreamer subprocesses first so the
-    // V4L2 file descriptors are closed before the GL context is torn down.
-    // If this is skipped, the fd stays open across runs and the next run's
-    // GStreamer receiver gets EBUSY when trying to open the same device.
-    if (playback_loopback_capture_ != nullptr)
-    {
-        playback_loopback_capture_->stop();
-        delete playback_loopback_capture_;
-        playback_loopback_capture_ = nullptr;
-    }
-    playback_loopback_.stop();
-#endif
-
     if (context() == nullptr)
     {
         delete video_scene_fbo_;

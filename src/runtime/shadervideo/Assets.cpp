@@ -1,6 +1,5 @@
 #include "cockscreen/runtime/ShaderVideoWindow.hpp"
 
-#include "cockscreen/runtime/ArtifactInjector.hpp"
 #include "cockscreen/runtime/shadervideo/Support.hpp"
 
 #include <QColor>
@@ -367,18 +366,6 @@ void ShaderVideoWindow::upload_latest_frame()
 
     ensure_texture();
 
-    // Artifact injection (Step 1) — video layer.
-    if (scene_.video_input.artifact.enabled)
-    {
-        // QImage::Format_RGBA8888 is packed; bits() returns a mutable pointer when the
-        // image is not shared, so detach first to guarantee exclusive ownership.
-        latest_frame_.detach();
-        const int width_bytes = latest_frame_.width() * 4;
-        apply_artifact(latest_frame_.bits(), width_bytes, latest_frame_.height(),
-                       latest_frame_.bytesPerLine(), scene_.video_input.artifact,
-                       video_artifact_frame_counter_++);
-    }
-
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture_id_);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
@@ -407,16 +394,6 @@ void ShaderVideoWindow::upload_latest_playback_frame()
     }
 
     ensure_playback_texture();
-
-    // Artifact injection (Step 1) — playback layer.
-    if (scene_.playback_input.artifact.enabled)
-    {
-        latest_playback_frame_.detach();
-        const int width_bytes = latest_playback_frame_.width() * 4;
-        apply_artifact(latest_playback_frame_.bits(), width_bytes, latest_playback_frame_.height(),
-                       latest_playback_frame_.bytesPerLine(), scene_.playback_input.artifact,
-                       playback_artifact_frame_counter_++);
-    }
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, playback_texture_id_);
