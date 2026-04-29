@@ -390,6 +390,7 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
         playback_frame.audio_peak = audio_playback_analysis_peak_;
         playback_frame.audio_level = audio_playback_analysis_rms_;
         playback_frame.audio_fft_bands = audio_playback_fft_bands_;
+        playback_frame.audio_waveform = audio_playback_waveform_;
         helper::set_audio_uniforms(program, playback_frame);
     }
     else if (!scene_.audio_input.fft_analysis_enabled)

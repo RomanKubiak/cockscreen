@@ -231,6 +231,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     pffft::AlignedVector<float> audio_playback_fft_input_{audio_playback_fft_.valueVector()};
     pffft::AlignedVector<std::complex<float>> audio_playback_fft_spectrum_{audio_playback_fft_.spectrumVector()};
     std::array<float, core::kAudioFftBandCount> audio_playback_fft_bands_{};
+    std::array<float, core::kAudioWaveformSampleCount> audio_playback_waveform_{};
     float audio_playback_analysis_rms_{0.0F};
     float audio_playback_analysis_peak_{0.0F};
     double processing_fps_{0.0};
