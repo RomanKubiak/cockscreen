@@ -72,7 +72,20 @@
             "loop_repeat": 0,
             /* Playback speed outside and inside the loop window. */
             "playback_rate": 1.0,
-            "playback_rate_looping": 1.0
+            "playback_rate_looping": 1.0,
+            /* Volume controls. All times in milliseconds. */
+            /* Peak volume [0.0 – 1.0] applied once fully faded in. */
+            "volume": 1.0,
+            /* Volume level at t=0 before any intro fade. */
+            "volume_initial": 0.0,
+            /* ms to ramp from volume_initial → volume at the very start. */
+            "volume_fade_in_ms": 0,
+            /* ms at the start of each loop iteration to ramp up to volume. */
+            "volume_loop_fade_in_ms": 0,
+            /* ms before the end of each loop iteration to ramp down to 0. */
+            "volume_loop_fade_out_ms": 0,
+            /* ms to fade to 0 after the final loop ends or end-of-media. */
+            "volume_fade_out_ms": 0
         },
         /* MIDI input used for global note / CC state and mapping targets. */
         "midi": {
