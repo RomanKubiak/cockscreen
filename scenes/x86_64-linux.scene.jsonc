@@ -201,7 +201,13 @@
             /** @field volume_loop_fade_out_ms {integer} [0, ∞) Milliseconds before the end of each loop iteration to ramp down to 0. */
             "volume_loop_fade_out_ms": 0,
             /** @field volume_fade_out_ms {integer} [0, ∞) Milliseconds to fade to 0 after the final loop ends or end-of-media. */
-            "volume_fade_out_ms": 0
+            "volume_fade_out_ms": 0,
+            /**
+             * @field fft_analysis_from_playback {boolean} When true, routes this audio file through the FFT/level analysis pipeline.
+             *   u_audio_fft, u_audio_rms, u_audio_peak, and u_audio_level will reflect the playing file
+             *   instead of the external capture device.
+             */
+            "fft_analysis_from_playback": false
         },
         /**
          * @object midi

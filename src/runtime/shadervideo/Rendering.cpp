@@ -379,7 +379,23 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
     Q_UNUSED(stage);
     program->setUniformValue("u_time", elapsed_seconds);
     program->setUniformValue("u_resolution", QVector2D{static_cast<float>(width()), static_cast<float>(height())});
-    helper::set_audio_uniforms(program, frame_);
+
+    if (scene_.audio_playback_input.enabled && scene_.audio_playback_input.fft_analysis_from_playback)
+    {
+        // Build a scratch frame with the playback-derived audio data so that
+        // u_audio_fft / u_audio_rms / u_audio_peak etc. reflect the audio file
+        // rather than the external capture device.
+        core::ControlFrame playback_frame = frame_;
+        playback_frame.audio_rms = audio_playback_analysis_rms_;
+        playback_frame.audio_peak = audio_playback_analysis_peak_;
+        playback_frame.audio_level = audio_playback_analysis_rms_;
+        playback_frame.audio_fft_bands = audio_playback_fft_bands_;
+        helper::set_audio_uniforms(program, playback_frame);
+    }
+    else
+    {
+        helper::set_audio_uniforms(program, frame_);
+    }
     if (note_label_atlas_texture_id_ != 0)
     {
         program->setUniformValue("u_note_label_atlas", 1);
