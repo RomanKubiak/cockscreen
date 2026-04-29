@@ -171,7 +171,7 @@
              * @field fft_analysis_enabled {boolean} When false, the capture device does NOT drive u_audio_fft / u_audio_rms / u_audio_peak / u_audio_level.
              *   Useful when fft_analysis_from_playback is true on audio_playback and you want only the audio file to drive FFT uniforms.
              */
-            "fft_analysis_enabled": true
+            "fft_analysis_enabled": false
         },
         /**
          * @object audio_playback
@@ -180,9 +180,9 @@
          */
         "audio_playback": {
             /** @field enabled {boolean} Activates audio file playback. */
-            "enabled": false,
+            "enabled": true,
             /** @field file {string} Path to the audio file (mp3, wav, flac, etc.). */
-            "file": "/home/atom/Music/example.mp3",
+            "file": "/home/atom/Music/We_Are_Dead.mp3",
             /** @field start_ms {integer} [0, ∞) Initial seek position in milliseconds. */
             "start_ms": 0,
             /** @field loop_start_ms {integer} [0, ∞) Seek target when loop end is reached or EOS fires. */
@@ -190,15 +190,15 @@
             /** @field loop_end_ms {integer} [0, ∞) Stream position that triggers a loop-back. 0 = full file (no early loop). */
             "loop_end_ms": 0,
             /** @field loop_repeat {integer} [0, ∞) Number of extra loop passes. 0 = infinite looping. */
-            "loop_repeat": 0,
+            "loop_repeat": 1,
             /** @field playback_rate {number} [0.01, ∞) Playback speed outside the loop segment. */
-            "playback_rate": 1.0,
+            "playback_rate": 2.0,
             /** @field playback_rate_looping {number} [0.01, ∞) Playback speed inside the active loop segment. */
-            "playback_rate_looping": 1.0,
+            "playback_rate_looping": 0.5,
             /** @field volume {number} [0, 1] Peak playback volume applied once fully faded in. */
-            "volume": 1.0,
+            "volume": 0.01,
             /** @field volume_initial {number} [0, 1] Volume level at t=0 before the intro fade begins. */
-            "volume_initial": 0.0,
+            "volume_initial": 0.05,
             /** @field volume_fade_in_ms {integer} [0, ∞) Milliseconds to ramp from volume_initial to volume at startup. */
             "volume_fade_in_ms": 0,
             /** @field volume_loop_fade_in_ms {integer} [0, ∞) Milliseconds at the start of each loop iteration to ramp up to volume. */
@@ -212,7 +212,7 @@
              *   u_audio_fft, u_audio_rms, u_audio_peak, and u_audio_level will reflect the playing file
              *   instead of the external capture device.
              */
-            "fft_analysis_from_playback": false
+            "fft_analysis_from_playback": true
         },
         /**
          * @object midi
@@ -268,8 +268,7 @@
         "enabled": true,
         /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
         "shaders": [
-            "psychotherapy.glsl",
-            "font_awesome_burst.glsl"
+            "toy_synthwave.glsl"
         ]
     },
     /**
