@@ -57,7 +57,11 @@
         /* Audio input used for global uniforms like u_audio_rms and u_audio_fft[16]. */
         "audio": {
             "enabled": false,
-            "device": "@default_input@"
+            "device": "@default_input@",
+            /* Set false to prevent the device capture from driving u_audio_fft etc.
+               Useful when fft_analysis_from_playback is true and you want only
+               the audio file to drive the FFT uniforms. */
+            "fft_analysis_enabled": true
         },
         /* Audio file playback — same transport controls as video playback. */
         "audio_playback": {

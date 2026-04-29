@@ -148,6 +148,7 @@ SceneInput parse_input(const QJsonObject &object)
     input.volume_loop_fade_out_ms = std::max<std::int64_t>(0, json_int64(object, "volume_loop_fade_out_ms", 0));
     input.volume_fade_out_ms = std::max<std::int64_t>(0, json_int64(object, "volume_fade_out_ms", 0));
     input.fft_analysis_from_playback = json_bool(object, "fft_analysis_from_playback", false);
+    input.fft_analysis_enabled = json_bool(object, "fft_analysis_enabled", true);
 
     if (!input.enabled)
     {

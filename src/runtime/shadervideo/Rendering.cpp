@@ -392,6 +392,16 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
         playback_frame.audio_fft_bands = audio_playback_fft_bands_;
         helper::set_audio_uniforms(program, playback_frame);
     }
+    else if (!scene_.audio_input.fft_analysis_enabled)
+    {
+        // Device audio is explicitly excluded from the FFT uniforms.
+        core::ControlFrame silent_frame = frame_;
+        silent_frame.audio_fft_bands.fill(0.0F);
+        silent_frame.audio_rms = 0.0F;
+        silent_frame.audio_peak = 0.0F;
+        silent_frame.audio_level = 0.0F;
+        helper::set_audio_uniforms(program, silent_frame);
+    }
     else
     {
         helper::set_audio_uniforms(program, frame_);

@@ -34,6 +34,8 @@ struct SceneInput
     std::int64_t volume_fade_out_ms{0};      // outro: ms to ramp to 0 after final loop / EOM
     // FFT analysis routing (audio_playback_input only).
     bool fft_analysis_from_playback{false};  // feed audio_playback into the FFT/level uniforms
+    // FFT analysis routing (audio_input only).
+    bool fft_analysis_enabled{true};         // when false, device audio does NOT drive FFT uniforms
 };
 
 struct SceneColor
