@@ -589,6 +589,7 @@ void ShaderVideoWindow::stop_audio_playback_source()
     audio_playback_outro_active_ = false;
     audio_playback_audio_output_.setVolume(0.0F);
     audio_playback_fft_bands_.fill(0.0F);
+    audio_playback_waveform_.fill(0.0F);
     audio_playback_fft_sample_count_ = 0;
     audio_playback_analysis_rms_ = 0.0F;
     audio_playback_analysis_peak_ = 0.0F;
@@ -937,6 +938,17 @@ void ShaderVideoWindow::process_audio_playback_buffer(const QAudioBuffer &buffer
     const double rms = frame_count > 0 ? std::sqrt(sum_squares / static_cast<double>(frame_count)) : 0.0;
     audio_playback_analysis_rms_ = audio_playback_analysis_rms_ * 0.85F + static_cast<float>(rms) * 0.15F;
     audio_playback_analysis_peak_ = std::max(chunk_peak, audio_playback_analysis_peak_ * 0.92F);
+
+    // Downsample the FFT ring buffer into a 64-sample waveform, matching
+    // the approach used by AudioAnalysisWindow::refresh_waveform_samples().
+    for (std::size_t i = 0; i < audio_playback_waveform_.size(); ++i)
+    {
+        const float ratio = audio_playback_waveform_.size() > 1
+                                ? static_cast<float>(i) / static_cast<float>(audio_playback_waveform_.size() - 1)
+                                : 0.0F;
+        const auto source_index = static_cast<std::size_t>(ratio * static_cast<float>(audio_playback_fft_sample_buffer_.size() - 1));
+        audio_playback_waveform_[i] = std::clamp(audio_playback_fft_sample_buffer_[source_index], -1.0F, 1.0F);
+    }
 }
 
 void ShaderVideoWindow::record_fatal_render_error(QString text)
