@@ -2,7 +2,10 @@
 
 #include "cockscreen/runtime/StatusOverlay.hpp"
 #include "cockscreen/runtime/shadervideo/Support.hpp"
+#include "cockscreen/runtime/audioanalysis/Support.hpp"
 
+#include <QAudioBuffer>
+#include <QAudioFormat>
 #include <QColor>
 #include <QOpenGLShader>
 #include <QResizeEvent>
@@ -150,6 +153,11 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     restart_playback_source(true);
 
     audio_playback_player_.setAudioOutput(&audio_playback_audio_output_);
+    audio_playback_player_.setAudioBufferOutput(&audio_playback_buffer_output_);
+    QObject::connect(&audio_playback_buffer_output_, &QAudioBufferOutput::audioBufferReceived, this,
+                     [this](const QAudioBuffer &buffer) {
+                         process_audio_playback_buffer(buffer);
+                     });
     QObject::connect(&audio_playback_player_, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
         handle_audio_playback_position_changed(static_cast<std::int64_t>(position));
     });
@@ -193,6 +201,14 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         tick_audio_playback_volume();
     });
     audio_playback_volume_timer_.start();
+
+    // Build Hann window for the playback FFT analysis.
+    for (int i = 0; i < kAudioPlaybackFftSize; ++i)
+    {
+        const float phase = static_cast<float>(i) / static_cast<float>(kAudioPlaybackFftSize - 1);
+        audio_playback_fft_window_[static_cast<std::size_t>(i)] =
+            0.5F - 0.5F * std::cos(2.0F * audio_analysis::kPi * phase);
+    }
 
     if (camera_ != nullptr)
     {
@@ -572,6 +588,10 @@ void ShaderVideoWindow::stop_audio_playback_source()
     audio_playback_current_volume_ = 0.0F;
     audio_playback_outro_active_ = false;
     audio_playback_audio_output_.setVolume(0.0F);
+    audio_playback_fft_bands_.fill(0.0F);
+    audio_playback_fft_sample_count_ = 0;
+    audio_playback_analysis_rms_ = 0.0F;
+    audio_playback_analysis_peak_ = 0.0F;
 }
 
 void ShaderVideoWindow::restart_audio_playback_source(bool seek_to_start)
@@ -718,7 +738,6 @@ void ShaderVideoWindow::tick_audio_playback_volume()
     const float peak   = std::clamp(cfg.volume, 0.0F, 1.0F);
     const float init_v = std::clamp(cfg.volume_initial, 0.0F, 1.0F);
     const std::int64_t pos = audio_playback_position_ms_;
-    const std::int64_t dur = audio_playback_duration_ms_;
 
     float target = peak;
 
@@ -788,6 +807,136 @@ void ShaderVideoWindow::tick_audio_playback_volume()
     }
 
     audio_playback_audio_output_.setVolume(std::clamp(audio_playback_current_volume_, 0.0F, 1.0F));
+}
+
+void ShaderVideoWindow::process_audio_playback_buffer(const QAudioBuffer &buffer)
+{
+    if (!buffer.isValid() || buffer.frameCount() <= 0)
+    {
+        return;
+    }
+
+    const QAudioFormat fmt = buffer.format();
+    const int channel_count = std::max(fmt.channelCount(), 1);
+    const int frame_count = static_cast<int>(buffer.frameCount());
+    const QAudioFormat::SampleFormat sample_fmt = fmt.sampleFormat();
+    const auto *bytes = reinterpret_cast<const unsigned char *>(buffer.constData<char>());
+    const int sample_bytes = fmt.bytesPerSample();
+
+    if (sample_bytes <= 0)
+    {
+        return;
+    }
+
+    const int frame_bytes = sample_bytes * channel_count;
+    double sum_squares = 0.0;
+    float chunk_peak = 0.0F;
+
+    for (int frame = 0; frame < frame_count; ++frame)
+    {
+        double mono_sum = 0.0;
+        for (int ch = 0; ch < std::min(channel_count, 2); ++ch)
+        {
+            const int offset = frame * frame_bytes + ch * sample_bytes;
+            double value = 0.0;
+            switch (sample_fmt)
+            {
+            case QAudioFormat::UInt8:
+                value = audio_analysis::sample_to_float(bytes[offset]);
+                break;
+            case QAudioFormat::Int16:
+            {
+                qint16 s = 0;
+                std::memcpy(&s, bytes + offset, sizeof(s));
+                value = audio_analysis::sample_to_float(s);
+                break;
+            }
+            case QAudioFormat::Int32:
+            {
+                qint32 s = 0;
+                std::memcpy(&s, bytes + offset, sizeof(s));
+                value = audio_analysis::sample_to_float(s);
+                break;
+            }
+            case QAudioFormat::Float:
+            {
+                float s = 0.0F;
+                std::memcpy(&s, bytes + offset, sizeof(s));
+                value = audio_analysis::sample_to_float(s);
+                break;
+            }
+            default:
+                return;
+            }
+            mono_sum += value;
+        }
+
+        const float mono = static_cast<float>(mono_sum / static_cast<double>(std::min(channel_count, 2)));
+        sum_squares += static_cast<double>(mono) * static_cast<double>(mono);
+        chunk_peak = std::max(chunk_peak, std::fabs(mono));
+
+        // Feed FFT ring buffer.
+        const auto idx = static_cast<std::size_t>(audio_playback_fft_sample_count_);
+        if (idx < audio_playback_fft_sample_buffer_.size())
+        {
+            audio_playback_fft_sample_buffer_[idx] = mono;
+            ++audio_playback_fft_sample_count_;
+        }
+
+        if (audio_playback_fft_sample_count_ >= audio_playback_fft_sample_buffer_.size())
+        {
+            // Run FFT.
+            if (audio_playback_fft_.isValid())
+            {
+                for (std::size_t k = 0; k < audio_playback_fft_sample_buffer_.size(); ++k)
+                {
+                    audio_playback_fft_input_[k] = audio_playback_fft_sample_buffer_[k] * audio_playback_fft_window_[k];
+                }
+                audio_playback_fft_.forward(audio_playback_fft_input_, audio_playback_fft_spectrum_);
+
+                constexpr float kBandCurve = 2.4F;
+                const int spectrum_bins = static_cast<int>(audio_playback_fft_spectrum_.size());
+                const int positive_bins = std::max(spectrum_bins - 1, 1);
+
+                for (std::size_t band = 0; band < audio_playback_fft_bands_.size(); ++band)
+                {
+                    const float start_ratio = static_cast<float>(band) / static_cast<float>(audio_playback_fft_bands_.size());
+                    const float end_ratio = static_cast<float>(band + 1) / static_cast<float>(audio_playback_fft_bands_.size());
+
+                    int start_bin = static_cast<int>(std::pow(start_ratio, kBandCurve) * static_cast<float>(positive_bins));
+                    int end_bin = static_cast<int>(std::pow(end_ratio, kBandCurve) * static_cast<float>(positive_bins));
+                    start_bin = std::clamp(start_bin, 0, spectrum_bins - 1);
+                    end_bin = std::clamp(end_bin, start_bin + 1, spectrum_bins);
+
+                    float sum = 0.0F;
+                    int bin_count = 0;
+                    for (int bin = start_bin; bin < end_bin; ++bin)
+                    {
+                        const float magnitude = std::abs(audio_playback_fft_spectrum_[static_cast<std::size_t>(bin)])
+                                                / static_cast<float>(kAudioPlaybackFftSize);
+                        sum += std::sqrt(std::max(magnitude, 0.0F));
+                        ++bin_count;
+                    }
+
+                    const float normalized = bin_count > 0
+                                                 ? std::clamp((sum / static_cast<float>(bin_count)) * 1.8F, 0.0F, 1.0F)
+                                                 : 0.0F;
+                    audio_playback_fft_bands_[band] = audio_playback_fft_bands_[band] * 0.82F + normalized * 0.18F;
+                }
+            }
+
+            // Slide the ring buffer by half.
+            audio_playback_fft_sample_count_ = audio_playback_fft_sample_buffer_.size() / 2;
+            std::move(audio_playback_fft_sample_buffer_.begin()
+                          + static_cast<std::ptrdiff_t>(audio_playback_fft_sample_buffer_.size() / 2),
+                      audio_playback_fft_sample_buffer_.end(),
+                      audio_playback_fft_sample_buffer_.begin());
+        }
+    }
+
+    const double rms = frame_count > 0 ? std::sqrt(sum_squares / static_cast<double>(frame_count)) : 0.0;
+    audio_playback_analysis_rms_ = audio_playback_analysis_rms_ * 0.85F + static_cast<float>(rms) * 0.15F;
+    audio_playback_analysis_peak_ = std::max(chunk_peak, audio_playback_analysis_peak_ * 0.92F);
 }
 
 void ShaderVideoWindow::record_fatal_render_error(QString text)

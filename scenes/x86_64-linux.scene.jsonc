@@ -85,7 +85,11 @@
             /* ms before the end of each loop iteration to ramp down to 0. */
             "volume_loop_fade_out_ms": 0,
             /* ms to fade to 0 after the final loop ends or end-of-media. */
-            "volume_fade_out_ms": 0
+            "volume_fade_out_ms": 0,
+            /* Route this audio file through the FFT/level pipeline so that
+               u_audio_fft, u_audio_rms, u_audio_peak, u_audio_level reflect
+               the playing file instead of the external capture device. */
+            "fft_analysis_from_playback": false
         },
         /* MIDI input used for global note / CC state and mapping targets. */
         "midi": {
