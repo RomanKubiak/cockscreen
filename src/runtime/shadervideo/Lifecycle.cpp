@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <iostream>
 #include <utility>
 
 namespace cockscreen::runtime
@@ -150,60 +151,90 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
 
 #ifndef _WIN32
     // --- Step 2 (playback layer): start the loopback pipeline if configured.
-    // When active, a QCamera reading from the v4l2loopback device replaces
-    // QMediaPlayer so decoded-but-corrupted frames reach the playback sink.
     if (scene_.playback_input.loopback.enabled && !scene_.playback_input.file.empty())
     {
-        // Verify prerequisites before spending time on GStreamer startup.
-        QString prereq_error;
-        if (!LoopbackPipeline::check_prerequisites(scene_.playback_input.loopback, &prereq_error))
+        if (scene_.playback_input.loopback.use_appsink)
         {
-            fatal_render_error_ = prereq_error;
-            status_message_ = prereq_error;
-        }
-        else
-        {
-            const bool started = playback_loopback_.start_for_file(
+            // Sender-only: GStreamer encodes the file → RTP → UDP.
+            // AppsinkCapture (in-process GStreamer pipeline) receives and
+            // pushes QVideoFrame directly to playback_sink_.
+            const bool started = playback_loopback_.start_sender_only_for_file(
                 scene_.playback_input.file, scene_.playback_input.loopback);
-
             if (started)
             {
-                // Block until GStreamer's receiver has written its first frame and
-                // v4l2loopback reports a valid pixel format — this replaces the
-                // fixed 500 ms sleep which was too short for H.264 pipeline init.
-                if (!playback_loopback_.wait_for_device_ready(8000))
+                playback_appsink_capture_ = new AppsinkCapture;
+                const bool use_h264 = LoopbackPipeline::uses_h264();
+                if (!playback_appsink_capture_->start(
+                        scene_.playback_input.loopback.udp_port, &playback_sink_, use_h264))
                 {
-                    fatal_render_error_ = QStringLiteral("Playback loopback device not ready: ") +
-                                          playback_loopback_.status_message();
-                    status_message_ = fatal_render_error_;
+                    const QString error_text =
+                        QStringLiteral("Playback appsink capture failed: %1")
+                            .arg(playback_appsink_capture_->status_message());
+                    fatal_render_error_ = error_text;
+                    status_message_ = error_text;
+                    delete playback_appsink_capture_;
+                    playback_appsink_capture_ = nullptr;
                     playback_loopback_.stop();
                 }
                 else
                 {
-                    // Bypass QCamera entirely — Qt6's FFmpeg backend tries
-                    // V4L2_MEMORY_USERPTR which v4l2loopback does not support.
-                    // LoopbackCapture uses V4L2_MEMORY_MMAP directly, the same
-                    // path as DirectVideoWindow.
-                    playback_loopback_capture_ = new LoopbackCapture;
-                    if (!playback_loopback_capture_->start(
-                            scene_.playback_input.loopback.loopback_device, &playback_sink_))
-                    {
-                        const QString error_text =
-                            QStringLiteral("Playback loopback capture failed: %1")
-                                .arg(playback_loopback_capture_->status_message());
-                        fatal_render_error_ = error_text;
-                        status_message_ = error_text;
-                        delete playback_loopback_capture_;
-                        playback_loopback_capture_ = nullptr;
-                        playback_loopback_.stop();
-                    }
+                    std::cerr << "[appsink-playback] "
+                              << playback_appsink_capture_->status_message().toStdString() << "\n";
                 }
             }
             else
             {
-                fatal_render_error_ = QStringLiteral("Playback loopback failed to start: ") +
+                fatal_render_error_ = QStringLiteral("Playback loopback sender failed to start: ") +
                                       playback_loopback_.status_message();
                 status_message_ = fatal_render_error_;
+            }
+        }
+        else
+        {
+            // Classic v4l2loopback path.
+            QString prereq_error;
+            if (!LoopbackPipeline::check_prerequisites(scene_.playback_input.loopback, &prereq_error))
+            {
+                fatal_render_error_ = prereq_error;
+                status_message_ = prereq_error;
+            }
+            else
+            {
+                const bool started = playback_loopback_.start_for_file(
+                    scene_.playback_input.file, scene_.playback_input.loopback);
+
+                if (started)
+                {
+                    if (!playback_loopback_.wait_for_device_ready(8000))
+                    {
+                        fatal_render_error_ = QStringLiteral("Playback loopback device not ready: ") +
+                                              playback_loopback_.status_message();
+                        status_message_ = fatal_render_error_;
+                        playback_loopback_.stop();
+                    }
+                    else
+                    {
+                        playback_loopback_capture_ = new LoopbackCapture;
+                        if (!playback_loopback_capture_->start(
+                                scene_.playback_input.loopback.loopback_device, &playback_sink_))
+                        {
+                            const QString error_text =
+                                QStringLiteral("Playback loopback capture failed: %1")
+                                    .arg(playback_loopback_capture_->status_message());
+                            fatal_render_error_ = error_text;
+                            status_message_ = error_text;
+                            delete playback_loopback_capture_;
+                            playback_loopback_capture_ = nullptr;
+                            playback_loopback_.stop();
+                        }
+                    }
+                }
+                else
+                {
+                    fatal_render_error_ = QStringLiteral("Playback loopback failed to start: ") +
+                                          playback_loopback_.status_message();
+                    status_message_ = fatal_render_error_;
+                }
             }
         }
     }
@@ -239,6 +270,12 @@ ShaderVideoWindow::~ShaderVideoWindow()
         playback_loopback_capture_->stop();
         delete playback_loopback_capture_;
         playback_loopback_capture_ = nullptr;
+    }
+    if (playback_appsink_capture_ != nullptr)
+    {
+        playback_appsink_capture_->stop();
+        delete playback_appsink_capture_;
+        playback_appsink_capture_ = nullptr;
     }
     playback_loopback_.stop();
 #endif

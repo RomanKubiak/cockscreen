@@ -37,8 +37,9 @@ class AppsinkCapture
     AppsinkCapture &operator=(const AppsinkCapture &) = delete;
 
     // Start the GStreamer appsink pipeline listening on udp_port.
+    // use_h264: true → expect H.264 RTP (pt=96); false → expect MJPEG RTP (pt=26).
     // sink must remain valid for the lifetime of AppsinkCapture.
-    [[nodiscard]] bool start(int udp_port, QVideoSink *sink);
+    [[nodiscard]] bool start(int udp_port, QVideoSink *sink, bool use_h264 = true);
 
     void stop();
 

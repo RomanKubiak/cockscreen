@@ -69,6 +69,16 @@ class LoopbackPipeline
     // The file is played in a loop by GStreamer.
     [[nodiscard]] bool start_for_file(const std::string &source_file, const LoopbackParams &params);
 
+    // Start only the sender side (encode → RTP → UDP + tc-netem).
+    // No v4l2loopback receiver is started; the caller is expected to receive
+    // frames via AppsinkCapture.  Requires CAP_NET_ADMIN for tc-netem.
+    [[nodiscard]] bool start_sender_only_for_file(const std::string &source_file,
+                                                   const LoopbackParams &params);
+
+    // Returns true when the sender pipeline uses H.264, false when MJPEG.
+    // Determined at build time by GStreamer element availability.
+    [[nodiscard]] static bool uses_h264();
+
     // Stop both GStreamer processes and remove the tc-netem rule.
     void stop();
 

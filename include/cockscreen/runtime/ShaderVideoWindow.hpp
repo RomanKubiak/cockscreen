@@ -30,6 +30,7 @@
 #include "Application.hpp"
 #include "ArtifactInjector.hpp"
 #ifndef _WIN32
+#include "AppsinkCapture.hpp"
 #include "LoopbackCapture.hpp"
 #include "LoopbackPipeline.hpp"
 #endif
@@ -200,6 +201,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     // Active only when scene_.playback_input.loopback.enabled.
     LoopbackPipeline playback_loopback_;
     LoopbackCapture *playback_loopback_capture_{nullptr};
+    // Alternative to v4l2loopback: in-process GStreamer appsink receiver.
+    // Active when loopback.enabled && loopback.use_appsink.
+    AppsinkCapture *playback_appsink_capture_{nullptr};
 #endif
 };
 

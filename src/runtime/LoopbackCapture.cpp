@@ -242,37 +242,32 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
         const QVideoFrameFormat frame_format(
             QSize(width, height), QVideoFrameFormat::Format_RGBA8888);
         int frame_count = 0;
-        long eagain_count = 0;
         const auto loop_start = std::chrono::steady_clock::now();
 
         while (running_)
         {
+            // Block until a frame is available (or 100 ms timeout to recheck running_).
+            pollfd pfd{fd, POLLIN, 0};
+            const int pret = ::poll(&pfd, 1, 100);
+            if (pret == 0)
+                continue; // timeout — recheck running_
+            if (pret < 0)
+            {
+                if (errno == EINTR) continue;
+                std::cerr << "[LoopbackCapture] poll error: " << strerror(errno) << "\n";
+                status_message_ = QStringLiteral("LoopbackCapture: poll error");
+                break;
+            }
+            if (!(pfd.revents & POLLIN))
+                continue;
+
             v4l2_buffer dqbuf{};
             dqbuf.type   = V4L2_BUF_TYPE_VIDEO_CAPTURE;
             dqbuf.memory = V4L2_MEMORY_MMAP;
 
             if (::ioctl(fd, VIDIOC_DQBUF, &dqbuf) != 0)
             {
-                if (errno == EAGAIN)
-                {
-                    ++eagain_count;
-                    // Every 5 seconds of EAGAIN, log sysfs state + count.
-                    if (eagain_count % 2500 == 0)
-                    {
-                        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now() - loop_start).count();
-                        // Read sysfs state inline for diagnostics.
-                        char sybuf[32] = {};
-                        FILE *sf = ::fopen(sysfs_state.c_str(), "r");
-                        if (sf) { ::fgets(sybuf, sizeof(sybuf), sf); ::fclose(sf); }
-                        const char *nl = ::strchr(sybuf, '\n'); if (nl) const_cast<char*>(nl)[0]=0;
-                        std::cerr << "[LoopbackCapture] EAGAIN x" << eagain_count
-                                  << " at t=" << ms << "ms sysfs=" << sybuf
-                                  << " frames=" << frame_count << "\n";
-                    }
-                    QThread::usleep(2000);
-                    continue;
-                }
+                if (errno == EAGAIN) continue; // spurious wakeup
                 std::cerr << "[LoopbackCapture] VIDIOC_DQBUF error after "
                           << frame_count << " frames: " << strerror(errno) << "\n";
                 status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_DQBUF error");

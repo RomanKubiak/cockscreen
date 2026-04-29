@@ -814,7 +814,8 @@ int Application::run(int argc, char *argv[])
                 }
                 // Give the sender ~200 ms to start emitting RTP packets.
                 QThread::msleep(200);
-                appsink_capture.start(scene.video_input.loopback.udp_port, nullptr);
+                appsink_capture.start(scene.video_input.loopback.udp_port, nullptr,
+                                      LoopbackPipeline::uses_h264());
                 // video_device stays set so ShaderVideoWindow opens the
                 // real camera; we override its video_sink_ via video_sink_ptr()
                 // after construction below.
@@ -890,7 +891,8 @@ int Application::run(int argc, char *argv[])
         if (scene.video_input.loopback.enabled && scene.video_input.loopback.use_appsink)
         {
             appsink_capture.stop();
-            appsink_capture.start(scene.video_input.loopback.udp_port, window.video_sink_ptr());
+            appsink_capture.start(scene.video_input.loopback.udp_port, window.video_sink_ptr(),
+                                  LoopbackPipeline::uses_h264());
             std::cout << "[appsink] " << appsink_capture.status_message().toStdString() << '\n';
         }
 #endif

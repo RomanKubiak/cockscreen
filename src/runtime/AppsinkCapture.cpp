@@ -115,6 +115,7 @@ struct AppsinkContext
 struct ThreadArg
 {
     int udp_port;
+    bool use_h264;
     QVideoSink *sink;
     // Shared state written by the thread, read by AppsinkCapture.
     std::atomic<bool> *running;
@@ -130,14 +131,30 @@ void *capture_thread(void *arg_ptr)
 
     gst_init(nullptr, nullptr);
 
-    const std::string pipeline_str =
-        "udpsrc port=" + std::to_string(arg->udp_port) +
-        " caps=\"application/x-rtp,media=video,clock-rate=90000,"
-        "encoding-name=H264,payload=96\" ! "
-        "rtpjitterbuffer latency=60 ! "
-        "rtph264depay ! h264parse ! avdec_h264 ! "
-        "videoconvert ! video/x-raw,format=BGRx ! "
-        "appsink name=sink sync=false max-buffers=2 drop=true emit-signals=true";
+    std::string pipeline_str;
+    if (arg->use_h264)
+    {
+        pipeline_str =
+            "udpsrc port=" + std::to_string(arg->udp_port) +
+            " caps=\"application/x-rtp,media=video,clock-rate=90000,"
+            "encoding-name=H264,payload=96\" ! "
+            "rtpjitterbuffer latency=60 ! "
+            "rtph264depay ! h264parse ! avdec_h264 ! "
+            "videoconvert ! video/x-raw,format=BGRx ! "
+            "appsink name=sink sync=false max-buffers=2 drop=true emit-signals=true";
+    }
+    else
+    {
+        // MJPEG path (x86_64 without v4l2h264enc).
+        pipeline_str =
+            "udpsrc port=" + std::to_string(arg->udp_port) +
+            " caps=\"application/x-rtp,media=video,clock-rate=90000,"
+            "encoding-name=JPEG,payload=26\" ! "
+            "rtpjitterbuffer latency=60 ! "
+            "rtpjpegdepay ! jpegdec ! "
+            "videoconvert ! video/x-raw,format=BGRx ! "
+            "appsink name=sink sync=false max-buffers=2 drop=true emit-signals=true";
+    }
 
     GError *error = nullptr;
     GstElement *pipeline = gst_parse_launch(pipeline_str.c_str(), &error);
@@ -204,7 +221,7 @@ AppsinkCapture::~AppsinkCapture()
     stop();
 }
 
-bool AppsinkCapture::start(int udp_port, QVideoSink *sink)
+bool AppsinkCapture::start(int udp_port, QVideoSink *sink, bool use_h264)
 {
     stop();
 
@@ -213,6 +230,7 @@ bool AppsinkCapture::start(int udp_port, QVideoSink *sink)
 
     auto *arg          = new ThreadArg;
     arg->udp_port      = udp_port;
+    arg->use_h264      = use_h264;
     arg->sink          = sink;
     arg->running       = &running_;
     arg->status_message = &status_message_;

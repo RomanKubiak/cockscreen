@@ -60,6 +60,12 @@ static bool prefer_hardware_codecs()
     return hw;
 }
 
+// static
+bool LoopbackPipeline::uses_h264()
+{
+    return prefer_hardware_codecs();
+}
+
 // ---------------------------------------------------------------------------
 
 QString LoopbackPipeline::build_sender_pipeline_device(const std::string &device, int width, int height,
@@ -502,6 +508,35 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     if (sender_ == nullptr || !sender_->waitForStarted(3000))
     {
         status_message_ = QStringLiteral("LoopbackPipeline: sender failed to start");
+        stop();
+        return false;
+    }
+
+    status_message_.clear();
+    return true;
+}
+
+bool LoopbackPipeline::start_sender_only_for_file(const std::string &source_file,
+                                                   const LoopbackParams &params)
+{
+    stop();
+    params_ = params;
+
+    // Kill any orphaned gst-launch processes from a previous run.
+    QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-9"), QStringLiteral("gst-launch-1.0")});
+    QThread::msleep(200);
+
+    if (!install_netem(params))
+        return false;
+
+    QThread::msleep(100);
+
+    sender_cmd_ = QStringLiteral("setsid ") + build_sender_pipeline_file(source_file, params);
+    std::cerr << "[LoopbackPipeline] appsink-sender cmd: " << sender_cmd_.toStdString() << "\n";
+    start_sender_process();
+    if (sender_ == nullptr || !sender_->waitForStarted(3000))
+    {
+        status_message_ = QStringLiteral("LoopbackPipeline: appsink sender failed to start");
         stop();
         return false;
     }
