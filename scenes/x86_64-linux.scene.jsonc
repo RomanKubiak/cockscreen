@@ -166,7 +166,12 @@
             /** @field enabled {boolean} Activates audio capture. When false all u_audio_* uniforms stay at 0. */
             "enabled": false,
             /** @field device {string} ALSA source name substring (Linux) or WASAPI device name (Windows). "@default_input@" selects the system default. */
-            "device": "@default_input@"
+            "device": "@default_input@",
+            /**
+             * @field fft_analysis_enabled {boolean} When false, the capture device does NOT drive u_audio_fft / u_audio_rms / u_audio_peak / u_audio_level.
+             *   Useful when fft_analysis_from_playback is true on audio_playback and you want only the audio file to drive FFT uniforms.
+             */
+            "fft_analysis_enabled": true
         },
         /**
          * @object audio_playback
