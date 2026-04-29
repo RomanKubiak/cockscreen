@@ -44,6 +44,10 @@ struct LoopbackParams
 
     int udp_port{5004};           // loopback UDP port used for RTP stream
     std::string loopback_device;  // output v4l2loopback device, e.g. /dev/video10
+
+    // When true: run sender-only (no receiver/v4l2loopback); the app reads
+    // decoded frames directly from GStreamer via appsink → QVideoSink.
+    bool use_appsink{false};
 };
 
 struct SceneInput

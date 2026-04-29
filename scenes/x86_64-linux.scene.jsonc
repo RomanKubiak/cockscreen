@@ -57,7 +57,10 @@
                 "delay_ms": 20,
                 "reorder_percent": 2.0,
                 "udp_port": 5004,
-                "loopback_device": "/dev/video10"
+                "loopback_device": "/dev/video10",
+                /* When true: bypass v4l2loopback; receive decoded frames
+                   directly from GStreamer appsink into QVideoSink. */
+                "use_appsink": true
             }
         },
         /* Clear color used behind all layers. */

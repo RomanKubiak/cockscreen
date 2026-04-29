@@ -2,6 +2,7 @@
 #include "../../include/cockscreen/runtime/AudioAnalysisWindow.hpp"
 #include "../../include/cockscreen/runtime/DirectVideoWindow.hpp"
 #ifndef _WIN32
+#include "../../include/cockscreen/runtime/AppsinkCapture.hpp"
 #include "../../include/cockscreen/runtime/LoopbackPipeline.hpp"
 #endif
 #include "../../include/cockscreen/runtime/MidiInputMonitor.hpp"
@@ -795,43 +796,69 @@ int Application::run(int argc, char *argv[])
 #ifndef _WIN32
         // --- Step 2: start video-layer loopback pipeline if configured.
         LoopbackPipeline qt_video_loopback;
+        AppsinkCapture appsink_capture;
         if (scene.video_input.loopback.enabled && video_device.has_value())
         {
-            QString prereq_error;
-            if (!LoopbackPipeline::check_prerequisites(scene.video_input.loopback, &prereq_error))
+            if (scene.video_input.loopback.use_appsink)
             {
-                std::cerr << prereq_error.toStdString() << "\n";
-                return 2;
-            }
-            const bool started = qt_video_loopback.start_for_device(
-                settings_.video_device, requested_width, requested_height,
-                scene.video_input.loopback);
-
-            if (started)
-            {
-                if (!qt_video_loopback.wait_for_device_ready(8000))
+                // Sender-only: GStreamer encodes → RTP → UDP.  This app
+                // receives via appsink (no v4l2loopback device needed).
+                const bool started = qt_video_loopback.start_for_device(
+                    settings_.video_device, requested_width, requested_height,
+                    scene.video_input.loopback);
+                if (!started)
                 {
-                    std::cerr << qt_video_loopback.status_message().toStdString() << "\n";
+                    std::cerr << "Video loopback sender: "
+                              << qt_video_loopback.status_message().toStdString() << "\n";
                     return 2;
                 }
-                const QByteArray loopback_id =
-                    QByteArray::fromStdString(scene.video_input.loopback.loopback_device);
-                for (const QCameraDevice &dev : QMediaDevices::videoInputs())
-                {
-                    if (dev.id() == loopback_id)
-                    {
-                        video_device = dev;
-                        selected_video_label =
-                            QStringLiteral("loopback:%1")
-                                .arg(QString::fromStdString(scene.video_input.loopback.loopback_device));
-                        break;
-                    }
-                }
+                // Give the sender ~200 ms to start emitting RTP packets.
+                QThread::msleep(200);
+                appsink_capture.start(scene.video_input.loopback.udp_port, nullptr);
+                // video_device stays set so ShaderVideoWindow opens the
+                // real camera; we override its video_sink_ via video_sink_ptr()
+                // after construction below.
+                selected_video_label =
+                    QStringLiteral("appsink:udp:%1").arg(scene.video_input.loopback.udp_port);
             }
             else
             {
-                std::cerr << "Video loopback: " << qt_video_loopback.status_message().toStdString() << "\n";
-                return 2;
+                QString prereq_error;
+                if (!LoopbackPipeline::check_prerequisites(scene.video_input.loopback, &prereq_error))
+                {
+                    std::cerr << prereq_error.toStdString() << "\n";
+                    return 2;
+                }
+                const bool started = qt_video_loopback.start_for_device(
+                    settings_.video_device, requested_width, requested_height,
+                    scene.video_input.loopback);
+
+                if (started)
+                {
+                    if (!qt_video_loopback.wait_for_device_ready(8000))
+                    {
+                        std::cerr << qt_video_loopback.status_message().toStdString() << "\n";
+                        return 2;
+                    }
+                    const QByteArray loopback_id =
+                        QByteArray::fromStdString(scene.video_input.loopback.loopback_device);
+                    for (const QCameraDevice &dev : QMediaDevices::videoInputs())
+                    {
+                        if (dev.id() == loopback_id)
+                        {
+                            video_device = dev;
+                            selected_video_label =
+                                QStringLiteral("loopback:%1")
+                                    .arg(QString::fromStdString(scene.video_input.loopback.loopback_device));
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    std::cerr << "Video loopback: " << qt_video_loopback.status_message().toStdString() << "\n";
+                    return 2;
+                }
             }
         }
 #endif
@@ -858,6 +885,15 @@ int Application::run(int argc, char *argv[])
             std::cerr << window.fatal_render_error().toStdString() << '\n';
             return 2;
         }
+#ifndef _WIN32
+        // Reconnect appsink frames to this window's video sink now that it exists.
+        if (scene.video_input.loopback.enabled && scene.video_input.loopback.use_appsink)
+        {
+            appsink_capture.stop();
+            appsink_capture.start(scene.video_input.loopback.udp_port, window.video_sink_ptr());
+            std::cout << "[appsink] " << appsink_capture.status_message().toStdString() << '\n';
+        }
+#endif
         SceneControlDeviceInfo web_device_info;
         web_device_info.opened_video = selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label;
         web_device_info.opened_audio = audio_label.isEmpty() ? QStringLiteral("<none>") : audio_label;

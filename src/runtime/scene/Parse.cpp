@@ -142,6 +142,7 @@ LoopbackParams parse_loopback(const QJsonValue &value)
     params.reorder_percent = std::clamp(json_float(object, "reorder_percent", 0.0F), 0.0F, 100.0F);
     params.udp_port = std::clamp(json_int(object, "udp_port", 5004), 1024, 65535);
     params.loopback_device = json_string(object, "loopback_device", "/dev/video10");
+    params.use_appsink = json_bool(object, "use_appsink", false);
     return params;
 }
 

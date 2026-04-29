@@ -62,6 +62,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] QString playback_status_text() const;
     [[nodiscard]] std::optional<std::uintmax_t> playback_file_size_bytes() const;
 
+    // Returns a pointer to the internal QVideoSink so external capture sources
+    // (e.g. AppsinkCapture) can push frames directly without going through QCamera.
+    [[nodiscard]] QVideoSink *video_sink_ptr() { return &video_sink_; }
+
     void apply_scene_update(SceneDefinition scene);
     void set_status_overlay_text(QString text);
 
