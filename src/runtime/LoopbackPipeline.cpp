@@ -30,13 +30,20 @@ namespace cockscreen::runtime
 // exists; if it does, we use hardware paths.
 //
 // Sender (V4L2 device source):
-//   v4l2src → videoconvert → [hw|sw encode] → rtph264pay → udpsink
+//   v4l2src → videoconvert → [hw: v4l2h264enc+rtph264pay | sw: jpegenc+rtpjpegpay] → udpsink
 //
 // Sender (file source):
-//   filesrc → decodebin → videoconvert → [hw|sw encode] → rtph264pay → udpsink
+//   filesrc → decodebin → videoconvert → [hw: v4l2h264enc+rtph264pay | sw: jpegenc+rtpjpegpay] → udpsink
 //
 // Receiver:
-//   udpsrc → rtph264depay → h264parse → [hw|sw decode] → videoconvert → v4l2sink
+//   udpsrc → [hw: rtph264depay+h264parse+v4l2h264dec | sw: rtpjpegdepay+jpegdec] → videoconvert → v4l2sink
+//
+// Software path uses MJPEG instead of H.264 because MJPEG frames are
+// independently-decodable JPEGs: packet corruption produces visible glitch
+// artefacts but never stalls the decoder waiting for an IDR keyframe.
+// H.264 with rtph264depay silently drops corrupt-header packets (broken
+// RTP sequence numbers), which starves h264parse of IDRs and causes ~5s
+// stalls under 10% netem corruption.
 
 static bool gst_element_exists(const QString &element_name)
 {
@@ -60,59 +67,70 @@ QString LoopbackPipeline::build_sender_pipeline_device(const std::string &device
 {
     const QString caps = QStringLiteral("video/x-raw,width=%1,height=%2").arg(width).arg(height);
 
-    QString encode;
     if (prefer_hardware_codecs())
     {
-        encode = QStringLiteral("v4l2h264enc extra-controls=\"encode,h264_level=11,h264_profile=1,video_bitrate=2000000\" "
-                                "! video/x-h264,level=(string)3");
+        return QStringLiteral("gst-launch-1.0 "
+                              "v4l2src device=%1 "
+                              "! %2 "
+                              "! videoconvert "
+                              "! v4l2h264enc extra-controls=\"encode,h264_level=11,h264_profile=1,video_bitrate=2000000\" "
+                              "! video/x-h264,level=(string)3 "
+                              "! rtph264pay config-interval=-1 pt=96 "
+                              "! udpsink host=127.0.0.1 port=%3")
+            .arg(QString::fromStdString(device))
+            .arg(caps)
+            .arg(params.udp_port);
     }
-    else
-    {
-        // key-int-max=30 limits keyframe interval to ~1 s at 30 fps so that a
-        // keyframe dropped by tc-netem packet loss causes at most ~1 s of
-        // decoder stall instead of the ~8 s default (250 frames).
-        encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast key-int-max=30");
-    }
-
+    // Software path: MJPEG — each frame is a self-contained JPEG so packet
+    // corruption produces glitch artefacts rather than stalling the decoder.
+    // Scale to 320x180 so each frame fits in ~6 RTP packets; at 10% netem
+    // corruption P(frame survives) = 0.9^6 ≈ 53% vs ≈0% at full resolution.
     return QStringLiteral("gst-launch-1.0 "
                           "v4l2src device=%1 "
                           "! %2 "
                           "! videoconvert "
-                          "! %3 "
-                          "! rtph264pay config-interval=1 pt=96 "
-                          "! udpsink host=127.0.0.1 port=%4")
+                          "! videoscale "
+                          "! video/x-raw,width=320,height=180 "
+                          "! jpegenc quality=85 "
+                          "! rtpjpegpay pt=26 "
+                          "! udpsink host=127.0.0.1 port=%3")
         .arg(QString::fromStdString(device))
         .arg(caps)
-        .arg(encode)
         .arg(params.udp_port);
 }
 
 QString LoopbackPipeline::build_sender_pipeline_file(const std::string &file,
                                                       const LoopbackParams &params)
 {
-    QString encode;
-    if (prefer_hardware_codecs())
-    {
-        encode = QStringLiteral("v4l2h264enc extra-controls=\"encode,h264_level=11,h264_profile=1,video_bitrate=2000000\" "
-                                "! video/x-h264,level=(string)3");
-    }
-    else
-    {
-        encode = QStringLiteral("x264enc tune=zerolatency bitrate=2000 speed-preset=ultrafast key-int-max=30");
-    }
-
     // decodebin handles any container/codec the system GStreamer supports.
     // "! queue" buffers between the async demuxer and the sync encoder.
+    if (prefer_hardware_codecs())
+    {
+        return QStringLiteral("gst-launch-1.0 "
+                              "filesrc location=%1 "
+                              "! decodebin "
+                              "! queue max-size-buffers=4 leaky=downstream "
+                              "! videoconvert "
+                              "! v4l2h264enc extra-controls=\"encode,h264_level=11,h264_profile=1,video_bitrate=2000000\" "
+                              "! video/x-h264,level=(string)3 "
+                              "! rtph264pay config-interval=-1 pt=96 "
+                              "! udpsink host=127.0.0.1 port=%2")
+            .arg(QString::fromStdString(file))
+            .arg(params.udp_port);
+    }
+    // Software path: MJPEG — scale to 320x180 so each frame fits in ~6 RTP
+    // packets; at 10% netem corruption P(frame survives) = 0.9^6 ≈ 53%.
     return QStringLiteral("gst-launch-1.0 "
                           "filesrc location=%1 "
                           "! decodebin "
                           "! queue max-size-buffers=4 leaky=downstream "
                           "! videoconvert "
-                          "! %2 "
-                          "! rtph264pay config-interval=1 pt=96 "
-                          "! udpsink host=127.0.0.1 port=%3")
+                          "! videoscale "
+                          "! video/x-raw,width=320,height=180 "
+                          "! jpegenc quality=85 "
+                          "! rtpjpegpay pt=26 "
+                          "! udpsink host=127.0.0.1 port=%2")
         .arg(QString::fromStdString(file))
-        .arg(encode)
         .arg(params.udp_port);
 }
 
@@ -128,17 +146,32 @@ QString LoopbackPipeline::build_receiver_pipeline(const LoopbackParams &params)
         decode = QStringLiteral("avdec_h264");
     }
 
+    if (prefer_hardware_codecs())
+    {
+        return QStringLiteral("gst-launch-1.0 "
+                              "udpsrc port=%1 "
+                              "caps=\"application/x-rtp,payload=96,encoding-name=H264,clock-rate=90000\" "
+                              "! rtph264depay "
+                              "! h264parse "
+                              "! %2 "
+                              "! videoconvert "
+                              "! video/x-raw,format=RGB "
+                              "! v4l2sink device=%3 sync=false")
+            .arg(params.udp_port)
+            .arg(decode)
+            .arg(QString::fromStdString(params.loopback_device));
+    }
+    // Software path: MJPEG — rtpjpegdepay is resilient to out-of-order/corrupt
+    // packets; jpegdec produces glitch frames rather than stalling.
     return QStringLiteral("gst-launch-1.0 "
                           "udpsrc port=%1 "
-                          "caps=\"application/x-rtp,payload=96,encoding-name=H264,clock-rate=90000\" "
-                          "! rtph264depay "
-                          "! h264parse "
-                          "! %2 "
+                          "caps=\"application/x-rtp,payload=26,encoding-name=JPEG,clock-rate=90000\" "
+                          "! rtpjpegdepay "
+                          "! jpegdec "
                           "! videoconvert "
                           "! video/x-raw,format=RGB "
-                          "! v4l2sink device=%3 sync=false")
+                          "! v4l2sink device=%2 sync=false")
         .arg(params.udp_port)
-        .arg(decode)
         .arg(QString::fromStdString(params.loopback_device));
 }
 

@@ -29,7 +29,7 @@
         },
         /* File playback input. Position is normalized in viewport space. */
         "playback": {
-            "enabled": false,
+            "enabled": true,
             "file": "/home/atom/Videos/pizza.mp4",
             "scale": 1.0,
             "on_top": true,
@@ -45,7 +45,20 @@
             "loop_repeat": 0,
             /* Normal playback speed outside and inside the loop range. */
             "playback_rate": 1.0,
-            "playback_rate_looping": 0.5
+            "playback_rate_looping": 0.5,
+            /*
+                sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="cockscreen-lb"
+                The app needs CAP_NET_ADMIN (or run as root) for tc commands.
+            */
+            "loopback": {
+                "enabled": true,
+                "loss_percent": 5.0,
+                "corrupt_percent": 10.0,
+                "delay_ms": 20,
+                "reorder_percent": 2.0,
+                "udp_port": 5004,
+                "loopback_device": "/dev/video10"
+            }
         },
         /* Clear color used behind all layers. */
         "background_color": {

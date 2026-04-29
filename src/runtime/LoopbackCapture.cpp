@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <string_view>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <vector>
@@ -81,11 +82,12 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
         // do, the capture-side vb2 queue is allocated first; when v4l2sink then
         // allocates the output-side queue the two conflict and ready_for_capture
         // never becomes > 0.
+        // Derive sysfs path once; reused in the capture loop for diagnostics.
+        const std::string dev_name = device_path.substr(device_path.rfind('/') + 1);
+        const std::string sysfs_state =
+            "/sys/devices/virtual/video4linux/" + dev_name + "/state";
+
         {
-            // Derive the sysfs path from the device path (e.g. /dev/video10 → video10).
-            const std::string dev_name = device_path.substr(device_path.rfind('/') + 1);
-            const std::string sysfs_state =
-                "/sys/devices/virtual/video4linux/" + dev_name + "/state";
 
             constexpr int kMax_ms   = 30000; // 30 s
             constexpr int kStep_ms  = 50;
@@ -240,6 +242,8 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
         const QVideoFrameFormat frame_format(
             QSize(width, height), QVideoFrameFormat::Format_RGBA8888);
         int frame_count = 0;
+        long eagain_count = 0;
+        const auto loop_start = std::chrono::steady_clock::now();
 
         while (running_)
         {
@@ -249,7 +253,26 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
 
             if (::ioctl(fd, VIDIOC_DQBUF, &dqbuf) != 0)
             {
-                if (errno == EAGAIN) { QThread::usleep(2000); continue; }
+                if (errno == EAGAIN)
+                {
+                    ++eagain_count;
+                    // Every 5 seconds of EAGAIN, log sysfs state + count.
+                    if (eagain_count % 2500 == 0)
+                    {
+                        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - loop_start).count();
+                        // Read sysfs state inline for diagnostics.
+                        char sybuf[32] = {};
+                        FILE *sf = ::fopen(sysfs_state.c_str(), "r");
+                        if (sf) { ::fgets(sybuf, sizeof(sybuf), sf); ::fclose(sf); }
+                        const char *nl = ::strchr(sybuf, '\n'); if (nl) const_cast<char*>(nl)[0]=0;
+                        std::cerr << "[LoopbackCapture] EAGAIN x" << eagain_count
+                                  << " at t=" << ms << "ms sysfs=" << sybuf
+                                  << " frames=" << frame_count << "\n";
+                    }
+                    QThread::usleep(2000);
+                    continue;
+                }
                 std::cerr << "[LoopbackCapture] VIDIOC_DQBUF error after "
                           << frame_count << " frames: " << strerror(errno) << "\n";
                 status_message_ = QStringLiteral("LoopbackCapture: VIDIOC_DQBUF error");
@@ -258,9 +281,14 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
 
             ++frame_count;
             if (frame_count <= 3 || frame_count % 60 == 0)
+            {
+                const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - loop_start).count();
                 std::cerr << "[LoopbackCapture] frame " << frame_count
+                          << " t=" << ms << "ms"
                           << " bytesused=" << dqbuf.bytesused
                           << " buf_idx=" << dqbuf.index << "\n";
+            }
 
             const auto *src       = static_cast<const std::uint8_t *>(bufs[dqbuf.index].ptr);
             const int   bytes_used = static_cast<int>(dqbuf.bytesused);
