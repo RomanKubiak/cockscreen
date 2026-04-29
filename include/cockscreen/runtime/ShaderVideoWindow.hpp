@@ -83,6 +83,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void handle_frame(const QVideoFrame &frame);
     void handle_playback_frame(const QVideoFrame &frame);
     void handle_playback_position_changed(std::int64_t position_ms);
+    void handle_audio_playback_position_changed(std::int64_t position_ms);
     void ensure_texture();
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
@@ -102,6 +103,12 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void apply_playback_rate_for_position(std::int64_t position_ms);
     [[nodiscard]] std::optional<std::int64_t> playback_effective_loop_end_ms() const;
     [[nodiscard]] bool playback_loop_enabled() const;
+    void stop_audio_playback_source();
+    void restart_audio_playback_source(bool seek_to_start);
+    void configure_audio_playback_transport(bool seek_to_start, bool reset_loop_count);
+    void apply_audio_playback_rate_for_position(std::int64_t position_ms);
+    [[nodiscard]] std::optional<std::int64_t> audio_playback_effective_loop_end_ms() const;
+    [[nodiscard]] bool audio_playback_loop_enabled() const;
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
                    int frame_index, const QVector2D &channel0_resolution) const;
@@ -125,6 +132,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QMediaPlayer playback_player_;
     QAudioOutput playback_audio_output_;
     QVideoSink playback_sink_;
+    QMediaPlayer audio_playback_player_;
+    QAudioOutput audio_playback_audio_output_;
     QImage latest_frame_;
     QImage latest_playback_frame_;
     QString camera_format_label_{QStringLiteral("unknown")};
@@ -181,6 +190,12 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString playback_error_text_;
     QString playback_status_text_;
     std::optional<std::uintmax_t> playback_file_size_bytes_;
+    std::int64_t audio_playback_position_ms_{0};
+    std::int64_t audio_playback_duration_ms_{0};
+    int audio_playback_loops_completed_{0};
+    bool audio_playback_transport_pending_seek_{false};
+    QString audio_playback_error_text_;
+    QString audio_playback_status_text_;
     double processing_fps_{0.0};
     double render_fps_{0.0};
 };

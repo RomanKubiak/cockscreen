@@ -59,6 +59,21 @@
             "enabled": false,
             "device": "@default_input@"
         },
+        /* Audio file playback — same transport controls as video playback. */
+        "audio_playback": {
+            "enabled": false,
+            "file": "/home/atom/Music/example.mp3",
+            /* Start position in ms. */
+            "start_ms": 0,
+            /* Loop window: set loop_end_ms to enable; 0 = full file. */
+            "loop_start_ms": 0,
+            "loop_end_ms": 0,
+            /* 0 = infinite loop. */
+            "loop_repeat": 0,
+            /* Playback speed outside and inside the loop window. */
+            "playback_rate": 1.0,
+            "playback_rate_looping": 1.0
+        },
         /* MIDI input used for global note / CC state and mapping targets. */
         "midi": {
             "enabled": false,
@@ -94,8 +109,8 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "defender_autoplay.glsl",
-            "crt_noise.glsl"
+            "psychotherapy.glsl",
+            "font_awesome_burst.glsl"
         ]
     },
     /* Back-to-front final compositing order. */

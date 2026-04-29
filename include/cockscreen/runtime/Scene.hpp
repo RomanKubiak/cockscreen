@@ -118,6 +118,7 @@ struct SceneDefinition
     SceneInput video_input;
     SceneInput playback_input;
     SceneInput audio_input;
+    SceneInput audio_playback_input;
     SceneInput midi_input;
     SceneLayer video_layer;
     SceneLayer playback_layer;
