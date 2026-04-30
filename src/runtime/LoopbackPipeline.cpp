@@ -88,9 +88,9 @@ QString LoopbackPipeline::build_sender_pipeline_device(const std::string &device
             .arg(params.udp_port);
     }
     // Software path: MJPEG — each frame is a self-contained JPEG so packet
-    // corruption produces glitch artefacts rather than stalling the decoder.
-    // Scale to 320x180 so each frame fits in ~6 RTP packets; at 10% netem
-    // corruption P(frame survives) = 0.9^6 ≈ 53% vs ≈0% at full resolution.
+    // loss produces freeze-frame artefacts rather than stalling the decoder.
+    // mtu=65000 keeps each JPEG in one RTP/UDP packet (loopback MTU 65536)
+    // so netem loss/corrupt affects whole frames, not sub-frame slices.
     return QStringLiteral("gst-launch-1.0 "
                           "v4l2src device=%1 "
                           "! %2 "
@@ -98,7 +98,7 @@ QString LoopbackPipeline::build_sender_pipeline_device(const std::string &device
                           "! videoscale "
                           "! video/x-raw,width=320,height=180 "
                           "! jpegenc quality=85 "
-                          "! rtpjpegpay pt=26 "
+                          "! rtpjpegpay pt=26 mtu=65000 "
                           "! udpsink host=127.0.0.1 port=%3")
         .arg(QString::fromStdString(device))
         .arg(caps)
@@ -124,18 +124,21 @@ QString LoopbackPipeline::build_sender_pipeline_file(const std::string &file,
             .arg(QString::fromStdString(file))
             .arg(params.udp_port);
     }
-    // Software path: MJPEG — scale to 320x180 so each frame fits in ~6 RTP
-    // packets; at 10% netem corruption P(frame survives) = 0.9^6 ≈ 53%.
+    // Software path: MJPEG — mtu=65000 keeps each JPEG in a single RTP/UDP
+    // packet; netem loss/corrupt affects whole frames, not sub-frame slices.
+    // videorate regularises the framerate so udpsink sync=true can throttle
+    // to real-time (GPU decoders may otherwise run far above 1x speed).
     return QStringLiteral("gst-launch-1.0 "
                           "filesrc location=%1 "
                           "! decodebin "
-                          "! queue max-size-buffers=4 leaky=downstream "
+                          "! queue max-size-buffers=4 leaky=upstream "
                           "! videoconvert "
                           "! videoscale "
                           "! video/x-raw,width=320,height=180 "
+                          "! videorate "
                           "! jpegenc quality=85 "
-                          "! rtpjpegpay pt=26 "
-                          "! udpsink host=127.0.0.1 port=%2")
+                          "! rtpjpegpay pt=26 mtu=65000 "
+                          "! udpsink host=127.0.0.1 port=%2 sync=true")
         .arg(QString::fromStdString(file))
         .arg(params.udp_port);
 }

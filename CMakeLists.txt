@@ -37,6 +37,11 @@ if(NOT WIN32)
 
     add_library(ASOUND::ASOUND UNKNOWN IMPORTED)
     set_target_properties(ASOUND::ASOUND PROPERTIES IMPORTED_LOCATION "${ASOUND_LIBRARY}")
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GStreamer  REQUIRED gstreamer-1.0)
+    pkg_check_modules(GStreamerApp   REQUIRED gstreamer-app-1.0)
+    pkg_check_modules(GStreamerVideo REQUIRED gstreamer-video-1.0)
 endif()
 
 add_library(cockscreen_core)
@@ -77,6 +82,7 @@ target_sources(cockscreen_core
 if(NOT WIN32)
     target_sources(cockscreen_core
         PRIVATE
+            src/runtime/AppsinkCapture.cpp
             src/runtime/LoopbackCapture.cpp
             src/runtime/LoopbackPipeline.cpp
             src/runtime/directvideo/Lifecycle.cpp
@@ -135,7 +141,10 @@ target_link_libraries(cockscreen_core
 )
 
 if(NOT WIN32)
-    target_link_libraries(cockscreen_core PUBLIC ASOUND::ASOUND EGL::EGL)
+    target_link_libraries(cockscreen_core PUBLIC ASOUND::ASOUND EGL::EGL
+        ${GStreamer_LIBRARIES} ${GStreamerApp_LIBRARIES} ${GStreamerVideo_LIBRARIES})
+    target_include_directories(cockscreen_core PUBLIC
+        ${GStreamer_INCLUDE_DIRS} ${GStreamerApp_INCLUDE_DIRS} ${GStreamerVideo_INCLUDE_DIRS})
 else()
     target_link_libraries(cockscreen_core PUBLIC winmm ws2_32 mmdevapi ole32 uuid psapi shell32)
 endif()

@@ -6,13 +6,8 @@
 #include <QVideoSink>
 
 #include <atomic>
-#include <memory>
-#include <mutex>
 #include <pthread.h>
 #include <string>
-
-// Forward-declare GLib type to avoid pulling glib headers into every TU.
-typedef struct _GMainLoop GMainLoop;
 
 namespace cockscreen::runtime
 {
@@ -51,8 +46,6 @@ class AppsinkCapture
     bool thread_started_{false};
     std::atomic<bool> running_{false};
     QString status_message_;
-    GMainLoop *loop_{nullptr};
-    std::unique_ptr<std::mutex> loop_mutex_;
 };
 
 } // namespace cockscreen::runtime
