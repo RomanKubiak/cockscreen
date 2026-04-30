@@ -247,6 +247,46 @@ Playback transport fields on `inputs.playback`:
 - `playback_rate`: playback speed used outside the loop segment
 - `playback_rate_looping`: playback speed used while the player is inside the active loop segment
 
+#### `inputs.playback.loopback`
+
+Optional GStreamer + tc-netem re-encode pipeline that routes the decoded video through a local RTP/UDP loopback with configurable network impairments before the GL pipeline sees it. Requires `CAP_NET_ADMIN` (run as root or via `sudo`).
+
+```json
+"loopback": {
+    "enabled":         true,
+    "use_appsink":     true,
+    "udp_port":        5004,
+    "loss_percent":    10.0,
+    "corrupt_percent": 40.0,
+    "delay_ms":        30,
+    "reorder_percent": 20.0,
+    "loopback_device": "/dev/video10"
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Activates the loopback pipeline. When `false`, playback is direct — no re-encode, no netem. |
+| `use_appsink` | bool | `false` | Receiver backend. `true` = in-process GStreamer appsink (H.264 over RTP/UDP → `avdec_h264` → `QVideoSink`); supports `start_ms`/loop and glitch artifacts. `false` = v4l2loopback path (requires the kernel module). |
+| `udp_port` | integer | `5004` | Local UDP port for the loopback RTP stream. Sender writes, receiver binds. |
+| `loss_percent` | number | `0.0` | Percentage of UDP packets dropped by tc-netem. Dropped packets produce brief freeze holds. Range: 0–100. |
+| `corrupt_percent` | number | `0.0` | Percentage of packets given random bit-flips by tc-netem. With H.264 (`use_appsink=true`) this corrupts P-frame bitstreams, causing `avdec_h264` to output garbled macroblocks that persist visually until the next IDR (every ~2 s at default settings). Effective visible-artifact range: 20–60. |
+| `delay_ms` | integer | `0` | Fixed latency in milliseconds added to the `lo` interface. Must be `> 0` for `reorder_percent` to have any effect. |
+| `reorder_percent` | number | `0.0` | Percentage of packets reordered (out-of-sequence delivery). Requires `delay_ms > 0`. Stresses the RTP jitter buffer; can cause reference-frame mismatches in H.264. Range: 0–100. |
+| `loopback_device` | string | `"/dev/video10"` | v4l2loopback device path. Used only when `use_appsink` is `false`. Load with: `sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="cockscreen-lb"`. |
+
+**Codec path (x86_64, `use_appsink=true`):**
+
+```
+filesrc → decodebin → videoconvert → videoscale (320×180) → videorate
+  → x264enc (tune=zerolatency, key-int-max=60, 800 kbps)
+  → rtph264pay (SPS+PPS inlined per IDR) → udpsink :PORT (sync=true)
+       ↓ tc-netem: corrupt N%, loss N%, delay Nms, reorder N%
+  udpsrc → rtph264depay → h264parse
+  → avdec_h264 (output-corrupt=true, discard-corrupted-frames=false)
+  → videoconvert → BGRx → appsink (pull thread) → QVideoSink → GL
+```
+
 ### Shader layers
 
 Three composited layers: `video`, `playback`, and `screen`. Each has an ordered list of GLSL shaders applied as a chain — the output of one becomes `u_texture` for the next.
@@ -397,6 +437,14 @@ Across [scenes/x86_64-linux.scene.jsonc](/home/atom/devel/cockscreen/scenes/x86_
 - `inputs.playback.loop_repeat`
 - `inputs.playback.playback_rate`
 - `inputs.playback.playback_rate_looping`
+- `inputs.playback.loopback.enabled`
+- `inputs.playback.loopback.use_appsink`
+- `inputs.playback.loopback.udp_port`
+- `inputs.playback.loopback.loss_percent`
+- `inputs.playback.loopback.corrupt_percent`
+- `inputs.playback.loopback.delay_ms`
+- `inputs.playback.loopback.reorder_percent`
+- `inputs.playback.loopback.loopback_device`
 - `inputs.background_color.r`
 - `inputs.background_color.g`
 - `inputs.background_color.b`

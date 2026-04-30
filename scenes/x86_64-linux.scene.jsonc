@@ -46,22 +46,51 @@
             /* Normal playback speed outside and inside the loop range. */
             "playback_rate": 1.0,
             "playback_rate_looping": 0.5,
-            /*
-                sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="cockscreen-lb"
-                The app needs CAP_NET_ADMIN (or run as root) for tc commands.
-            */
+            /**
+             * @object loopback
+             * @description GStreamer + tc-netem video re-encode pipeline.
+             *   The sender decodes the source file, re-encodes it (H.264 via x264enc
+             *   when available, otherwise MJPEG), and streams it over a local UDP port.
+             *   tc-netem is applied to the loopback (lo) interface to inject packet
+             *   loss, corruption, delay, and reorder before the in-process GStreamer
+             *   receiver decodes and delivers frames to the GL pipeline.
+             *   With H.264 (use_appsink=true), corrupted P-frames produce persistent
+             *   macroblock artifacts until the next IDR (~2 s at key-int-max=60).
+             *   Requires CAP_NET_ADMIN — run as root or via sudo.
+             *   v4l2loopback (use_appsink=false only):
+             *     sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="cockscreen-lb"
+             */
             "loopback": {
+                /** @field enabled {boolean} Activates the loopback pipeline. When false, playback is direct (no re-encode, no netem). */
                 "enabled": true,
-                /* High corruption flips bits inside the JPEG payload so
-                   avdec_mjpeg outputs mangled macroblocks instead of dropping
-                   the frame.  Loss causes freeze hold.  Reorder needs delay
-                   to work; the combination stresses the jitter buffer. */
-                "loss_percent": 10.0,
-                "corrupt_percent": 40.0,
-                "delay_ms": 30,
-                "reorder_percent": 20.0,
+                /** @field loss_percent {number} [0, 100] Percentage of UDP packets dropped by tc-netem. Dropped packets produce brief freeze holds. */
+                "loss_percent": 0.0,
+                /**
+                 * @field corrupt_percent {number} [0, 100] Percentage of UDP packets that receive random bit-flips via tc-netem.
+                 *   With use_appsink=true (H.264): corrupts P-frame bitstream → avdec_h264 outputs garbled macroblocks that persist
+                 *   until the next IDR. Effective range for visible artifacts without full decode failure: 20–60.
+                 */
+                "corrupt_percent": 0.0,
+                /**
+                 * @field delay_ms {integer} [0, ∞) Fixed added latency in milliseconds applied to the lo interface by tc-netem.
+                 *   Must be > 0 for reorder_percent to have any visible effect.
+                 */
+                "delay_ms": 0,
+                /**
+                 * @field reorder_percent {number} [0, 100] Percentage of packets reordered (delivered out of sequence).
+                 *   Requires delay_ms > 0. Stresses the RTP jitter buffer; can cause reference-frame mismatches in H.264.
+                 */
+                "reorder_percent": 25.0,
+                /** @field udp_port {integer} Local UDP port for the loopback RTP stream. Sender writes, receiver binds. */
                 "udp_port": 5004,
+                /** @field loopback_device {string} v4l2loopback device path. Used only when use_appsink is false. */
                 "loopback_device": "/dev/video10",
+                /**
+                 * @field use_appsink {boolean} Selects the receiver backend.
+                 *   true  — in-process GStreamer appsink path: H.264 over RTP/UDP → avdec_h264 → QVideoSink.
+                 *           Supports start_ms, loop_start_ms, loop_end_ms, corrupt_percent glitch artifacts.
+                 *   false — v4l2loopback path: GStreamer writes to /dev/videoN, Qt reads it back.
+                 */
                 "use_appsink": true
             }
         },
