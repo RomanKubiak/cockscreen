@@ -562,6 +562,7 @@ int Application::run(int argc, char *argv[])
     const auto loaded_scene = load_scene_definition(*scene_path, &scene_error);
     if (!loaded_scene.has_value())
     {
+        std::cerr << "Error: " << scene_error << '\n';
         return show_fatal_error_window(&application, QString::fromStdString(scene_error));
     }
 
