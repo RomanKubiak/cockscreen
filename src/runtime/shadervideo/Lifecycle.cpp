@@ -158,8 +158,15 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
             // Sender-only: GStreamer encodes the file → RTP → UDP.
             // AppsinkCapture (in-process GStreamer pipeline) receives and
             // pushes QVideoFrame directly to playback_sink_.
+            const std::int64_t loop_end_ms = scene_.playback_input.loop_end_ms.has_value()
+                                                 ? *scene_.playback_input.loop_end_ms
+                                                 : -1;
             const bool started = playback_loopback_.start_sender_only_for_file(
-                scene_.playback_input.file, scene_.playback_input.loopback);
+                scene_.playback_input.file,
+                scene_.playback_input.loopback,
+                scene_.playback_input.start_ms,
+                scene_.playback_input.loop_start_ms,
+                loop_end_ms);
             if (started)
             {
                 playback_appsink_capture_ = new AppsinkCapture;

@@ -6,6 +6,9 @@
 
 #include <QString>
 
+#include <atomic>
+#include <pthread.h>
+
 class QProcess;
 
 namespace cockscreen::runtime
@@ -72,8 +75,14 @@ class LoopbackPipeline
     // Start only the sender side (encode → RTP → UDP + tc-netem).
     // No v4l2loopback receiver is started; the caller is expected to receive
     // frames via AppsinkCapture.  Requires CAP_NET_ADMIN for tc-netem.
+    // start_ms: initial seek position in the file (ms); 0 = beginning.
+    // loop_start_ms: seek-back position on EOS/loop-end; 0 = beginning.
+    // loop_end_ms: position at which to trigger a seek-back; -1 = file EOS only.
     [[nodiscard]] bool start_sender_only_for_file(const std::string &source_file,
-                                                   const LoopbackParams &params);
+                                                   const LoopbackParams &params,
+                                                   std::int64_t start_ms = 0,
+                                                   std::int64_t loop_start_ms = 0,
+                                                   std::int64_t loop_end_ms = -1);
 
     // Returns true when the sender pipeline uses H.264, false when MJPEG.
     // Determined at build time by GStreamer element availability.
@@ -117,6 +126,11 @@ class LoopbackPipeline
     bool stopping_{false};
     QString sender_cmd_;
     QString status_message_;
+
+    // In-process sender thread (used by start_sender_only_for_file).
+    pthread_t sender_thread_{};
+    bool sender_thread_started_{false};
+    std::atomic<bool> sender_running_{false};
 
     void connect_sender_restart();
     void start_sender_process();

@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QThread>
 
+#include <gst/gst.h>
+
 #include <chrono>
 #include <iostream>
 #include <utility>
@@ -519,30 +521,174 @@ bool LoopbackPipeline::start_for_file(const std::string &source_file, const Loop
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// In-process sender thread for the appsink path.
+// Manages a GStreamer pipeline that encodes the source file to MJPEG/H264
+// over RTP/UDP.  Supports initial seek (start_ms) and looping.
+// ---------------------------------------------------------------------------
+namespace
+{
+
+struct AppsinkSenderArg
+{
+    std::string pipeline_str;
+    std::int64_t start_ms;
+    std::int64_t loop_start_ms;
+    std::int64_t loop_end_ms;   // -1 = EOS-only looping
+    std::atomic<bool> *running;
+};
+
+void *appsink_sender_thread(void *arg_ptr)
+{
+    auto *arg = static_cast<AppsinkSenderArg *>(arg_ptr);
+
+    gst_init(nullptr, nullptr);
+
+    GError *error = nullptr;
+    GstElement *pipeline = gst_parse_launch(arg->pipeline_str.c_str(), &error);
+    if (pipeline == nullptr || error != nullptr)
+    {
+        std::cerr << "[appsink-sender] gst_parse_launch failed: "
+                  << (error ? error->message : "?") << "\n";
+        if (error) g_error_free(error);
+        arg->running->store(false);
+        delete arg;
+        return nullptr;
+    }
+
+    GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
+
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+    // Wait for the pipeline to reach PLAYING (or fail).
+    GstState state;
+    gst_element_get_state(pipeline, &state, nullptr, 5 * GST_SECOND);
+
+    // Seek to start position if requested.
+    if (arg->start_ms > 0)
+    {
+        gst_element_seek_simple(pipeline, GST_FORMAT_TIME,
+            static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
+            arg->start_ms * static_cast<gint64>(GST_MSECOND));
+    }
+
+    std::cerr << "[appsink-sender] pipeline running (start_ms=" << arg->start_ms
+              << " loop_start_ms=" << arg->loop_start_ms
+              << " loop_end_ms=" << arg->loop_end_ms << ")\n";
+
+    const std::int64_t start_ms      = arg->start_ms;
+    const std::int64_t loop_start_ms = arg->loop_start_ms;
+    const std::int64_t loop_end_ms   = arg->loop_end_ms;
+    std::atomic<bool> *running        = arg->running;
+    delete arg;
+
+    // Wall clock time of the last seek (used instead of gst_element_query_position,
+    // which is unreliable on push-based sinks like udpsink).  Since sync=true on
+    // udpsink, real time ≈ stream time after each seek.
+    auto segment_wall_start   = std::chrono::steady_clock::now();
+    std::int64_t segment_origin_ms = start_ms; // stream position at segment_wall_start
+
+    while (running->load())
+    {
+        // Check position-based loop end (if configured).
+        if (loop_end_ms > 0)
+        {
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - segment_wall_start).count();
+            const std::int64_t stream_ms = segment_origin_ms + static_cast<std::int64_t>(now_ms);
+            if (stream_ms >= loop_end_ms)
+            {
+                std::cerr << "[appsink-sender] loop-end reached (stream_ms=" << stream_ms
+                          << ") — seeking to " << loop_start_ms << " ms\n";
+                gst_element_seek_simple(pipeline, GST_FORMAT_TIME,
+                    static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
+                    loop_start_ms * static_cast<gint64>(GST_MSECOND));
+                segment_wall_start  = std::chrono::steady_clock::now();
+                segment_origin_ms   = loop_start_ms;
+                continue;
+            }
+        }
+
+        // Poll bus with short timeout so we can check running_ and position.
+        GstMessage *msg = gst_bus_timed_pop_filtered(bus, 20 * GST_MSECOND,
+            static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+        if (msg == nullptr)
+            continue;
+
+        const GstMessageType type = GST_MESSAGE_TYPE(msg);
+        gst_message_unref(msg);
+
+        if (type == GST_MESSAGE_EOS)
+        {
+            // EOS before loop_end_ms (or no loop configured) — restart from loop_start_ms.
+            const std::int64_t seek_target = loop_start_ms > 0 ? loop_start_ms : start_ms;
+            std::cerr << "[appsink-sender] EOS — looping to " << seek_target << " ms\n";
+            gst_element_seek_simple(pipeline, GST_FORMAT_TIME,
+                static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
+                seek_target * static_cast<gint64>(GST_MSECOND));
+            segment_wall_start  = std::chrono::steady_clock::now();
+            segment_origin_ms   = seek_target;
+        }
+        else if (type == GST_MESSAGE_ERROR)
+        {
+            std::cerr << "[appsink-sender] pipeline error — stopping\n";
+            break;
+        }
+    }
+
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+    gst_object_unref(bus);
+    gst_object_unref(pipeline);
+    running->store(false);
+    return nullptr;
+}
+
+} // namespace
+
 bool LoopbackPipeline::start_sender_only_for_file(const std::string &source_file,
-                                                   const LoopbackParams &params)
+                                                   const LoopbackParams &params,
+                                                   std::int64_t start_ms,
+                                                   std::int64_t loop_start_ms,
+                                                   std::int64_t loop_end_ms)
 {
     stop();
     params_ = params;
-
-    // Kill any orphaned gst-launch processes from a previous run.
-    QProcess::execute(QStringLiteral("pkill"), {QStringLiteral("-9"), QStringLiteral("gst-launch-1.0")});
-    QThread::msleep(200);
 
     if (!install_netem(params))
         return false;
 
     QThread::msleep(100);
 
-    sender_cmd_ = QStringLiteral("setsid ") + build_sender_pipeline_file(source_file, params);
-    std::cerr << "[LoopbackPipeline] appsink-sender cmd: " << sender_cmd_.toStdString() << "\n";
-    start_sender_process();
-    if (sender_ == nullptr || !sender_->waitForStarted(3000))
+    // Build the in-process sender pipeline (same elements, without gst-launch wrapper).
+    const QString pipeline_qs = build_sender_pipeline_file(source_file, params);
+    // Strip the leading "gst-launch-1.0 " from the pipeline string.
+    const std::string raw = pipeline_qs.toStdString();
+    const std::string prefix = "gst-launch-1.0 ";
+    const std::string pipeline_str = (raw.rfind(prefix, 0) == 0)
+                                         ? raw.substr(prefix.size())
+                                         : raw;
+
+    std::cerr << "[LoopbackPipeline] appsink-sender pipeline: " << pipeline_str << "\n";
+
+    auto *arg          = new AppsinkSenderArg;
+    arg->pipeline_str  = pipeline_str;
+    arg->start_ms      = start_ms;
+    arg->loop_start_ms = loop_start_ms;
+    arg->loop_end_ms   = loop_end_ms;
+    arg->running       = &sender_running_;
+    sender_running_.store(true);
+
+    if (pthread_create(&sender_thread_, nullptr, appsink_sender_thread, arg) != 0)
     {
-        status_message_ = QStringLiteral("LoopbackPipeline: appsink sender failed to start");
-        stop();
+        sender_running_.store(false);
+        delete arg;
+        status_message_ = QStringLiteral("LoopbackPipeline: sender thread creation failed");
         return false;
     }
+    sender_thread_started_ = true;
+
+    // Give the pipeline time to reach PLAYING and perform the initial seek.
+    QThread::msleep(300);
 
     status_message_.clear();
     return true;
@@ -583,6 +729,14 @@ void LoopbackPipeline::stop()
 {
     stopping_ = true;
     remove_netem();
+
+    // Stop the in-process sender thread (appsink path).
+    if (sender_thread_started_)
+    {
+        sender_running_.store(false);
+        pthread_join(sender_thread_, nullptr);
+        sender_thread_started_ = false;
+    }
 
     if (sender_ != nullptr)
     {
