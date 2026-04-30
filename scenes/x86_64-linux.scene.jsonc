@@ -219,80 +219,81 @@
          * @description MIDI input providing global note/CC state, u_midi_* uniforms, and the targets for
          *   midi_cc_mappings and midi_note_mappings. On Linux uses ALSA sequencer; on Windows uses WinMM.
          */
-        /** @field enabled {boolean} Activates MIDI input. When false all u_midi_* uniforms stay at 0. */
-        "enabled": false,
-        /** @field device {string} ALSA port name substring or numeric port (Linux). "through" selects the ALSA Through port. */
-        "device": "through"
-    }
-},
-/** @field show_status_overlay {boolean} Diagnostic HUD in the top-left corner showing FPS, pipeline state, and device names. Runtime default: true. */
-"show_status_overlay": false,
-/** @field timecode {boolean} Burned-in analog-film-style timecode overlay on the playback image. Runtime default: false. */
-"timecode": false,
-/**
+        "midi": {
+            /** @field enabled {boolean} Activates MIDI input. When false all u_midi_* uniforms stay at 0. */
+            "enabled": false,
+            /** @field device {string} ALSA port name substring or numeric port (Linux). "through" selects the ALSA Through port. */
+            "device": "through"
+        }
+    },
+    /** @field show_status_overlay {boolean} Diagnostic HUD in the top-left corner showing FPS, pipeline state, and device names. Runtime default: true. */
+    "show_status_overlay": false,
+    /** @field timecode {boolean} Burned-in analog-film-style timecode overlay on the playback image. Runtime default: false. */
+    "timecode": false,
+    /**
      * @object pink_key
      * @description Scene-level defaults consumed by pink_key.glsl for audio/MIDI reactivity.
      *   All fields are also overridable per-instance via midi_cc_mappings or osc_mappings.
      */
-"pink_key": {
-    /**
+    "pink_key": {
+        /**
          * @field audio_algorithm {integer} [0, 5] FFT band selector for audio reactivity.
          *   0 = bass (bands 0–3), 1 = low-mid (4–7), 2 = high-mid (8–11), 3 = high (12–15),
          *   4 = weighted spectral centroid, 5 = full-spectrum average. Clamped to [0, 5].
          */
-    "audio_algorithm": 3,
-    /** @field audio_reactivity {number} [0, 1.5] Scales the audio-driven modulation in the shader. Clamped to [0, 1.5]. */
-    "audio_reactivity": 0.4,
-    /** @field midi_reactivity {number} [0, 1.5] Scales the MIDI-driven modulation in the shader. Clamped to [0, 1.5]. */
-    "midi_reactivity": 0.6
-},
-/**
+        "audio_algorithm": 3,
+        /** @field audio_reactivity {number} [0, 1.5] Scales the audio-driven modulation in the shader. Clamped to [0, 1.5]. */
+        "audio_reactivity": 0.4,
+        /** @field midi_reactivity {number} [0, 1.5] Scales the MIDI-driven modulation in the shader. Clamped to [0, 1.5]. */
+        "midi_reactivity": 0.6
+    },
+    /**
      * @object video
      * @description Shader chain for the video (V4L2 capture) compositing layer.
      *   Applied after capture; output is composited according to layer_order.
      */
-"video": {
-    /** @field enabled {boolean} Enables this layer in the composited output. */
-    "enabled": false,
-    /** @field shaders {string[]} Ordered .glsl filenames applied as a chain. Output of each stage becomes u_texture for the next. */
-    "shaders": [
-        "pink_key.glsl"
-    ]
-},
-/**
+    "video": {
+        /** @field enabled {boolean} Enables this layer in the composited output. */
+        "enabled": false,
+        /** @field shaders {string[]} Ordered .glsl filenames applied as a chain. Output of each stage becomes u_texture for the next. */
+        "shaders": [
+            "pink_key.glsl"
+        ]
+    },
+    /**
      * @object playback
      * @description Shader chain for the file playback compositing layer.
      */
-"playback": {
-    /** @field enabled {boolean} Enables this layer in the composited output. */
-    "enabled": true,
-    /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
-    "shaders": [
-        "toy_synthwave.glsl"
-    ]
-},
-/**
+    "playback": {
+        /** @field enabled {boolean} Enables this layer in the composited output. */
+        "enabled": true,
+        /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
+        "shaders": [
+            "toy_synthwave.glsl"
+        ]
+    },
+    /**
      * @object screen
      * @description Shader chain for the screen (generative / full-screen) compositing layer.
      *   Receives a blank texture as u_texture when no other input feeds it.
      */
-"screen": {
-    /** @field enabled {boolean} Enables this layer in the composited output. */
-    "enabled": true,
-    /** @field shaders {string[]} Ordered .glsl filenames. */
-    "shaders": []
-},
-/**
+    "screen": {
+        /** @field enabled {boolean} Enables this layer in the composited output. */
+        "enabled": true,
+        /** @field shaders {string[]} Ordered .glsl filenames. */
+        "shaders": []
+    },
+    /**
      * @field layer_order {string[]} Back-to-front compositing order for "screen", "video", and "playback".
      *   The last entry is drawn on top. Must contain all three names exactly once;
      *   invalid or duplicate entries cause the whole field to be ignored.
      *   When omitted, the runtime falls back to the legacy inputs.video.on_top field.
      */
-"layer_order": [
-    "screen",
-    "playback"
-],
-/**
+    "layer_order": [
+        "screen",
+        "playback"
+    ],
+    /**
      * @array midi_cc_mappings
      * @description Maps MIDI Continuous Controller values to shader uniforms.
      *   Each entry schema:
@@ -305,64 +306,64 @@
      *   @field max      {number}  Uniform value when the CC is 127.
      *   @field exponent {number}  [0.01, ∞) Response curve exponent. 1.0 = linear, >1 = logarithmic feel. Clamped to 0.01.
      */
-"midi_cc_mappings": [
-    /* CC 91 → screen / wireframe_sphere.glsl → u_wire_density */
-    {
-        "layer": "screen",
-        "shader": "wireframe_sphere.glsl",
-        "uniform": "u_wire_density",
-        "channel": 0,
-        "cc": 91,
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    },
-    /* CC 92 → screen / pixelize_viewport.glsl → u_pixelize_amount */
-    {
-        "layer": "screen",
-        "shader": "pixelize_viewport.glsl",
-        "uniform": "u_pixelize_amount",
-        "channel": 0,
-        "cc": 92,
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    },
-    /* CC 93 → playback / pink_key.glsl → u_key_h (chroma-key hue centre) */
-    {
-        "layer": "playback",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_h",
-        "channel": 0,
-        "cc": 93,
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    },
-    /* CC 94 → playback / pink_key.glsl → u_key_hrange (hue tolerance width) */
-    {
-        "layer": "playback",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_hrange",
-        "channel": 0,
-        "cc": 94,
-        "min": 0.0,
-        "max": 0.5,
-        "exponent": 1.0
-    },
-    /* CC 95 → playback / pink_key.glsl → u_key_spread (edge softness) */
-    {
-        "layer": "playback",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_spread",
-        "channel": 0,
-        "cc": 95,
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    }
-],
-/**
+    "midi_cc_mappings": [
+        /* CC 91 → screen / wireframe_sphere.glsl → u_wire_density */
+        {
+            "layer": "screen",
+            "shader": "wireframe_sphere.glsl",
+            "uniform": "u_wire_density",
+            "channel": 0,
+            "cc": 91,
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        /* CC 92 → screen / pixelize_viewport.glsl → u_pixelize_amount */
+        {
+            "layer": "screen",
+            "shader": "pixelize_viewport.glsl",
+            "uniform": "u_pixelize_amount",
+            "channel": 0,
+            "cc": 92,
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        /* CC 93 → playback / pink_key.glsl → u_key_h (chroma-key hue centre) */
+        {
+            "layer": "playback",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_h",
+            "channel": 0,
+            "cc": 93,
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        /* CC 94 → playback / pink_key.glsl → u_key_hrange (hue tolerance width) */
+        {
+            "layer": "playback",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_hrange",
+            "channel": 0,
+            "cc": 94,
+            "min": 0.0,
+            "max": 0.5,
+            "exponent": 1.0
+        },
+        /* CC 95 → playback / pink_key.glsl → u_key_spread (edge softness) */
+        {
+            "layer": "playback",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_spread",
+            "channel": 0,
+            "cc": 95,
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        }
+    ],
+    /**
      * @array osc_mappings
      * @description Maps OSC message values to shader uniforms. Server listens on 0.0.0.0:9000.
      *   Incoming float values are clamped to [0, 1], exponent-mapped, then scaled to [min, max].
@@ -375,46 +376,46 @@
      *   @field max      {number}  Uniform value when the OSC float is 1.
      *   @field exponent {number}  [0.01, ∞) Response curve exponent. 1.0 = linear. Clamped to 0.01.
      */
-"osc_mappings": [
-    /* /cockscreen/key/hue → video / pink_key.glsl → u_key_h (chroma-key hue centre) */
-    {
-        "address": "/cockscreen/key/hue",
-        "layer": "video",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_h",
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    },
-    /* /cockscreen/key/hrange → video / pink_key.glsl → u_key_hrange (hue tolerance width) */
-    {
-        "address": "/cockscreen/key/hrange",
-        "layer": "video",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_hrange",
-        "min": 0.0,
-        "max": 0.5,
-        "exponent": 1.0
-    },
-    /* /cockscreen/key/spread → video / pink_key.glsl → u_key_spread (edge softness) */
-    {
-        "address": "/cockscreen/key/spread",
-        "layer": "video",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_spread",
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    },
-    /* /cockscreen/key/smin → video / pink_key.glsl → u_key_smin (saturation minimum threshold) */
-    {
-        "address": "/cockscreen/key/smin",
-        "layer": "video",
-        "shader": "pink_key.glsl",
-        "uniform": "u_key_smin",
-        "min": 0.0,
-        "max": 1.0,
-        "exponent": 1.0
-    }
-]
+    "osc_mappings": [
+        /* /cockscreen/key/hue → video / pink_key.glsl → u_key_h (chroma-key hue centre) */
+        {
+            "address": "/cockscreen/key/hue",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_h",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        /* /cockscreen/key/hrange → video / pink_key.glsl → u_key_hrange (hue tolerance width) */
+        {
+            "address": "/cockscreen/key/hrange",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_hrange",
+            "min": 0.0,
+            "max": 0.5,
+            "exponent": 1.0
+        },
+        /* /cockscreen/key/spread → video / pink_key.glsl → u_key_spread (edge softness) */
+        {
+            "address": "/cockscreen/key/spread",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_spread",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        /* /cockscreen/key/smin → video / pink_key.glsl → u_key_smin (saturation minimum threshold) */
+        {
+            "address": "/cockscreen/key/smin",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_smin",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        }
+    ]
 }
