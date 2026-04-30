@@ -143,11 +143,15 @@ void *capture_thread(void *arg_ptr)
     std::string pipeline_str;
     if (arg->use_h264)
     {
+        // output-corrupt=true: render frames even when libav marks them corrupt.
+        // discard-corrupted-frames=false: pass GStreamer-flagged corrupt frames to the app.
+        // h264parse is required to extract codec_data (SPS/PPS) for avdec_h264.
         pipeline_str =
             "udpsrc port=" + std::to_string(arg->udp_port) +
             " caps=\"application/x-rtp,media=video,clock-rate=90000,"
             "encoding-name=H264,payload=96\" ! "
-            "rtph264depay ! h264parse ! avdec_h264 ! "
+            "rtph264depay ! h264parse ! "
+            "avdec_h264 output-corrupt=true discard-corrupted-frames=false max-errors=-1 ! "
             "videoconvert ! video/x-raw,format=BGRx ! "
             "appsink name=sink sync=false max-buffers=2 drop=true";
     }

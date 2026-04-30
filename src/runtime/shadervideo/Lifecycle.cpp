@@ -155,9 +155,29 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     {
         if (scene_.playback_input.loopback.use_appsink)
         {
+            // Receiver first: bind the UDP socket before the sender starts
+            // transmitting so the receiver catches the very first IDR frame.
+            playback_appsink_capture_ = new AppsinkCapture;
+            const bool use_h264 = LoopbackPipeline::uses_h264();
+            if (!playback_appsink_capture_->start(
+                    scene_.playback_input.loopback.udp_port, &playback_sink_, use_h264))
+            {
+                const QString error_text =
+                    QStringLiteral("Playback appsink capture failed: %1")
+                        .arg(playback_appsink_capture_->status_message());
+                fatal_render_error_ = error_text;
+                status_message_ = error_text;
+                delete playback_appsink_capture_;
+                playback_appsink_capture_ = nullptr;
+            }
+            else
+            {
+                std::cerr << "[appsink-playback] "
+                          << playback_appsink_capture_->status_message().toStdString() << "\n";
+            }
+
             // Sender-only: GStreamer encodes the file → RTP → UDP.
-            // AppsinkCapture (in-process GStreamer pipeline) receives and
-            // pushes QVideoFrame directly to playback_sink_.
+            // Starts after the receiver is listening so the first IDR is received.
             const std::int64_t loop_end_ms = scene_.playback_input.loop_end_ms.has_value()
                                                  ? *scene_.playback_input.loop_end_ms
                                                  : -1;
@@ -167,33 +187,17 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                 scene_.playback_input.start_ms,
                 scene_.playback_input.loop_start_ms,
                 loop_end_ms);
-            if (started)
-            {
-                playback_appsink_capture_ = new AppsinkCapture;
-                const bool use_h264 = LoopbackPipeline::uses_h264();
-                if (!playback_appsink_capture_->start(
-                        scene_.playback_input.loopback.udp_port, &playback_sink_, use_h264))
-                {
-                    const QString error_text =
-                        QStringLiteral("Playback appsink capture failed: %1")
-                            .arg(playback_appsink_capture_->status_message());
-                    fatal_render_error_ = error_text;
-                    status_message_ = error_text;
-                    delete playback_appsink_capture_;
-                    playback_appsink_capture_ = nullptr;
-                    playback_loopback_.stop();
-                }
-                else
-                {
-                    std::cerr << "[appsink-playback] "
-                              << playback_appsink_capture_->status_message().toStdString() << "\n";
-                }
-            }
-            else
+            if (!started)
             {
                 fatal_render_error_ = QStringLiteral("Playback loopback sender failed to start: ") +
                                       playback_loopback_.status_message();
                 status_message_ = fatal_render_error_;
+                if (playback_appsink_capture_ != nullptr)
+                {
+                    playback_appsink_capture_->stop();
+                    delete playback_appsink_capture_;
+                    playback_appsink_capture_ = nullptr;
+                }
             }
         }
         else

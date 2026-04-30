@@ -62,10 +62,17 @@ static bool prefer_hardware_codecs()
     return hw;
 }
 
+static bool has_software_h264()
+{
+    static const bool sw = gst_element_exists(QStringLiteral("x264enc"));
+    return sw;
+}
+
 // static
 bool LoopbackPipeline::uses_h264()
 {
-    return prefer_hardware_codecs();
+    // Hardware Pi path OR desktop x264enc path both use H.264.
+    return prefer_hardware_codecs() || has_software_h264();
 }
 
 // ---------------------------------------------------------------------------
@@ -126,8 +133,29 @@ QString LoopbackPipeline::build_sender_pipeline_file(const std::string &file,
             .arg(QString::fromStdString(file))
             .arg(params.udp_port);
     }
-    // Software path: MJPEG — mtu=65000 keeps each JPEG in a single RTP/UDP
-    // packet; netem loss/corrupt affects whole frames, not sub-frame slices.
+    if (has_software_h264())
+    {
+        // x264enc path: H.264 with moderate I-frame interval (key-int-max=60 ≈ 2s at 30fps).
+        // P-frame dependencies mean a corrupt packet produces visible macroblock
+        // artifacts that linger until the next keyframe — unlike MJPEG where
+        // libjpeg silently error-conceals corruption and only drops frames.
+        // tune=zerolatency prevents encoder buffering that would add startup delay.
+        // key-int-max=60: balances artifact duration vs. IDR recovery after seeks.
+        return QStringLiteral("gst-launch-1.0 "
+                              "filesrc location=%1 "
+                              "! decodebin "
+                              "! queue max-size-buffers=4 leaky=upstream "
+                              "! videoconvert "
+                              "! videoscale "
+                              "! video/x-raw,width=320,height=180 "
+                              "! videorate "
+                              "! x264enc tune=zerolatency key-int-max=60 bitrate=800 "
+                              "! rtph264pay config-interval=-1 pt=96 "
+                              "! udpsink host=127.0.0.1 port=%2 sync=true")
+            .arg(QString::fromStdString(file))
+            .arg(params.udp_port);
+    }
+    // Fallback: MJPEG (no x264enc available).
     // videorate regularises the framerate so udpsink sync=true can throttle
     // to real-time (GPU decoders may otherwise run far above 1x speed).
     return QStringLiteral("gst-launch-1.0 "
