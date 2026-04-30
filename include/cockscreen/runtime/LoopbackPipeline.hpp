@@ -6,6 +6,9 @@
 
 #include <QString>
 
+#include <atomic>
+#include <pthread.h>
+
 class QProcess;
 
 namespace cockscreen::runtime
@@ -69,6 +72,22 @@ class LoopbackPipeline
     // The file is played in a loop by GStreamer.
     [[nodiscard]] bool start_for_file(const std::string &source_file, const LoopbackParams &params);
 
+    // Start only the sender side (encode → RTP → UDP + tc-netem).
+    // No v4l2loopback receiver is started; the caller is expected to receive
+    // frames via AppsinkCapture.  Requires CAP_NET_ADMIN for tc-netem.
+    // start_ms: initial seek position in the file (ms); 0 = beginning.
+    // loop_start_ms: seek-back position on EOS/loop-end; 0 = beginning.
+    // loop_end_ms: position at which to trigger a seek-back; -1 = file EOS only.
+    [[nodiscard]] bool start_sender_only_for_file(const std::string &source_file,
+                                                   const LoopbackParams &params,
+                                                   std::int64_t start_ms = 0,
+                                                   std::int64_t loop_start_ms = 0,
+                                                   std::int64_t loop_end_ms = -1);
+
+    // Returns true when the sender pipeline uses H.264, false when MJPEG.
+    // Determined at build time by GStreamer element availability.
+    [[nodiscard]] static bool uses_h264();
+
     // Stop both GStreamer processes and remove the tc-netem rule.
     void stop();
 
@@ -80,10 +99,21 @@ class LoopbackPipeline
 
     [[nodiscard]] bool is_running() const;
 
+    // Check that v4l2loopback is loaded and the output device file exists.
+    // Call this before start_for_device / start_for_file to get a clear
+    // error message instead of a silent GStreamer failure.
+    [[nodiscard]] static bool check_prerequisites(const LoopbackParams &params,
+                                                  QString *error_message = nullptr);
+
+    // Block until the v4l2loopback output device has a negotiated format,
+    // which only happens once GStreamer's receiver has written its first frame.
+    // Returns false (and sets status_message()) on timeout.
+    [[nodiscard]] bool wait_for_device_ready(int timeout_ms = 5000);
+
   private:
-    void install_netem(const LoopbackParams &params);
+    bool install_netem(const LoopbackParams &params);
     void remove_netem();
-    static bool run_tc_command(const QStringList &args);
+    static bool run_tc_command(const QStringList &args, QString *error_message = nullptr);
     static QString build_sender_pipeline_device(const std::string &device, int width, int height,
                                                 const LoopbackParams &params);
     static QString build_sender_pipeline_file(const std::string &file, const LoopbackParams &params);
@@ -93,7 +123,17 @@ class LoopbackPipeline
     QProcess *receiver_{nullptr};
     LoopbackParams params_;
     bool netem_installed_{false};
+    bool stopping_{false};
+    QString sender_cmd_;
     QString status_message_;
+
+    // In-process sender thread (used by start_sender_only_for_file).
+    pthread_t sender_thread_{};
+    bool sender_thread_started_{false};
+    std::atomic<bool> sender_running_{false};
+
+    void connect_sender_restart();
+    void start_sender_process();
 };
 
 } // namespace cockscreen::runtime

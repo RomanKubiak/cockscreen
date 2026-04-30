@@ -142,6 +142,7 @@ LoopbackParams parse_loopback(const QJsonValue &value)
     params.reorder_percent = std::clamp(json_float(object, "reorder_percent", 0.0F), 0.0F, 100.0F);
     params.udp_port = std::clamp(json_int(object, "udp_port", 5004), 1024, 65535);
     params.loopback_device = json_string(object, "loopback_device", "/dev/video10");
+    params.use_appsink = json_bool(object, "use_appsink", false);
     return params;
 }
 
@@ -180,6 +181,14 @@ SceneInput parse_input(const QJsonObject &object)
     input.loop_repeat = std::max(0, json_int(object, "loop_repeat", 0));
     input.playback_rate = std::max(0.01F, json_float(object, "playback_rate", 1.0F));
     input.playback_rate_looping = std::max(0.01F, json_float(object, "playback_rate_looping", 1.0F));
+    input.volume = std::clamp(json_float(object, "volume", 1.0F), 0.0F, 1.0F);
+    input.volume_initial = std::clamp(json_float(object, "volume_initial", 0.0F), 0.0F, 1.0F);
+    input.volume_fade_in_ms = std::max<std::int64_t>(0, json_int64(object, "volume_fade_in_ms", 0));
+    input.volume_loop_fade_in_ms = std::max<std::int64_t>(0, json_int64(object, "volume_loop_fade_in_ms", 0));
+    input.volume_loop_fade_out_ms = std::max<std::int64_t>(0, json_int64(object, "volume_loop_fade_out_ms", 0));
+    input.volume_fade_out_ms = std::max<std::int64_t>(0, json_int64(object, "volume_fade_out_ms", 0));
+    input.fft_analysis_from_playback = json_bool(object, "fft_analysis_from_playback", false);
+    input.fft_analysis_enabled = json_bool(object, "fft_analysis_enabled", true);
 
     input.artifact = parse_artifact(object.value(QStringLiteral("artifact")));
     input.loopback = parse_loopback(object.value(QStringLiteral("loopback")));
@@ -296,6 +305,10 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         if (const auto audio = inputs_object.value(QStringLiteral("audio")); audio.isObject())
         {
             scene.audio_input = parse_input(audio.toObject());
+        }
+        if (const auto audio_playback = inputs_object.value(QStringLiteral("audio_playback")); audio_playback.isObject())
+        {
+            scene.audio_playback_input = parse_input(audio_playback.toObject());
         }
         if (const auto midi = inputs_object.value(QStringLiteral("midi")); midi.isObject())
         {

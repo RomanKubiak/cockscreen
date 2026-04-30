@@ -9,6 +9,8 @@
 #include <vector>
 
 #include <QtMultimedia/QCamera>
+#include <QAudioBuffer>
+#include <QAudioBufferOutput>
 #include <QAudioOutput>
 #include <QImage>
 #include <QMediaCaptureSession>
@@ -21,15 +23,24 @@
 #include <QStringList>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QTimer>
 #include <QVector2D>
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
 
+#include <array>
+#include <complex>
+#include <cstddef>
+
+#include <pffft/pffft.hpp>
+
 #include "../core/ControlFrame.hpp"
 #include "Application.hpp"
 #include "ArtifactInjector.hpp"
 #ifndef _WIN32
+#include "AppsinkCapture.hpp"
+#include "LoopbackCapture.hpp"
 #include "LoopbackPipeline.hpp"
 #endif
 #include "Scene.hpp"
@@ -61,6 +72,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] QString playback_status_text() const;
     [[nodiscard]] std::optional<std::uintmax_t> playback_file_size_bytes() const;
 
+    // Returns a pointer to the internal QVideoSink so external capture sources
+    // (e.g. AppsinkCapture) can push frames directly without going through QCamera.
+    [[nodiscard]] QVideoSink *video_sink_ptr() { return &video_sink_; }
+
     void apply_scene_update(SceneDefinition scene);
     void set_status_overlay_text(QString text);
 
@@ -87,6 +102,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void handle_frame(const QVideoFrame &frame);
     void handle_playback_frame(const QVideoFrame &frame);
     void handle_playback_position_changed(std::int64_t position_ms);
+    void handle_audio_playback_position_changed(std::int64_t position_ms);
     void ensure_texture();
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
@@ -106,6 +122,14 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void apply_playback_rate_for_position(std::int64_t position_ms);
     [[nodiscard]] std::optional<std::int64_t> playback_effective_loop_end_ms() const;
     [[nodiscard]] bool playback_loop_enabled() const;
+    void stop_audio_playback_source();
+    void restart_audio_playback_source(bool seek_to_start);
+    void configure_audio_playback_transport(bool seek_to_start, bool reset_loop_count);
+    void apply_audio_playback_rate_for_position(std::int64_t position_ms);
+    [[nodiscard]] std::optional<std::int64_t> audio_playback_effective_loop_end_ms() const;
+    [[nodiscard]] bool audio_playback_loop_enabled() const;
+    void tick_audio_playback_volume();
+    void process_audio_playback_buffer(const QAudioBuffer &buffer);
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
                    int frame_index, const QVector2D &channel0_resolution) const;
@@ -129,6 +153,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QMediaPlayer playback_player_;
     QAudioOutput playback_audio_output_;
     QVideoSink playback_sink_;
+    QMediaPlayer audio_playback_player_;
+    QAudioOutput audio_playback_audio_output_;
+    QAudioBufferOutput audio_playback_buffer_output_;
+    QTimer audio_playback_volume_timer_;
     QImage latest_frame_;
     QImage latest_playback_frame_;
     QString camera_format_label_{QStringLiteral("unknown")};
@@ -185,17 +213,40 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString playback_error_text_;
     QString playback_status_text_;
     std::optional<std::uintmax_t> playback_file_size_bytes_;
+    std::int64_t audio_playback_position_ms_{0};
+    std::int64_t audio_playback_duration_ms_{0};
+    int audio_playback_loops_completed_{0};
+    bool audio_playback_transport_pending_seek_{false};
+    QString audio_playback_error_text_;
+    QString audio_playback_status_text_;
+    // Volume fade state for audio_playback
+    float audio_playback_current_volume_{0.0F};
+    bool audio_playback_outro_active_{false}; // fading out after final loop / EOM
+    // FFT analysis state driven by QAudioBufferOutput (used when fft_analysis_from_playback)
+    static constexpr int kAudioPlaybackFftSize{1024};
+    std::array<float, kAudioPlaybackFftSize> audio_playback_fft_sample_buffer_{};
+    std::array<float, kAudioPlaybackFftSize> audio_playback_fft_window_{};
+    std::size_t audio_playback_fft_sample_count_{0};
+    pffft::Fft<float> audio_playback_fft_{kAudioPlaybackFftSize};
+    pffft::AlignedVector<float> audio_playback_fft_input_{audio_playback_fft_.valueVector()};
+    pffft::AlignedVector<std::complex<float>> audio_playback_fft_spectrum_{audio_playback_fft_.spectrumVector()};
+    std::array<float, core::kAudioFftBandCount> audio_playback_fft_bands_{};
+    std::array<float, core::kAudioWaveformSampleCount> audio_playback_waveform_{};
+    float audio_playback_analysis_rms_{0.0F};
+    float audio_playback_analysis_peak_{0.0F};
     double processing_fps_{0.0};
     double render_fps_{0.0};
     std::uint64_t video_artifact_frame_counter_{0};
     std::uint64_t playback_artifact_frame_counter_{0};
 #ifndef _WIN32
     // Playback-layer loopback (Step 2): GStreamer file-source pipeline →
-    // RTP/UDP → tc-netem → v4l2loopback → playback_loopback_camera_.
+    // RTP/UDP → tc-netem → v4l2loopback → LoopbackCapture (raw V4L2 MMAP).
     // Active only when scene_.playback_input.loopback.enabled.
     LoopbackPipeline playback_loopback_;
-    QCamera *playback_loopback_camera_{nullptr};
-    QMediaCaptureSession playback_loopback_capture_session_;
+    LoopbackCapture *playback_loopback_capture_{nullptr};
+    // Alternative to v4l2loopback: in-process GStreamer appsink receiver.
+    // Active when loopback.enabled && loopback.use_appsink.
+    AppsinkCapture *playback_appsink_capture_{nullptr};
 #endif
 };
 

@@ -44,6 +44,10 @@ struct LoopbackParams
 
     int udp_port{5004};           // loopback UDP port used for RTP stream
     std::string loopback_device;  // output v4l2loopback device, e.g. /dev/video10
+
+    // When true: run sender-only (no receiver/v4l2loopback); the app reads
+    // decoded frames directly from GStreamer via appsink → QVideoSink.
+    bool use_appsink{false};
 };
 
 struct SceneInput
@@ -62,6 +66,17 @@ struct SceneInput
     int loop_repeat{0};
     float playback_rate{1.0F};
     float playback_rate_looping{1.0F};
+    // Audio volume controls (used by audio_playback_input).
+    float volume{1.0F};          // peak playback volume [0, 1]
+    float volume_initial{0.0F};  // volume at t=0 (before intro fade-in)
+    std::int64_t volume_fade_in_ms{0};       // intro: ms to ramp volume_initial → volume
+    std::int64_t volume_loop_fade_in_ms{0};  // per-loop: ms at loop start to ramp up to volume
+    std::int64_t volume_loop_fade_out_ms{0}; // per-loop: ms before loop end to ramp down
+    std::int64_t volume_fade_out_ms{0};      // outro: ms to ramp to 0 after final loop / EOM
+    // FFT analysis routing (audio_playback_input only).
+    bool fft_analysis_from_playback{false};  // feed audio_playback into the FFT/level uniforms
+    // FFT analysis routing (audio_input only).
+    bool fft_analysis_enabled{true};         // when false, device audio does NOT drive FFT uniforms
 
     ArtifactParams artifact;
     LoopbackParams loopback;
@@ -158,6 +173,7 @@ struct SceneDefinition
     SceneInput video_input;
     SceneInput playback_input;
     SceneInput audio_input;
+    SceneInput audio_playback_input;
     SceneInput midi_input;
     SceneLayer video_layer;
     SceneLayer playback_layer;

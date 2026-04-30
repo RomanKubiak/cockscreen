@@ -1,193 +1,420 @@
+/**
+ * @file x86_64-linux.scene.jsonc
+ * @description Desktop Linux preset used for local development.
+ *   Paths are resolved relative to this file unless already absolute.
+ */
 {
-    /*
-     * Desktop Linux preset used for local development.
-     * Paths are resolved relative to this file unless already absolute.
-     */
+    /** @field resources_directory {string} Base path for relative resource references (fonts, textures, videos). Resolved relative to the scene file's directory. */
     "resources_directory": "../resources/",
+    /** @field note_font_file {string} TTF/OTF font used to render the 16×8 MIDI note-label atlas (u_note_label_atlas). Resolved relative to resources_directory. */
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
+    /** @field shader_directory {string} Directory scanned for .glsl files. Absolute path takes precedence; relative path is resolved from the scene file. */
     "shader_directory": "/home/atom/devel/cockscreen/shaders/",
-    /* Render path choices are qt, qt-shader, and v4l2-dmabuf-egl. */
+    /** @field render_path {string} Render backend. Choices: "qt" (QPainter), "qt-shader" (QOpenGLWidget shader chain), "v4l2-dmabuf-egl" (DRM/KMS zero-copy, Pi only). */
     "render_path": "qt-shader",
-    /* Window size in pixels. */
+    /**
+     * @object geometry
+     * @description Window size in pixels. Values are clamped to minimum 1.
+     *   Legacy top-level "width" / "height" scalar fields are accepted as a fallback when this object is absent.
+     */
     "geometry": {
+        /** @field width {integer} Window width in pixels. Minimum 1. */
         "width": 1024,
+        /** @field height {integer} Window height in pixels. Minimum 1. */
         "height": 600
     },
+    /**
+     * @object inputs
+     * @description Container for all device and file inputs.
+     *   Accepted children: video, playback, audio, midi, background_color (alias: background).
+     */
     "inputs": {
-        /* Live camera / capture-device input. */
+        /**
+         * @object video
+         * @description Live camera / V4L2 capture-device input. When disabled the layer receives a blank texture.
+         */
         "video": {
+            /** @field enabled {boolean} Activates the V4L2 capture device. When false, device and format are cleared after parsing. */
             "enabled": false,
+            /** @field device {string} V4L2 device path (e.g. "/dev/video0"). */
             "device": "/dev/video0",
+            /** @field format {string} Capture format hint: "qvga" (320×240), "vga" (640×480), "hd" (1280×720). Runtime interprets the string. */
             "format": "vga",
+            /** @field scale {number} [0.01, ∞) Display scale relative to the window. Clamped to minimum 0.01. */
             "scale": 0.25,
-            /* Legacy fallback if layer_order is omitted. */
+            /** @field on_top {boolean} Legacy compositing fallback used only when layer_order is omitted. true = video layer drawn above playback. */
             "on_top": false,
+            /**
+             * @object position
+             * @description Normalised anchor point in viewport space. (0,0) = top-left, (1,1) = bottom-right.
+             *   Legacy scalar fields position_x / position_y are accepted when this object is absent.
+             */
             "position": {
+                /** @field x {number} Horizontal anchor, normalised [0, 1]. */
                 "x": 0.5,
+                /** @field y {number} Vertical anchor, normalised [0, 1]. */
                 "y": 0.5
             }
         },
-        /* File playback input. Position is normalized in viewport space. */
+        /**
+         * @object playback
+         * @description File playback input decoded via GStreamer (or re-encoded through the loopback pipeline when loopback.enabled is true).
+         *   Position is normalised in viewport space.
+         */
         "playback": {
-            "enabled": false,
+            /** @field enabled {boolean} Activates the file playback input. */
+            "enabled": true,
+            /** @field file {string} Path to the video file. Relative paths are resolved from resources_directory. */
             "file": "/home/atom/Videos/pizza.mp4",
+            /** @field scale {number} [0.01, ∞) Display scale relative to the window. Clamped to minimum 0.01. */
             "scale": 1.0,
+            /** @field on_top {boolean} Legacy compositing fallback. Used only when layer_order is omitted. */
             "on_top": true,
+            /**
+             * @object position
+             * @description Normalised anchor point in viewport space. (0,0) = top-left, (1,1) = bottom-right.
+             *   Legacy scalar fields position_x / position_y are accepted when this object is absent.
+             */
             "position": {
+                /** @field x {number} Horizontal anchor, normalised [0, 1]. */
                 "x": 0,
+                /** @field y {number} Vertical anchor, normalised [0, 1]. */
                 "y": 0
             },
-            /* Playback transport controls. */
+            /** @field start_ms {integer} [0, ∞) Seek position in milliseconds when the pipeline first starts. Clamped to 0. */
             "start_ms": 14000,
+            /** @field loop_start_ms {integer} [0, ∞) Seek target in milliseconds when the loop end is reached or EOS fires. Clamped to 0. */
             "loop_start_ms": 18000,
+            /** @field loop_end_ms {integer|null} [0, ∞) Wall-clock stream position that triggers a loop-back. Omit or set null to disable. Clamped to 0. */
             "loop_end_ms": 20000,
-            /* 0 means infinite looping. */
+            /** @field loop_repeat {integer} [0, ∞) Number of extra loop passes. 0 = infinite looping. Clamped to 0. */
             "loop_repeat": 0,
-            /* Normal playback speed outside and inside the loop range. */
+            /** @field playback_rate {number} [0.01, ∞) Playback speed used outside the loop segment. Clamped to 0.01. */
             "playback_rate": 1.0,
-            "playback_rate_looping": 0.5
+            /** @field playback_rate_looping {number} [0.01, ∞) Playback speed used while inside the active loop segment. Clamped to 0.01. */
+            "playback_rate_looping": 0.5,
+            /**
+             * @object loopback
+             * @description GStreamer + tc-netem video re-encode pipeline.
+             *   The sender decodes the source file, re-encodes it (H.264 via x264enc
+             *   when available, otherwise MJPEG), and streams it over a local UDP port.
+             *   tc-netem is applied to the loopback (lo) interface to inject packet
+             *   loss, corruption, delay, and reorder before the in-process GStreamer
+             *   receiver decodes and delivers frames to the GL pipeline.
+             *   With H.264 (use_appsink=true), corrupted P-frames produce persistent
+             *   macroblock artifacts until the next IDR (~2 s at key-int-max=60).
+             *   Requires CAP_NET_ADMIN — run as root or via sudo.
+             *   v4l2loopback (use_appsink=false only):
+             *     sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="cockscreen-lb"
+             */
+            "loopback": {
+                /** @field enabled {boolean} Activates the loopback pipeline. When false, playback is direct (no re-encode, no netem). */
+                "enabled": true,
+                /** @field loss_percent {number} [0, 100] Percentage of UDP packets dropped by tc-netem. Dropped packets produce brief freeze holds. */
+                "loss_percent": 0.0,
+                /**
+                 * @field corrupt_percent {number} [0, 100] Percentage of UDP packets that receive random bit-flips via tc-netem.
+                 *   With use_appsink=true (H.264): corrupts P-frame bitstream → avdec_h264 outputs garbled macroblocks that persist
+                 *   until the next IDR. Effective range for visible artifacts without full decode failure: 20–60.
+                 */
+                "corrupt_percent": 0.0,
+                /**
+                 * @field delay_ms {integer} [0, ∞) Fixed added latency in milliseconds applied to the lo interface by tc-netem.
+                 *   Must be > 0 for reorder_percent to have any visible effect.
+                 */
+                "delay_ms": 0,
+                /**
+                 * @field reorder_percent {number} [0, 100] Percentage of packets reordered (delivered out of sequence).
+                 *   Requires delay_ms > 0. Stresses the RTP jitter buffer; can cause reference-frame mismatches in H.264.
+                 */
+                "reorder_percent": 25.0,
+                /** @field udp_port {integer} Local UDP port for the loopback RTP stream. Sender writes, receiver binds. */
+                "udp_port": 5004,
+                /** @field loopback_device {string} v4l2loopback device path. Used only when use_appsink is false. */
+                "loopback_device": "/dev/video10",
+                /**
+                 * @field use_appsink {boolean} Selects the receiver backend.
+                 *   true  — in-process GStreamer appsink path: H.264 over RTP/UDP → avdec_h264 → QVideoSink.
+                 *           Supports start_ms, loop_start_ms, loop_end_ms, corrupt_percent glitch artifacts.
+                 *   false — v4l2loopback path: GStreamer writes to /dev/videoN, Qt reads it back.
+                 */
+                "use_appsink": true
+            }
         },
-        /* Clear color used behind all layers. */
+        /**
+         * @object background_color
+         * @description RGBA clear colour rendered behind all layers. Also accepted as "background".
+         *   All channels are clamped to [0, 1]. Aliases: r=red, g=green, b=blue, a=alpha.
+         */
         "background_color": {
+            /** @field r {number} [0, 1] Red channel. */
             "r": 0.0,
+            /** @field g {number} [0, 1] Green channel. */
             "g": 0.0,
+            /** @field b {number} [0, 1] Blue channel. */
             "b": 0.0,
+            /** @field a {number} [0, 1] Alpha channel. 1.0 = fully opaque. */
             "a": 1.0
         },
-        /* Audio input used for global uniforms like u_audio_rms and u_audio_fft[16]. */
+        /**
+         * @object audio
+         * @description Audio input device that drives global uniforms: u_audio_rms, u_audio_peak, u_audio_level,
+         *   u_audio_fft[16] (16-band FFT magnitude 0–1), u_audio_waveform[64] (64-sample waveform −1..1).
+         *   On Linux uses ALSA; on Windows uses WASAPI.
+         */
         "audio": {
+            /** @field enabled {boolean} Activates audio capture. When false all u_audio_* uniforms stay at 0. */
             "enabled": false,
-            "device": "@default_input@"
+            /** @field device {string} ALSA source name substring (Linux) or WASAPI device name (Windows). "@default_input@" selects the system default. */
+            "device": "@default_input@",
+            /**
+             * @field fft_analysis_enabled {boolean} When false, the capture device does NOT drive u_audio_fft / u_audio_rms / u_audio_peak / u_audio_level.
+             *   Useful when fft_analysis_from_playback is true on audio_playback and you want only the audio file to drive FFT uniforms.
+             */
+            "fft_analysis_enabled": false
         },
-        /* MIDI input used for global note / CC state and mapping targets. */
-        "midi": {
-            "enabled": false,
-            "device": "through"
-        }
-    },
-    /* Status overlay in the top-left diagnostic HUD. */
-    "show_status_overlay": false,
-    /* Burned-in timecode overlay on the playback image. */
-    "timecode": false,
-    /*
-     * Scene-level defaults consumed by pink_key.glsl.
-     * audio_algorithm: 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 centroid, 5 full average.
-     */
-    "pink_key": {
-        "audio_algorithm": 3,
-        "audio_reactivity": 0.4,
-        "midi_reactivity": 0.6
-    },
-    /* Shader chains per compositing layer. */
-    "video": {
+        /**
+         * @object audio_playback
+         * @description Audio file playback input. Uses the same transport controls as inputs.playback.
+         *   Decoded audio drives u_audio_rms / u_audio_fft when fft_analysis_enabled is true on the audio input.
+         */
+        "audio_playback": {
+            /** @field enabled {boolean} Activates audio file playback. */
+            "enabled": true,
+            /** @field file {string} Path to the audio file (mp3, wav, flac, etc.). */
+            "file": "/home/atom/Music/We_Are_Dead.mp3",
+            /** @field start_ms {integer} [0, ∞) Initial seek position in milliseconds. */
+            "start_ms": 0,
+            /** @field loop_start_ms {integer} [0, ∞) Seek target when loop end is reached or EOS fires. */
+            "loop_start_ms": 0,
+            /** @field loop_end_ms {integer} [0, ∞) Stream position that triggers a loop-back. 0 = full file (no early loop). */
+            "loop_end_ms": 0,
+            /** @field loop_repeat {integer} [0, ∞) Number of extra loop passes. 0 = infinite looping. */
+            "loop_repeat": 1,
+            /** @field playback_rate {number} [0.01, ∞) Playback speed outside the loop segment. */
+            "playback_rate": 2.0,
+            /** @field playback_rate_looping {number} [0.01, ∞) Playback speed inside the active loop segment. */
+            "playback_rate_looping": 0.5,
+            /** @field volume {number} [0, 1] Peak playback volume applied once fully faded in. */
+            "volume": 0.01,
+            /** @field volume_initial {number} [0, 1] Volume level at t=0 before the intro fade begins. */
+            "volume_initial": 0.05,
+            /** @field volume_fade_in_ms {integer} [0, ∞) Milliseconds to ramp from volume_initial to volume at startup. */
+            "volume_fade_in_ms": 0,
+            /** @field volume_loop_fade_in_ms {integer} [0, ∞) Milliseconds at the start of each loop iteration to ramp up to volume. */
+            "volume_loop_fade_in_ms": 0,
+            /** @field volume_loop_fade_out_ms {integer} [0, ∞) Milliseconds before the end of each loop iteration to ramp down to 0. */
+            "volume_loop_fade_out_ms": 0,
+            /** @field volume_fade_out_ms {integer} [0, ∞) Milliseconds to fade to 0 after the final loop ends or end-of-media. */
+            "volume_fade_out_ms": 0,
+            /**
+             * @field fft_analysis_from_playback {boolean} When true, routes this audio file through the FFT/level analysis pipeline.
+             *   u_audio_fft, u_audio_rms, u_audio_peak, and u_audio_level will reflect the playing file
+             *   instead of the external capture device.
+             */
+            "fft_analysis_from_playback": true
+        },
+        /**
+         * @object midi
+         * @description MIDI input providing global note/CC state, u_midi_* uniforms, and the targets for
+         *   midi_cc_mappings and midi_note_mappings. On Linux uses ALSA sequencer; on Windows uses WinMM.
+         */
+        /** @field enabled {boolean} Activates MIDI input. When false all u_midi_* uniforms stay at 0. */
         "enabled": false,
-        "shaders": [
-            "pink_key.glsl"
-        ]
-    },
-    "playback": {
-        "enabled": true,
-        "shaders": []
-    },
-    "screen": {
-        "enabled": true,
-        "shaders": []
-    },
-    /* Back-to-front final compositing order. */
-    "layer_order": [
-        "screen",
-        "playback"
-    ],
-    /* MIDI CC mappings: layer + shader identify the target stage, uniform receives the mapped value. */
-    "midi_cc_mappings": [
-        {
-            "layer": "screen",
-            "shader": "wireframe_sphere.glsl",
-            "uniform": "u_wire_density",
-            "channel": 0,
-            "cc": 91,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "screen",
-            "shader": "pixelize_viewport.glsl",
-            "uniform": "u_pixelize_amount",
-            "channel": 0,
-            "cc": 92,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "playback",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_h",
-            "channel": 0,
-            "cc": 93,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "playback",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_hrange",
-            "channel": 0,
-            "cc": 94,
-            "min": 0.0,
-            "max": 0.5,
-            "exponent": 1.0
-        },
-        {
-            "layer": "playback",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_spread",
-            "channel": 0,
-            "cc": 95,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        }
-    ],
-    /* OSC mappings use the same min/max/exponent shaping as MIDI mappings. */
-    "osc_mappings": [
-        {
-            "address": "/cockscreen/key/hue",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_h",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/hrange",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_hrange",
-            "min": 0.0,
-            "max": 0.5,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/spread",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_spread",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/smin",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_smin",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        }
+        /** @field device {string} ALSA port name substring or numeric port (Linux). "through" selects the ALSA Through port. */
+        "device": "through"
+    }
+},
+/** @field show_status_overlay {boolean} Diagnostic HUD in the top-left corner showing FPS, pipeline state, and device names. Runtime default: true. */
+"show_status_overlay": false,
+/** @field timecode {boolean} Burned-in analog-film-style timecode overlay on the playback image. Runtime default: false. */
+"timecode": false,
+/**
+     * @object pink_key
+     * @description Scene-level defaults consumed by pink_key.glsl for audio/MIDI reactivity.
+     *   All fields are also overridable per-instance via midi_cc_mappings or osc_mappings.
+     */
+"pink_key": {
+    /**
+         * @field audio_algorithm {integer} [0, 5] FFT band selector for audio reactivity.
+         *   0 = bass (bands 0–3), 1 = low-mid (4–7), 2 = high-mid (8–11), 3 = high (12–15),
+         *   4 = weighted spectral centroid, 5 = full-spectrum average. Clamped to [0, 5].
+         */
+    "audio_algorithm": 3,
+    /** @field audio_reactivity {number} [0, 1.5] Scales the audio-driven modulation in the shader. Clamped to [0, 1.5]. */
+    "audio_reactivity": 0.4,
+    /** @field midi_reactivity {number} [0, 1.5] Scales the MIDI-driven modulation in the shader. Clamped to [0, 1.5]. */
+    "midi_reactivity": 0.6
+},
+/**
+     * @object video
+     * @description Shader chain for the video (V4L2 capture) compositing layer.
+     *   Applied after capture; output is composited according to layer_order.
+     */
+"video": {
+    /** @field enabled {boolean} Enables this layer in the composited output. */
+    "enabled": false,
+    /** @field shaders {string[]} Ordered .glsl filenames applied as a chain. Output of each stage becomes u_texture for the next. */
+    "shaders": [
+        "pink_key.glsl"
     ]
+},
+/**
+     * @object playback
+     * @description Shader chain for the file playback compositing layer.
+     */
+"playback": {
+    /** @field enabled {boolean} Enables this layer in the composited output. */
+    "enabled": true,
+    /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
+    "shaders": [
+        "toy_synthwave.glsl"
+    ]
+},
+/**
+     * @object screen
+     * @description Shader chain for the screen (generative / full-screen) compositing layer.
+     *   Receives a blank texture as u_texture when no other input feeds it.
+     */
+"screen": {
+    /** @field enabled {boolean} Enables this layer in the composited output. */
+    "enabled": true,
+    /** @field shaders {string[]} Ordered .glsl filenames. */
+    "shaders": []
+},
+/**
+     * @field layer_order {string[]} Back-to-front compositing order for "screen", "video", and "playback".
+     *   The last entry is drawn on top. Must contain all three names exactly once;
+     *   invalid or duplicate entries cause the whole field to be ignored.
+     *   When omitted, the runtime falls back to the legacy inputs.video.on_top field.
+     */
+"layer_order": [
+    "screen",
+    "playback"
+],
+/**
+     * @array midi_cc_mappings
+     * @description Maps MIDI Continuous Controller values to shader uniforms.
+     *   Each entry schema:
+     *   @field layer    {string}  Target compositing layer: "screen", "video", or "playback".
+     *   @field shader   {string}  Filename or partial path match of the target shader stage. Optional.
+     *   @field uniform  {string}  GLSL uniform name to set on the matched stage.
+     *   @field channel  {integer} MIDI channel (0-based). -1 matches any channel.
+     *   @field cc       {integer} MIDI CC controller number.
+     *   @field min      {number}  Uniform value when the CC is 0.
+     *   @field max      {number}  Uniform value when the CC is 127.
+     *   @field exponent {number}  [0.01, ∞) Response curve exponent. 1.0 = linear, >1 = logarithmic feel. Clamped to 0.01.
+     */
+"midi_cc_mappings": [
+    /* CC 91 → screen / wireframe_sphere.glsl → u_wire_density */
+    {
+        "layer": "screen",
+        "shader": "wireframe_sphere.glsl",
+        "uniform": "u_wire_density",
+        "channel": 0,
+        "cc": 91,
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    },
+    /* CC 92 → screen / pixelize_viewport.glsl → u_pixelize_amount */
+    {
+        "layer": "screen",
+        "shader": "pixelize_viewport.glsl",
+        "uniform": "u_pixelize_amount",
+        "channel": 0,
+        "cc": 92,
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    },
+    /* CC 93 → playback / pink_key.glsl → u_key_h (chroma-key hue centre) */
+    {
+        "layer": "playback",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_h",
+        "channel": 0,
+        "cc": 93,
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    },
+    /* CC 94 → playback / pink_key.glsl → u_key_hrange (hue tolerance width) */
+    {
+        "layer": "playback",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_hrange",
+        "channel": 0,
+        "cc": 94,
+        "min": 0.0,
+        "max": 0.5,
+        "exponent": 1.0
+    },
+    /* CC 95 → playback / pink_key.glsl → u_key_spread (edge softness) */
+    {
+        "layer": "playback",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_spread",
+        "channel": 0,
+        "cc": 95,
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    }
+],
+/**
+     * @array osc_mappings
+     * @description Maps OSC message values to shader uniforms. Server listens on 0.0.0.0:9000.
+     *   Incoming float values are clamped to [0, 1], exponent-mapped, then scaled to [min, max].
+     *   Each entry schema:
+     *   @field address  {string}  OSC address pattern (e.g. "/cockscreen/key/hue"). Required.
+     *   @field layer    {string}  Target compositing layer: "screen", "video", or "playback". Required.
+     *   @field shader   {string}  Filename or partial path match of the target shader stage. Optional.
+     *   @field uniform  {string}  GLSL uniform name to set on the matched stage. Required.
+     *   @field min      {number}  Uniform value when the OSC float is 0.
+     *   @field max      {number}  Uniform value when the OSC float is 1.
+     *   @field exponent {number}  [0.01, ∞) Response curve exponent. 1.0 = linear. Clamped to 0.01.
+     */
+"osc_mappings": [
+    /* /cockscreen/key/hue → video / pink_key.glsl → u_key_h (chroma-key hue centre) */
+    {
+        "address": "/cockscreen/key/hue",
+        "layer": "video",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_h",
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    },
+    /* /cockscreen/key/hrange → video / pink_key.glsl → u_key_hrange (hue tolerance width) */
+    {
+        "address": "/cockscreen/key/hrange",
+        "layer": "video",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_hrange",
+        "min": 0.0,
+        "max": 0.5,
+        "exponent": 1.0
+    },
+    /* /cockscreen/key/spread → video / pink_key.glsl → u_key_spread (edge softness) */
+    {
+        "address": "/cockscreen/key/spread",
+        "layer": "video",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_spread",
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    },
+    /* /cockscreen/key/smin → video / pink_key.glsl → u_key_smin (saturation minimum threshold) */
+    {
+        "address": "/cockscreen/key/smin",
+        "layer": "video",
+        "shader": "pink_key.glsl",
+        "uniform": "u_key_smin",
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.0
+    }
+]
 }
