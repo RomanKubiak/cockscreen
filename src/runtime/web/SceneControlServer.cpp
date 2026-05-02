@@ -876,6 +876,7 @@ QByteArray SceneControlServer::build_index_html() const
   <script>
         let currentState = null;
         let currentShaderPopup = null;
+        const shaderParameterSubmitTimers = new Map();
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
     }
@@ -958,6 +959,19 @@ QByteArray SceneControlServer::build_index_html() const
             popup.innerHTML = '';
             currentShaderPopup = null;
         }
+        function updateCurrentShaderParameterValue(shaderName, uniformName, value) {
+            const shaderParameters = currentState?.shaderParameters;
+            const spec = shaderParameters?.[shaderName];
+            const parameters = spec?.parameters;
+            if (!Array.isArray(parameters)) {
+                return;
+            }
+
+            const parameter = parameters.find(item => item && item.uniform === uniformName);
+            if (parameter) {
+                parameter.value = value;
+            }
+        }
         async function submitShaderParameter(shaderName, uniformName, rawValue, valueType) {
             const numeric = Number(rawValue);
             if (!Number.isFinite(numeric)) {
@@ -965,22 +979,39 @@ QByteArray SceneControlServer::build_index_html() const
             }
 
             const value = valueType === 'integer' ? Math.round(numeric) : numeric;
-            const response = await fetch('/api/shader-params', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shader: shaderName, values: { [uniformName]: value } })
-            });
-            const result = await response.json();
             const message = document.getElementById('shaderParamPopupMessage');
-            if (result.ok) {
-                currentState = result.state || currentState;
-                if (message) message.textContent = 'Parameter applied.';
-                if (currentShaderPopup && currentShaderPopup.shader === shaderName) {
-                    renderShaderParameterPopup(shaderName, currentShaderPopup.layer);
+            try {
+                const response = await fetch('/api/shader-params', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shader: shaderName, values: { [uniformName]: value } })
+                });
+                const result = await response.json();
+                if (result.ok) {
+                    currentState = result.state || currentState;
+                    updateCurrentShaderParameterValue(shaderName, uniformName, value);
+                    if (message) message.textContent = 'Parameter applied.';
+                } else if (message) {
+                    message.textContent = `Update failed: ${result.error || 'unknown error'}`;
                 }
-            } else if (message) {
-                message.textContent = `Update failed: ${result.error || 'unknown error'}`;
+            } catch (error) {
+                if (message) {
+                    message.textContent = `Update failed: ${error}`;
+                }
             }
+        }
+        function queueShaderParameterSubmit(shaderName, uniformName, rawValue, valueType, delayMs) {
+            const timerKey = `${shaderName}:${uniformName}`;
+            const existingTimer = shaderParameterSubmitTimers.get(timerKey);
+            if (existingTimer) {
+                clearTimeout(existingTimer);
+            }
+
+            const timerId = setTimeout(async () => {
+                shaderParameterSubmitTimers.delete(timerKey);
+                await submitShaderParameter(shaderName, uniformName, rawValue, valueType);
+            }, delayMs);
+            shaderParameterSubmitTimers.set(timerKey, timerId);
         }
         function wireShaderParameterControls(shaderName) {
             const popup = document.getElementById('shaderParamPopup');
@@ -1004,8 +1035,14 @@ QByteArray SceneControlServer::build_index_html() const
                     range.value = value;
                     number.value = value;
                 };
-                range.oninput = () => sync(range.value);
-                number.oninput = () => sync(number.value);
+                range.oninput = () => {
+                    sync(range.value);
+                    queueShaderParameterSubmit(shaderName, uniform, range.value, valueType, 60);
+                };
+                number.oninput = () => {
+                    sync(number.value);
+                    queueShaderParameterSubmit(shaderName, uniform, number.value, valueType, 180);
+                };
                 range.onchange = () => submitShaderParameter(shaderName, uniform, range.value, valueType);
                 number.onchange = () => submitShaderParameter(shaderName, uniform, number.value, valueType);
             }
@@ -1112,13 +1149,15 @@ QByteArray SceneControlServer::build_index_html() const
             for (const layer of ['video', 'playback', 'screen']) {
                 const select = document.getElementById(`${layer}Shaders`);
                 if (!select) continue;
-                select.onchange = () => {
+                const openPopup = () => {
                     const selected = select.selectedOptions[0];
                     if (!selected) {
                         return;
                     }
                     renderShaderParameterPopup(selected.value, layer);
                 };
+                select.onchange = openPopup;
+                select.onclick = openPopup;
             }
         }
         function startReconnect(output) {
