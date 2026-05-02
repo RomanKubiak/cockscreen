@@ -65,8 +65,18 @@ void main()
     vec3 edge_average = 0.25 * (sample_right + sample_left + sample_up + sample_down);
     vec3 contrast_color = abs(edge_average - base.rgb);
     float dominant = max(max(contrast_color.r, contrast_color.g), contrast_color.b);
-    vec3 detected_edge_color = dominant > 0.0001 ? contrast_color / dominant : vec3(0.0, 1.0, 0.4);
-    vec3 alien_tint = mix(detected_edge_color, vec3(0.48, 1.0, 0.22), 0.45);
+    vec3 detected_edge_color = dominant > 0.0001 ? contrast_color / dominant : vec3(1.0, 0.18, 0.08);
+    float red_energy =
+        clamp(contrast_color.r + dominant * 0.45 - (contrast_color.g + contrast_color.b) * 0.18, 0.0, 1.0);
+    float ember_energy = clamp(red_energy * 0.7 + edge_strength * 0.45 + dominant * 0.35, 0.0, 1.0);
+    vec3 deep_red = vec3(0.24, 0.01, 0.02);
+    vec3 blood_red = vec3(0.78, 0.04, 0.05);
+    vec3 ember_red = vec3(1.0, 0.24, 0.08);
+    vec3 hot_red = mix(deep_red, blood_red, ember_energy);
+    hot_red = mix(hot_red, ember_red, smoothstep(0.45, 1.0, ember_energy));
+    vec3 red_edge_tint =
+        mix(hot_red, vec3(detected_edge_color.r, detected_edge_color.g * 0.18, detected_edge_color.b * 0.12), 0.22);
+    vec3 alien_tint = mix(red_edge_tint, ember_red, smoothstep(0.6, 1.0, dominant + red_energy * 0.35));
 
     vec2 grid = uv * u_resolution / 42.0;
     vec2 cell_id = floor(grid);
