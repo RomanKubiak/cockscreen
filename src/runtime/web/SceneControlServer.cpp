@@ -291,13 +291,59 @@ struct ShaderParameterSpec
 };
 
 constexpr ShaderParameterSpec kRatDistortionParameterSpecs[] = {
-    {"u_rat_tooth_count", "Tooth count", "integer", 3.0, 24.0, 1.0, 8.0},
-    {"u_rat_tooth_height_min", "Tooth min height", "float", 0.2, 3.0, 0.01, 0.90},
-    {"u_rat_tooth_height_max", "Tooth max height", "float", 0.3, 4.0, 0.01, 1.95},
+    {"u_rat_tooth_count", "Tooth density", "integer", 3.0, 24.0, 1.0, 8.0},
+    {"u_rat_tooth_height_min", "Tooth min height (px)", "integer", 1.0, 60.0, 1.0, 24.0},
+    {"u_rat_tooth_height_max", "Tooth max height (px)", "integer", 1.0, 60.0, 1.0, 60.0},
     {"u_rat_tooth_base_min", "Tooth min base", "float", 0.005, 0.08, 0.001, 0.012},
     {"u_rat_tooth_base_max", "Tooth max base", "float", 0.006, 0.12, 0.001, 0.034},
     {"u_rat_tooth_animation_seconds", "Tooth animation seconds", "float", 0.15, 12.0, 0.01, 3.0},
 };
+
+double shader_parameter_viewport_height(const SceneDefinition *scene)
+{
+    if (scene == nullptr)
+    {
+        return 600.0;
+    }
+
+    return std::max(1, scene->geometry.height);
+}
+
+double shader_parameter_minimum_value(const ShaderParameterSpec &spec, const SceneDefinition *scene)
+{
+    if (std::string_view{spec.uniform} == "u_rat_tooth_height_min" ||
+        std::string_view{spec.uniform} == "u_rat_tooth_height_max")
+    {
+        return 1.0;
+    }
+
+    return spec.minimum;
+}
+
+double shader_parameter_maximum_value(const ShaderParameterSpec &spec, const SceneDefinition *scene)
+{
+    if (std::string_view{spec.uniform} == "u_rat_tooth_height_min" ||
+        std::string_view{spec.uniform} == "u_rat_tooth_height_max")
+    {
+        return std::max(1.0, std::floor(shader_parameter_viewport_height(scene) * 0.10));
+    }
+
+    return spec.maximum;
+}
+
+double shader_parameter_default_value(const ShaderParameterSpec &spec, const SceneDefinition *scene)
+{
+    if (std::string_view{spec.uniform} == "u_rat_tooth_height_min")
+    {
+        return std::clamp(24.0, shader_parameter_minimum_value(spec, scene), shader_parameter_maximum_value(spec, scene));
+    }
+    if (std::string_view{spec.uniform} == "u_rat_tooth_height_max")
+    {
+        return std::clamp(60.0, shader_parameter_minimum_value(spec, scene), shader_parameter_maximum_value(spec, scene));
+    }
+
+    return spec.default_value;
+}
 
 bool shader_parameter_shader_supported(std::string_view shader_name)
 {
@@ -322,7 +368,7 @@ const ShaderParameterSpec *find_shader_parameter_spec(std::string_view shader_na
     return nullptr;
 }
 
-QJsonObject shader_parameters_to_json(const ShaderVideoWindow *window)
+QJsonObject shader_parameters_to_json(const SceneDefinition *scene, const ShaderVideoWindow *window)
 {
     QJsonObject result;
     if (window == nullptr)
@@ -335,14 +381,18 @@ QJsonObject shader_parameters_to_json(const ShaderVideoWindow *window)
     for (const auto &spec : kRatDistortionParameterSpecs)
     {
         const auto it = overrides.find(spec.uniform);
-        const double value = it != overrides.end() ? static_cast<double>(it->second) : spec.default_value;
+        const double minimum = shader_parameter_minimum_value(spec, scene);
+        const double maximum = shader_parameter_maximum_value(spec, scene);
+        const double default_value = shader_parameter_default_value(spec, scene);
+        const double value = it != overrides.end() ? std::clamp(static_cast<double>(it->second), minimum, maximum)
+                                                   : default_value;
         parameters.push_back(QJsonObject{{QStringLiteral("uniform"), QString::fromUtf8(spec.uniform)},
                                          {QStringLiteral("label"), QString::fromUtf8(spec.label)},
                                          {QStringLiteral("type"), QString::fromUtf8(spec.type)},
-                                         {QStringLiteral("min"), spec.minimum},
-                                         {QStringLiteral("max"), spec.maximum},
+                                         {QStringLiteral("min"), minimum},
+                                         {QStringLiteral("max"), maximum},
                                          {QStringLiteral("step"), spec.step},
-                                         {QStringLiteral("defaultValue"), spec.default_value},
+                                         {QStringLiteral("defaultValue"), default_value},
                                          {QStringLiteral("value"), value}});
     }
 
@@ -352,8 +402,8 @@ QJsonObject shader_parameters_to_json(const ShaderVideoWindow *window)
     return result;
 }
 
-bool apply_shader_parameter_values(const QString &shader_name, const QJsonObject &values, ShaderVideoWindow *window,
-                                   QString *error_message)
+bool apply_shader_parameter_values(const QString &shader_name, const QJsonObject &values, const SceneDefinition *scene,
+                                   ShaderVideoWindow *window, QString *error_message)
 {
     if (window == nullptr)
     {
@@ -395,7 +445,8 @@ bool apply_shader_parameter_values(const QString &shader_name, const QJsonObject
             return false;
         }
 
-        double value = std::clamp(it.value().toDouble(), spec->minimum, spec->maximum);
+        double value = std::clamp(it.value().toDouble(), shader_parameter_minimum_value(*spec, scene),
+                                  shader_parameter_maximum_value(*spec, scene));
         if (QString::fromUtf8(spec->type) == QStringLiteral("integer"))
         {
             value = std::round(value);
@@ -647,7 +698,7 @@ void SceneControlServer::handle_request(QTcpSocket *socket, const HttpRequest &r
         }
 
         QString error_message;
-        const bool applied = apply_shader_parameter_values(shader_name, values.toObject(), window_, &error_message);
+        const bool applied = apply_shader_parameter_values(shader_name, values.toObject(), scene_, window_, &error_message);
         send_response(socket, applied ? 200 : 400, QByteArray{"application/json; charset=utf-8"},
                       QJsonDocument{QJsonObject{{QStringLiteral("ok"), applied},
                                                 {QStringLiteral("error"), error_message},
@@ -1503,7 +1554,7 @@ QJsonObject SceneControlServer::build_state_object() const
                             {QStringLiteral("midi"), QJsonArray::fromStringList(collect_midi_labels())}});
     object.insert(QStringLiteral("availableShaders"), QJsonArray::fromStringList(available_shader_files()));
     object.insert(QStringLiteral("availableBackgroundFiles"), QJsonArray::fromStringList(available_background_files()));
-    object.insert(QStringLiteral("shaderParameters"), shader_parameters_to_json(window_));
+    object.insert(QStringLiteral("shaderParameters"), shader_parameters_to_json(scene_, window_));
     object.insert(QStringLiteral("status"),
                   QJsonObject{{QStringLiteral("windowStatus"), window_->status_message()},
                               {QStringLiteral("fatalRenderError"), window_->fatal_render_error()}});
