@@ -29,6 +29,13 @@ float triangle_shape(vec2 point, float height, float half_width)
     return inside;
 }
 
+mat2 rotate2(float angle)
+{
+    float sine = sin(angle);
+    float cosine = cos(angle);
+    return mat2(cosine, -sine, sine, cosine);
+}
+
 void main()
 {
     vec2 uv = v_texcoord;
@@ -88,14 +95,26 @@ void main()
     float growth_window = smoothstep(0.0, 0.12, pulse_age) * (1.0 - smoothstep(0.74, 0.99, pulse_age));
 
     vec2 local = vec2(dot(cell_uv, tangent), dot(cell_uv, edge_direction));
-    float spike_height = 0.24 + hash21(cell_id + 3.1) * 0.34;
-    float spike_width = 0.09 + hash21(cell_id + 9.4) * 0.14;
-    float spike_a = triangle_shape(local + vec2(0.0, 0.24), spike_height, spike_width);
-    float spike_b =
-        triangle_shape(vec2(local.x * 1.25 + 0.11, local.y + 0.06), spike_height * 0.92, spike_width * 0.72);
-    float spike_c =
-        triangle_shape(vec2(local.x * 1.15 - 0.12, local.y + 0.10), spike_height * 0.80, spike_width * 0.60);
-    float growth_shape = max(spike_a, max(spike_b, spike_c));
+    float primary_height = 0.30 + hash21(cell_id + 3.1) * 0.36;
+    float primary_width = 0.07 + hash21(cell_id + 9.4) * 0.09;
+    float angle_a = mix(-0.18, 0.22, hash21(cell_id + 2.3));
+    float angle_b = mix(-0.70, -0.18, hash21(cell_id + 5.7));
+    float angle_c = mix(0.16, 0.82, hash21(cell_id + 8.9));
+    float angle_d = mix(-1.00, 1.00, hash21(cell_id + 13.7)) * 0.35;
+
+    vec2 spike_a_point = rotate2(angle_a) * (local + vec2(0.0, 0.28));
+    vec2 spike_b_point = rotate2(angle_b) * (local + vec2(0.14, 0.12));
+    vec2 spike_c_point = rotate2(angle_c) * (local + vec2(-0.16, 0.16));
+    vec2 spike_d_point = rotate2(angle_d) * (local + vec2(0.02, 0.08));
+
+    float spike_a = triangle_shape(spike_a_point, primary_height, primary_width);
+    float spike_b = triangle_shape(spike_b_point, primary_height * (0.72 + hash21(cell_id + 1.6) * 0.26),
+                                   primary_width * (0.58 + hash21(cell_id + 4.6) * 0.18));
+    float spike_c = triangle_shape(spike_c_point, primary_height * (0.66 + hash21(cell_id + 7.6) * 0.32),
+                                   primary_width * (0.54 + hash21(cell_id + 10.6) * 0.22));
+    float spike_d = triangle_shape(spike_d_point, primary_height * (0.48 + hash21(cell_id + 12.6) * 0.24),
+                                   primary_width * (0.34 + hash21(cell_id + 15.6) * 0.16));
+    float growth_shape = max(max(spike_a, spike_b), max(spike_c, spike_d));
     float edge_band = smoothstep(0.0, 0.10, edge_strength) * (1.0 - smoothstep(0.18, 0.56, abs(local.y)));
     float alien_growth = growth_shape * edge_band * pulse_gate * growth_window;
 
