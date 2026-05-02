@@ -5,6 +5,12 @@ varying vec2 v_texcoord;
 uniform sampler2D u_texture;
 uniform float u_time;
 uniform vec2 u_resolution;
+uniform float u_rat_tooth_count;
+uniform float u_rat_tooth_height_min;
+uniform float u_rat_tooth_height_max;
+uniform float u_rat_tooth_base_min;
+uniform float u_rat_tooth_base_max;
+uniform float u_rat_tooth_animation_seconds;
 
 float hash11(float value)
 {
@@ -32,6 +38,13 @@ float triangle_shape(vec2 point, float height, float half_width)
     float width_at_y = mix(half_width, 0.0, clamp(y, 0.0, 1.0));
     float inside = step(0.0, point.y) * step(point.y, height) * step(abs(point.x), width_at_y);
     return inside;
+}
+
+float saw_tooth_shape(vec2 point, float height, float base_width, float lean)
+{
+    vec2 tooth_point = point;
+    tooth_point.x += lean * tooth_point.y;
+    return triangle_shape(tooth_point, height, base_width);
 }
 
 float thorn_shape(vec2 point, float height, float base_width, float lean, float barb_shift)
@@ -97,7 +110,6 @@ void main()
 
     vec3 edge_average = 0.25 * (sample_right + sample_left + sample_up + sample_down);
     vec3 contrast_color = abs(edge_average - base.rgb);
-    float dominant = max(max(contrast_color.r, contrast_color.g), contrast_color.b);
     float red_energy =
         clamp(contrast_color.r * 1.35 + red_focus * 0.55 - (contrast_color.g + contrast_color.b) * 0.45, 0.0, 1.0);
     float ember_energy = clamp(red_energy * 0.9 + edge_strength * 0.75 + red_base * 0.45, 0.0, 1.0);
@@ -109,28 +121,40 @@ void main()
     vec3 rim_red = vec3(1.0, 0.0, 0.0);
     vec3 alien_tint = mix(hot_red, rim_red, smoothstep(0.35, 1.0, red_energy + red_base * 0.4));
 
-    vec2 grid = uv * u_resolution / 168.0;
-    vec2 cell_uv = fract(grid) - 0.5;
-    vec2 local = vec2(dot(cell_uv, tangent), dot(cell_uv, edge_direction));
-    vec2 tooth_local = vec2(local.x * 1.35, abs(local.y));
+    float tooth_count = u_rat_tooth_count > 0.0 ? u_rat_tooth_count : 8.0;
+    float tooth_height_min = u_rat_tooth_height_min > 0.0 ? u_rat_tooth_height_min : 0.90;
+    float tooth_height_max = u_rat_tooth_height_max > tooth_height_min ? u_rat_tooth_height_max : 1.95;
+    float tooth_base_min = u_rat_tooth_base_min > 0.0 ? u_rat_tooth_base_min : 0.012;
+    float tooth_base_max = u_rat_tooth_base_max > tooth_base_min ? u_rat_tooth_base_max : 0.034;
+    float tooth_animation_seconds = u_rat_tooth_animation_seconds > 0.01 ? u_rat_tooth_animation_seconds : 3.0;
 
-    float tooth_height = 1.75;
-    float tooth_base = 0.022;
-    float primary_tooth = triangle_shape(tooth_local + vec2(0.0, 0.01), tooth_height, tooth_base);
-    float side_tooth_left =
-        triangle_shape(vec2((local.x + 0.34) * 1.1, abs(local.y) + 0.03), tooth_height * 0.72, tooth_base * 0.78);
-    float side_tooth_right =
-        triangle_shape(vec2((local.x - 0.34) * 1.1, abs(local.y) + 0.03), tooth_height * 0.72, tooth_base * 0.78);
-    float growth_shape = max(primary_tooth, max(side_tooth_left, side_tooth_right));
-    float edge_band = smoothstep(0.0, 0.035, edge_strength) * (1.0 - smoothstep(0.05, 0.20, abs(local.y)));
-    float alien_growth = growth_shape * edge_band * red_focus * 2.10;
+    float estimated_rim_radius_px = min(u_resolution.x, u_resolution.y) * 0.28;
+    float tooth_period_px = max((6.28318530718 * estimated_rim_radius_px) / max(tooth_count, 1.0), 24.0);
+    vec2 centered_px = vec2((uv.x - 0.5) * u_resolution.x, (uv.y - 0.5) * u_resolution.y);
+    float tooth_track = dot(centered_px, tangent) / tooth_period_px + u_time / tooth_animation_seconds;
+    float tooth_index = floor(tooth_track);
+    float tooth_phase = fract(tooth_track) - 0.5;
+    float rim_distance = abs(dot(centered_px, edge_direction)) / tooth_period_px;
 
-    float halo = smoothstep(0.20, 0.0, abs(local.x)) * smoothstep(1.35, 0.0, abs(abs(local.y) - 0.44));
-    float root_glow = smoothstep(0.10, 0.0, length(vec2(local.x * 3.0, abs(local.y) - 0.02)));
+    float tooth_variation = hash11(tooth_index + 3.7);
+    float tooth_height = mix(tooth_height_min, tooth_height_max, tooth_variation);
+    float tooth_base = mix(tooth_base_min, tooth_base_max, hash11(tooth_index + 11.7));
+    float tooth_lean = mix(-0.14, 0.14, hash11(tooth_index + 21.7));
+
+    vec2 tooth_point = vec2(tooth_phase, rim_distance - 0.015);
+    float primary_tooth = saw_tooth_shape(tooth_point, tooth_height, tooth_base, tooth_lean);
+    float companion_tooth = saw_tooth_shape(vec2(tooth_phase * 1.08, rim_distance - 0.010), tooth_height * 0.78,
+                                            tooth_base * 0.70, -tooth_lean * 0.5);
+    float growth_shape = max(primary_tooth, companion_tooth);
+    float edge_band = smoothstep(0.0, 0.035, edge_strength) * (1.0 - smoothstep(0.03, 0.16, rim_distance));
+    float alien_growth = growth_shape * edge_band * red_focus * 2.40;
+
+    float halo = smoothstep(0.12, 0.0, abs(tooth_phase)) * smoothstep(1.25, 0.0, abs(rim_distance - 0.42));
+    float root_glow = smoothstep(0.08, 0.0, length(vec2(tooth_phase * 3.5, rim_distance - 0.01)));
     alien_growth = max(alien_growth, halo * edge_strength * 0.95);
-    alien_growth = max(alien_growth, root_glow * edge_strength * 0.65);
+    alien_growth = max(alien_growth, root_glow * edge_strength * 0.72);
 
-    vec2 tooth_distortion = edge_direction * alien_growth * texel * 16.0;
+    vec2 tooth_distortion = edge_direction * alien_growth * texel * 18.0;
     vec2 tooth_uv = clamp(distorted_uv - tooth_distortion, 0.0, 1.0);
     vec3 tooth_sample = vec3(texture2D(u_texture, clamp(tooth_uv + vec2(chroma * 0.6, 0.0), 0.0, 1.0)).r,
                              texture2D(u_texture, tooth_uv).g,
