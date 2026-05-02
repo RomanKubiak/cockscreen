@@ -29,6 +29,19 @@ float triangle_shape(vec2 point, float height, float half_width)
     return inside;
 }
 
+float thorn_shape(vec2 point, float height, float base_width, float lean, float barb_shift)
+{
+    vec2 thorn_point = point;
+    thorn_point.x += lean * thorn_point.y;
+
+    float tip = triangle_shape(thorn_point, height, base_width);
+    float stem = step(abs(thorn_point.x + thorn_point.y * lean * 0.25), base_width * 0.22) * step(0.0, thorn_point.y) *
+                 step(thorn_point.y, height * 0.78);
+    vec2 barb_point = thorn_point - vec2(barb_shift, height * 0.26);
+    float barb = triangle_shape(barb_point, height * 0.42, base_width * 0.52);
+    return max(tip, max(stem, barb));
+}
+
 mat2 rotate2(float angle)
 {
     float sine = sin(angle);
@@ -95,31 +108,38 @@ void main()
     float growth_window = smoothstep(0.0, 0.12, pulse_age) * (1.0 - smoothstep(0.74, 0.99, pulse_age));
 
     vec2 local = vec2(dot(cell_uv, tangent), dot(cell_uv, edge_direction));
-    float primary_height = 0.30 + hash21(cell_id + 3.1) * 0.36;
-    float primary_width = 0.07 + hash21(cell_id + 9.4) * 0.09;
-    float angle_a = mix(-0.18, 0.22, hash21(cell_id + 2.3));
-    float angle_b = mix(-0.70, -0.18, hash21(cell_id + 5.7));
-    float angle_c = mix(0.16, 0.82, hash21(cell_id + 8.9));
-    float angle_d = mix(-1.00, 1.00, hash21(cell_id + 13.7)) * 0.35;
+    float crawl_phase = u_time * (0.70 + hash21(cell_id + 20.0) * 0.9) + hash21(cell_id + 25.0) * 6.28318530718;
+    float crawl_tangent = sin(crawl_phase) * 0.10;
+    float crawl_depth = cos(crawl_phase * 0.63) * 0.05;
+    vec2 crawling_local = local + vec2(crawl_tangent, crawl_depth);
 
-    vec2 spike_a_point = rotate2(angle_a) * (local + vec2(0.0, 0.28));
-    vec2 spike_b_point = rotate2(angle_b) * (local + vec2(0.14, 0.12));
-    vec2 spike_c_point = rotate2(angle_c) * (local + vec2(-0.16, 0.16));
-    vec2 spike_d_point = rotate2(angle_d) * (local + vec2(0.02, 0.08));
+    float primary_height = 0.34 + hash21(cell_id + 3.1) * 0.30;
+    float primary_width = 0.035 + hash21(cell_id + 9.4) * 0.045;
+    float angle_a = mix(-0.12, 0.16, hash21(cell_id + 2.3));
+    float angle_b = mix(-0.52, -0.10, hash21(cell_id + 5.7));
+    float angle_c = mix(0.10, 0.58, hash21(cell_id + 8.9));
+    float angle_d = mix(-0.38, 0.38, hash21(cell_id + 13.7));
 
-    float spike_a = triangle_shape(spike_a_point, primary_height, primary_width);
-    float spike_b = triangle_shape(spike_b_point, primary_height * (0.72 + hash21(cell_id + 1.6) * 0.26),
-                                   primary_width * (0.58 + hash21(cell_id + 4.6) * 0.18));
-    float spike_c = triangle_shape(spike_c_point, primary_height * (0.66 + hash21(cell_id + 7.6) * 0.32),
-                                   primary_width * (0.54 + hash21(cell_id + 10.6) * 0.22));
-    float spike_d = triangle_shape(spike_d_point, primary_height * (0.48 + hash21(cell_id + 12.6) * 0.24),
-                                   primary_width * (0.34 + hash21(cell_id + 15.6) * 0.16));
-    float growth_shape = max(max(spike_a, spike_b), max(spike_c, spike_d));
+    vec2 thorn_a_point = rotate2(angle_a) * (crawling_local + vec2(0.0, 0.30));
+    vec2 thorn_b_point = rotate2(angle_b) * (crawling_local + vec2(0.12, 0.14));
+    vec2 thorn_c_point = rotate2(angle_c) * (crawling_local + vec2(-0.14, 0.18));
+    vec2 thorn_d_point = rotate2(angle_d) * (crawling_local + vec2(0.04, 0.10));
+
+    float thorn_a = thorn_shape(thorn_a_point, primary_height, primary_width, 0.16, 0.022);
+    float thorn_b = thorn_shape(thorn_b_point, primary_height * (0.72 + hash21(cell_id + 1.6) * 0.22),
+                                primary_width * (0.72 + hash21(cell_id + 4.6) * 0.18), -0.22, -0.018);
+    float thorn_c = thorn_shape(thorn_c_point, primary_height * (0.66 + hash21(cell_id + 7.6) * 0.26),
+                                primary_width * (0.64 + hash21(cell_id + 10.6) * 0.18), 0.24, 0.020);
+    float thorn_d = thorn_shape(thorn_d_point, primary_height * (0.52 + hash21(cell_id + 12.6) * 0.18),
+                                primary_width * (0.52 + hash21(cell_id + 15.6) * 0.12), -0.12, -0.014);
+    float growth_shape = max(max(thorn_a, thorn_b), max(thorn_c, thorn_d));
     float edge_band = smoothstep(0.0, 0.10, edge_strength) * (1.0 - smoothstep(0.18, 0.56, abs(local.y)));
     float alien_growth = growth_shape * edge_band * pulse_gate * growth_window;
 
-    float halo = smoothstep(0.52, 0.0, abs(local.x)) * smoothstep(0.56, 0.0, abs(local.y - 0.14));
-    alien_growth = max(alien_growth, halo * edge_strength * pulse_gate * growth_window * 0.48);
+    float halo = smoothstep(0.44, 0.0, abs(crawling_local.x)) * smoothstep(0.62, 0.0, abs(crawling_local.y - 0.16));
+    float root_glow = smoothstep(0.16, 0.0, length(vec2(crawling_local.x * 1.8, crawling_local.y - 0.06)));
+    alien_growth = max(alien_growth, halo * edge_strength * pulse_gate * growth_window * 0.32);
+    alien_growth = max(alien_growth, root_glow * edge_strength * pulse_gate * growth_window * 0.22);
 
     color += alien_tint * alien_growth * (0.45 + 0.55 * dominant + edge_strength * 0.6);
     color = mix(color, alien_tint, alien_growth * 0.35);
