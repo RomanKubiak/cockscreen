@@ -73,7 +73,8 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "defender_autoplay.glsl"
+            "defender_autoplay.glsl",
+            "rat_distortion.glsl"
         ]
     },
     "layer_order": [
