@@ -40,10 +40,10 @@ float thorn_shape(vec2 point, float height, float base_width, float lean, float 
     thorn_point.x += lean * thorn_point.y;
 
     float tip = triangle_shape(thorn_point, height, base_width);
-    float stem = step(abs(thorn_point.x + thorn_point.y * lean * 0.25), base_width * 0.22) * step(0.0, thorn_point.y) *
-                 step(thorn_point.y, height * 0.78);
+    float stem = step(abs(thorn_point.x + thorn_point.y * lean * 0.18), base_width * 0.10) * step(0.0, thorn_point.y) *
+                 step(thorn_point.y, height * 0.88);
     vec2 barb_point = thorn_point - vec2(barb_shift, height * 0.26);
-    float barb = triangle_shape(barb_point, height * 0.42, base_width * 0.52);
+    float barb = triangle_shape(barb_point, height * 0.34, base_width * 0.22);
     return max(tip, max(stem, barb));
 }
 
@@ -124,17 +124,17 @@ void main()
     float crawl_depth = cos(crawl_phase * 0.63) * 0.08;
     vec2 crawling_local = local + vec2(crawl_tangent, crawl_depth);
 
-    float primary_height = 0.72 + hash21(cell_id + 3.1) * 0.62;
-    float primary_width = 0.090 + hash21(cell_id + 9.4) * 0.085;
+    float primary_height = 1.10 + hash21(cell_id + 3.1) * 0.90;
+    float primary_width = 0.028 + hash21(cell_id + 9.4) * 0.026;
     float angle_a = mix(-0.12, 0.16, hash21(cell_id + 2.3));
     float angle_b = mix(-0.52, -0.10, hash21(cell_id + 5.7));
     float angle_c = mix(0.10, 0.58, hash21(cell_id + 8.9));
     float angle_d = mix(-0.38, 0.38, hash21(cell_id + 13.7));
 
-    vec2 thorn_a_point = rotate2(angle_a) * (crawling_local + vec2(0.0, 0.44));
-    vec2 thorn_b_point = rotate2(angle_b) * (crawling_local + vec2(0.18, 0.20));
-    vec2 thorn_c_point = rotate2(angle_c) * (crawling_local + vec2(-0.20, 0.24));
-    vec2 thorn_d_point = rotate2(angle_d) * (crawling_local + vec2(0.06, 0.16));
+    vec2 thorn_a_point = rotate2(angle_a) * (crawling_local + vec2(0.0, 0.06));
+    vec2 thorn_b_point = rotate2(angle_b) * (crawling_local + vec2(0.08, 0.04));
+    vec2 thorn_c_point = rotate2(angle_c) * (crawling_local + vec2(-0.09, 0.05));
+    vec2 thorn_d_point = rotate2(angle_d) * (crawling_local + vec2(0.03, 0.02));
 
     float thorn_a = thorn_shape(thorn_a_point, primary_height, primary_width, 0.16, 0.022);
     float thorn_b = thorn_shape(thorn_b_point, primary_height * (0.72 + hash21(cell_id + 1.6) * 0.22),
@@ -144,16 +144,16 @@ void main()
     float thorn_d = thorn_shape(thorn_d_point, primary_height * (0.52 + hash21(cell_id + 12.6) * 0.18),
                                 primary_width * (0.52 + hash21(cell_id + 15.6) * 0.12), -0.12, -0.014);
     float growth_shape = max(max(thorn_a, thorn_b), max(thorn_c, thorn_d));
-    float edge_band = smoothstep(0.0, 0.05, edge_strength) * (1.0 - smoothstep(0.22, 0.72, abs(local.y)));
-    float alien_growth = growth_shape * edge_band * pulse_gate * growth_window * red_focus * 1.35;
+    float edge_band = smoothstep(0.0, 0.04, edge_strength) * (1.0 - smoothstep(0.10, 0.42, abs(local.y)));
+    float alien_growth = growth_shape * edge_band * pulse_gate * growth_window * red_focus * 1.65;
 
-    float halo = smoothstep(0.62, 0.0, abs(crawling_local.x)) * smoothstep(0.86, 0.0, abs(crawling_local.y - 0.22));
-    float root_glow = smoothstep(0.26, 0.0, length(vec2(crawling_local.x * 1.5, crawling_local.y - 0.10)));
-    alien_growth = max(alien_growth, halo * edge_strength * pulse_gate * growth_window * 0.72);
-    alien_growth = max(alien_growth, root_glow * edge_strength * pulse_gate * growth_window * 0.48);
+    float halo = smoothstep(0.34, 0.0, abs(crawling_local.x)) * smoothstep(1.10, 0.0, abs(crawling_local.y - 0.36));
+    float root_glow = smoothstep(0.16, 0.0, length(vec2(crawling_local.x * 2.2, crawling_local.y - 0.02)));
+    alien_growth = max(alien_growth, halo * edge_strength * pulse_gate * growth_window * 0.82);
+    alien_growth = max(alien_growth, root_glow * edge_strength * pulse_gate * growth_window * 0.52);
 
-    color += alien_tint * alien_growth * (1.10 + red_energy * 1.35 + edge_strength * 1.25);
-    color = mix(color, alien_tint, clamp(alien_growth * 0.72, 0.0, 1.0));
+    color += alien_tint * alien_growth * (1.30 + red_energy * 1.55 + edge_strength * 1.45);
+    color = mix(color, alien_tint, clamp(alien_growth * 0.88, 0.0, 1.0));
 
     color = mix(base.rgb, color, clamp(edge_strength + alien_growth * 0.55, 0.0, 1.0));
     gl_FragColor = vec4(clamp(color, 0.0, 1.0), base.a);
