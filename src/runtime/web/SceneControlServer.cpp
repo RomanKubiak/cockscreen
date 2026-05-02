@@ -4,18 +4,23 @@
 #include "cockscreen/runtime/RuntimeHelpers.hpp"
 #include "cockscreen/runtime/application/Support.hpp"
 #include "cockscreen/runtime/ShaderVideoWindow.hpp"
+#include "cockscreen/runtime/pi/DisplaySwitch.hpp"
 
 #include <QAudioDevice>
 #include <QCameraDevice>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QHostAddress>
 #include <QMediaDevices>
+#include <QScreen>
 #include <QTcpSocket>
 #include <QUrl>
 
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <map>
 
 namespace cockscreen::runtime
@@ -274,6 +279,134 @@ QJsonObject layer_to_json(const SceneLayer &layer)
     return QJsonObject{{QStringLiteral("enabled"), layer.enabled}, {QStringLiteral("shaders"), shaders}};
 }
 
+struct ShaderParameterSpec
+{
+    const char *uniform;
+    const char *label;
+    const char *type;
+    double minimum;
+    double maximum;
+    double step;
+    double default_value;
+};
+
+constexpr ShaderParameterSpec kRatDistortionParameterSpecs[] = {
+    {"u_rat_tooth_count", "Tooth count", "integer", 3.0, 24.0, 1.0, 8.0},
+    {"u_rat_tooth_height_min", "Tooth min height", "float", 0.2, 3.0, 0.01, 0.90},
+    {"u_rat_tooth_height_max", "Tooth max height", "float", 0.3, 4.0, 0.01, 1.95},
+    {"u_rat_tooth_base_min", "Tooth min base", "float", 0.005, 0.08, 0.001, 0.012},
+    {"u_rat_tooth_base_max", "Tooth max base", "float", 0.006, 0.12, 0.001, 0.034},
+    {"u_rat_tooth_animation_seconds", "Tooth animation seconds", "float", 0.15, 12.0, 0.01, 3.0},
+};
+
+bool shader_parameter_shader_supported(std::string_view shader_name)
+{
+    return std::filesystem::path{shader_name}.filename() == "rat_distortion.glsl";
+}
+
+const ShaderParameterSpec *find_shader_parameter_spec(std::string_view shader_name, std::string_view uniform_name)
+{
+    if (!shader_parameter_shader_supported(shader_name))
+    {
+        return nullptr;
+    }
+
+    for (const auto &spec : kRatDistortionParameterSpecs)
+    {
+        if (uniform_name == spec.uniform)
+        {
+            return &spec;
+        }
+    }
+
+    return nullptr;
+}
+
+QJsonObject shader_parameters_to_json(const ShaderVideoWindow *window)
+{
+    QJsonObject result;
+    if (window == nullptr)
+    {
+        return result;
+    }
+
+    const auto overrides = window->shader_uniform_overrides("rat_distortion.glsl");
+    QJsonArray parameters;
+    for (const auto &spec : kRatDistortionParameterSpecs)
+    {
+        const auto it = overrides.find(spec.uniform);
+        const double value = it != overrides.end() ? static_cast<double>(it->second) : spec.default_value;
+        parameters.push_back(QJsonObject{{QStringLiteral("uniform"), QString::fromUtf8(spec.uniform)},
+                                         {QStringLiteral("label"), QString::fromUtf8(spec.label)},
+                                         {QStringLiteral("type"), QString::fromUtf8(spec.type)},
+                                         {QStringLiteral("min"), spec.minimum},
+                                         {QStringLiteral("max"), spec.maximum},
+                                         {QStringLiteral("step"), spec.step},
+                                         {QStringLiteral("defaultValue"), spec.default_value},
+                                         {QStringLiteral("value"), value}});
+    }
+
+    result.insert(QStringLiteral("rat_distortion.glsl"),
+                  QJsonObject{{QStringLiteral("title"), QStringLiteral("Rat distortion saw teeth")},
+                              {QStringLiteral("parameters"), parameters}});
+    return result;
+}
+
+bool apply_shader_parameter_values(const QString &shader_name, const QJsonObject &values, ShaderVideoWindow *window,
+                                   QString *error_message)
+{
+    if (window == nullptr)
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Live shader window is not available");
+        }
+        return false;
+    }
+
+    const auto shader_key = shader_name.trimmed().toStdString();
+    if (!shader_parameter_shader_supported(shader_key))
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("No editable parameters are defined for %1").arg(shader_name.trimmed());
+        }
+        return false;
+    }
+
+    for (auto it = values.begin(); it != values.end(); ++it)
+    {
+        if (!it.value().isDouble())
+        {
+            if (error_message != nullptr)
+            {
+                *error_message = QStringLiteral("Parameter %1 must be numeric").arg(it.key());
+            }
+            return false;
+        }
+
+        const auto *spec = find_shader_parameter_spec(shader_key, it.key().toStdString());
+        if (spec == nullptr)
+        {
+            if (error_message != nullptr)
+            {
+                *error_message = QStringLiteral("Unknown shader parameter %1 for %2").arg(it.key(), shader_name.trimmed());
+            }
+            return false;
+        }
+
+        double value = std::clamp(it.value().toDouble(), spec->minimum, spec->maximum);
+        if (QString::fromUtf8(spec->type) == QStringLiteral("integer"))
+        {
+            value = std::round(value);
+        }
+
+        window->set_shader_uniform_override(shader_key, spec->uniform, static_cast<float>(value));
+    }
+
+    return true;
+}
+
 QStringList json_array_to_string_list(const QJsonValue &value)
 {
     QStringList result;
@@ -418,12 +551,14 @@ std::optional<SceneControlServer::HttpRequest> parse_http_request(const QByteArr
 
 SceneControlServer::SceneControlServer(SceneDefinition *scene, ShaderVideoWindow *window, std::filesystem::path scene_file,
                                                                              std::filesystem::path resources_directory, std::filesystem::path shader_directory,
-                                                                             SceneControlDeviceInfo device_info, bool active_scene_read_only, QObject *parent)
+                                                                             SceneControlDeviceInfo device_info, bool active_scene_read_only,
+                                                                             int argc, char **argv, QObject *parent)
     : QObject{parent}, scene_{scene}, window_{window}, scene_file_{std::move(scene_file)},
             initial_scene_file_{scene_file_},
       resources_directory_{std::move(resources_directory)}, shader_directory_{std::move(shader_directory)},
     default_shader_directory_{shader_directory_},
-                        device_info_{std::move(device_info)}, initial_scene_read_only_{active_scene_read_only}, server_{this}
+                        device_info_{std::move(device_info)}, initial_scene_read_only_{active_scene_read_only},
+    argc_{argc}, argv_{argv}, server_{this}
 {
 }
 
@@ -485,6 +620,42 @@ void SceneControlServer::handle_request(QTcpSocket *socket, const HttpRequest &r
         return;
     }
 
+    if (request.method == QStringLiteral("POST") && path == QStringLiteral("/api/shader-params"))
+    {
+        QJsonParseError parse_error;
+        const auto document = QJsonDocument::fromJson(request.body, &parse_error);
+        if (parse_error.error != QJsonParseError::NoError || !document.isObject())
+        {
+            send_response(socket, 400, QByteArray{"application/json; charset=utf-8"},
+                          QJsonDocument{QJsonObject{{QStringLiteral("ok"), false},
+                                                    {QStringLiteral("error"), QStringLiteral("Invalid JSON payload")}}}
+                              .toJson(QJsonDocument::Compact));
+            return;
+        }
+
+        const auto object = document.object();
+        const auto shader_name = object.value(QStringLiteral("shader")).toString().trimmed();
+        const auto values = object.value(QStringLiteral("values"));
+        if (shader_name.isEmpty() || !values.isObject())
+        {
+            send_response(socket, 400, QByteArray{"application/json; charset=utf-8"},
+                          QJsonDocument{QJsonObject{{QStringLiteral("ok"), false},
+                                                    {QStringLiteral("error"),
+                                                     QStringLiteral("Expected shader string and values object")}}}
+                              .toJson(QJsonDocument::Compact));
+            return;
+        }
+
+        QString error_message;
+        const bool applied = apply_shader_parameter_values(shader_name, values.toObject(), window_, &error_message);
+        send_response(socket, applied ? 200 : 400, QByteArray{"application/json; charset=utf-8"},
+                      QJsonDocument{QJsonObject{{QStringLiteral("ok"), applied},
+                                                {QStringLiteral("error"), error_message},
+                                                {QStringLiteral("state"), build_state_object()}}}
+                          .toJson(QJsonDocument::Compact));
+        return;
+    }
+
     if (request.method == QStringLiteral("POST") && path == QStringLiteral("/api/apply"))
     {
         QJsonParseError parse_error;
@@ -508,6 +679,56 @@ void SceneControlServer::handle_request(QTcpSocket *socket, const HttpRequest &r
         return;
     }
 
+    if (request.method == QStringLiteral("POST") && path == QStringLiteral("/api/display-output"))
+    {
+        QJsonParseError parse_error;
+        const auto document = QJsonDocument::fromJson(request.body, &parse_error);
+        if (parse_error.error != QJsonParseError::NoError || !document.isObject())
+        {
+            send_response(socket, 400, QByteArray{"application/json; charset=utf-8"},
+                          QJsonDocument{QJsonObject{{QStringLiteral("ok"), false},
+                                                    {QStringLiteral("error"), QStringLiteral("Invalid JSON payload")}}}
+                              .toJson(QJsonDocument::Compact));
+            return;
+        }
+
+        const QString output_str = document.object().value(QStringLiteral("output")).toString().trimmed().toLower();
+
+        pi::DisplayOutput requested_output{};
+        if (output_str == QStringLiteral("hdmi"))
+        {
+            requested_output = pi::DisplayOutput::Hdmi;
+        }
+        else if (output_str == QStringLiteral("composite-pal"))
+        {
+            requested_output = pi::DisplayOutput::CompositePal;
+        }
+        else if (output_str == QStringLiteral("composite-ntsc"))
+        {
+            requested_output = pi::DisplayOutput::CompositeNtsc;
+        }
+        else
+        {
+            send_response(socket, 400, QByteArray{"application/json; charset=utf-8"},
+                          QJsonDocument{QJsonObject{
+                              {QStringLiteral("ok"), false},
+                              {QStringLiteral("error"),
+                               QStringLiteral("Unknown output '%1'. Valid values: hdmi, composite-pal, composite-ntsc")
+                                   .arg(output_str)}}}
+                              .toJson(QJsonDocument::Compact));
+            return;
+        }
+
+        const auto result = pi::switch_display_output(requested_output, argc_, argv_);
+        // switch_display_output calls execv and should not return on success.
+        // If we reach here, execv failed.
+        send_response(socket, 500, QByteArray{"application/json; charset=utf-8"},
+                      QJsonDocument{QJsonObject{{QStringLiteral("ok"), false},
+                                                {QStringLiteral("error"), QString::fromStdString(result.error)}}}
+                          .toJson(QJsonDocument::Compact));
+        return;
+    }
+
     send_response(socket, 404, QByteArray{"text/plain; charset=utf-8"}, QByteArray{"Not found"});
 }
 
@@ -523,9 +744,21 @@ void SceneControlServer::send_response(QTcpSocket *socket, int status_code, QByt
     {
         status_text = "Bad Request";
     }
+    else if (status_code == 403)
+    {
+        status_text = "Forbidden";
+    }
     else if (status_code == 404)
     {
         status_text = "Not Found";
+    }
+    else if (status_code == 500)
+    {
+        status_text = "Internal Server Error";
+    }
+    else if (status_code == 501)
+    {
+        status_text = "Not Implemented";
     }
 
     QByteArray response;
@@ -608,17 +841,41 @@ QByteArray SceneControlServer::build_index_html() const
             .shader-editor select { min-height: 156px; }
             .muted { font-size: 0.95rem; }
         }
+        .output-btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+        .output-btn-group button { flex: 1 1 0; min-width: 0; }
+        .output-btn-group button.active { background: linear-gradient(180deg, var(--accent-strong), var(--accent)); border-color: var(--accent-strong); }
+        .val { background: var(--field); border: 1px solid var(--field-border); border-radius: 10px; padding: 10px 12px; word-break: break-all; overflow-wrap: anywhere; font-size: 0.9rem; color: var(--muted); line-height: 1.4; }
+        pre { max-height: 120px; overflow-y: auto; font-size: 0.82rem; line-height: 1.5; }
+        code { background: #1e1e1e; border: 1px solid var(--field-border); padding: 1px 5px; border-radius: 5px; font-size: 0.85em; }
+        .shader-section { display: flex; flex-direction: column; gap: 20px; }
+        .shader-block { border: 1px solid var(--field-border); border-radius: 10px; padding: 14px; }
+        .shader-block h3 { margin: 0 0 10px; font-size: 1rem; }
+                .shader-popup-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.58); z-index: 1000; }
+                .shader-popup-overlay.visible { display: flex; }
+                .shader-popup-card { width: min(720px, 100%); max-height: min(86vh, 920px); overflow: auto; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 16px; padding: 18px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45); }
+                .shader-popup-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+                .shader-popup-header h3 { margin: 0; }
+                .shader-popup-close { width: auto; min-width: 44px; }
+                .shader-popup-grid { display: grid; gap: 14px; }
+                .shader-param-row { border: 1px solid var(--field-border); border-radius: 12px; padding: 12px; background: #121212; }
+                .shader-param-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: var(--muted); font-size: 0.9rem; }
+                .shader-param-inputs { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 12px; align-items: center; }
+                .shader-param-inputs input[type="range"] { padding: 0; }
+                .shader-popup-note { margin: 0; color: var(--muted); }
   </style>
 </head>
 <body>
     <div class="page">
         <div class="page-header">
             <h1>cockscreen control</h1>
-            <p class="muted">Live updates for shader layers, playback transport, and background settings. Device lists are exposed here, but device reopening is read-only in this first version.</p>
+            <p class="muted">Live scene, shader, playback, and display control.</p>
         </div>
         <div id="app">Loading…</div>
+                <div id="shaderParamPopup" class="shader-popup-overlay" aria-hidden="true"></div>
     </div>
   <script>
+        let currentState = null;
+        let currentShaderPopup = null;
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
     }
@@ -669,28 +926,137 @@ QByteArray SceneControlServer::build_index_html() const
             const selected = Array.isArray(layer.shaders) ? layer.shaders : [];
             const selectedSet = new Set(selected);
             const available = availableShaders.filter(shader => !selectedSet.has(shader));
+            const title = prefix.charAt(0).toUpperCase() + prefix.slice(1);
             return `
-                <div>
-                    <label class="layer-toggle"><input id="${prefix}Enabled" type="checkbox" ${layer.enabled ? 'checked' : ''}> <span>${escapeHtml(prefix.charAt(0).toUpperCase() + prefix.slice(1))} layer enabled</span></label>
+                <div class="shader-block">
+                    <h3>${escapeHtml(title)} layer</h3>
+                    <label class="layer-toggle"><input id="${prefix}Enabled" type="checkbox" ${layer.enabled ? 'checked' : ''}> <span>Enabled</span></label>
                     <div class="shader-editor">
                         <div class="shader-editor-panel">
                             <label for="${prefix}ShaderPool">Available shaders</label>
                             <select id="${prefix}ShaderPool" multiple>${buildOptions(available, [])}</select>
-                            <div class="muted">Tap one or more shaders, then use Add or Remove. Move up and Move down change the render order.</div>
                         </div>
                         <div class="shader-editor-controls">
                             <button type="button" data-action="add" data-layer="${prefix}">Add →</button>
                             <button type="button" data-action="remove" data-layer="${prefix}">← Remove</button>
-                            <button type="button" data-action="up" data-layer="${prefix}">Move up</button>
-                            <button type="button" data-action="down" data-layer="${prefix}">Move down</button>
+                            <button type="button" data-action="up" data-layer="${prefix}">↑ Up</button>
+                            <button type="button" data-action="down" data-layer="${prefix}">↓ Down</button>
                         </div>
                         <div class="shader-editor-panel">
-                            <label for="${prefix}Shaders">Active shader chain</label>
+                            <label for="${prefix}Shaders">Active chain (top → first rendered)</label>
                             <select id="${prefix}Shaders" multiple>${buildOptions(selected, [])}</select>
-                            <div class="muted">Top to bottom matches render order.</div>
+                            <p class="muted">Click an active shader to inspect editable parameters.</p>
                         </div>
                     </div>
                 </div>`;
+        }
+        function closeShaderParameterPopup() {
+            const popup = document.getElementById('shaderParamPopup');
+            if (!popup) return;
+            popup.classList.remove('visible');
+            popup.setAttribute('aria-hidden', 'true');
+            popup.innerHTML = '';
+            currentShaderPopup = null;
+        }
+        async function submitShaderParameter(shaderName, uniformName, rawValue, valueType) {
+            const numeric = Number(rawValue);
+            if (!Number.isFinite(numeric)) {
+                return;
+            }
+
+            const value = valueType === 'integer' ? Math.round(numeric) : numeric;
+            const response = await fetch('/api/shader-params', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shader: shaderName, values: { [uniformName]: value } })
+            });
+            const result = await response.json();
+            const message = document.getElementById('shaderParamPopupMessage');
+            if (result.ok) {
+                currentState = result.state || currentState;
+                if (message) message.textContent = 'Parameter applied.';
+                if (currentShaderPopup && currentShaderPopup.shader === shaderName) {
+                    renderShaderParameterPopup(shaderName, currentShaderPopup.layer);
+                }
+            } else if (message) {
+                message.textContent = `Update failed: ${result.error || 'unknown error'}`;
+            }
+        }
+        function wireShaderParameterControls(shaderName) {
+            const popup = document.getElementById('shaderParamPopup');
+            if (!popup) return;
+            const closeButton = document.getElementById('shaderParamPopupClose');
+            if (closeButton) closeButton.onclick = closeShaderParameterPopup;
+            popup.onclick = event => {
+                if (event.target === popup) closeShaderParameterPopup();
+            };
+
+            for (const row of popup.querySelectorAll('[data-param-uniform]')) {
+                const uniform = row.getAttribute('data-param-uniform');
+                const valueType = row.getAttribute('data-param-type') || 'float';
+                const range = row.querySelector('input[type="range"]');
+                const number = row.querySelector('input[data-role="number"]');
+                if (!uniform || !range || !number) {
+                    continue;
+                }
+
+                const sync = value => {
+                    range.value = value;
+                    number.value = value;
+                };
+                range.oninput = () => sync(range.value);
+                number.oninput = () => sync(number.value);
+                range.onchange = () => submitShaderParameter(shaderName, uniform, range.value, valueType);
+                number.onchange = () => submitShaderParameter(shaderName, uniform, number.value, valueType);
+            }
+        }
+        function renderShaderParameterPopup(shaderName, layerName) {
+            const popup = document.getElementById('shaderParamPopup');
+            if (!popup) return;
+            const layerEnabled = document.getElementById(`${layerName}Enabled`)?.checked;
+            const shaderParameters = currentState?.shaderParameters || {};
+            const spec = shaderParameters[shaderName];
+            currentShaderPopup = { shader: shaderName, layer: layerName };
+
+            let content = '';
+            if (!layerEnabled) {
+                content = `<p class="shader-popup-note">Enable the ${escapeHtml(layerName)} layer to edit live shader parameters.</p>`;
+            } else if (!spec || !Array.isArray(spec.parameters) || spec.parameters.length === 0) {
+                content = `<p class="shader-popup-note">No editable parameters are available for ${escapeHtml(shaderName)} yet.</p>`;
+            } else {
+                content = `<div class="shader-popup-grid">${spec.parameters.map(parameter => {
+                    const value = Number(parameter.value ?? parameter.defaultValue ?? 0);
+                    const step = Number(parameter.step ?? (parameter.type === 'integer' ? 1 : 0.01));
+                    return `
+                        <div class="shader-param-row" data-param-uniform="${escapeHtml(parameter.uniform)}" data-param-type="${escapeHtml(parameter.type)}">
+                            <strong>${escapeHtml(parameter.label || parameter.uniform)}</strong>
+                            <div class="shader-param-meta">
+                                <span>${escapeHtml(parameter.uniform)}</span>
+                                <span>${escapeHtml(parameter.type)} · ${escapeHtml(parameter.min)} to ${escapeHtml(parameter.max)}</span>
+                            </div>
+                            <div class="shader-param-inputs">
+                                <input type="range" min="${escapeHtml(parameter.min)}" max="${escapeHtml(parameter.max)}" step="${escapeHtml(step)}" value="${escapeHtml(value)}">
+                                <input data-role="number" type="number" min="${escapeHtml(parameter.min)}" max="${escapeHtml(parameter.max)}" step="${escapeHtml(step)}" value="${escapeHtml(value)}">
+                            </div>
+                        </div>`;
+                }).join('')}</div>`;
+            }
+
+            popup.innerHTML = `
+                <div class="shader-popup-card" role="dialog" aria-modal="true" aria-label="Shader parameters">
+                    <div class="shader-popup-header">
+                        <div>
+                            <h3>${escapeHtml(spec?.title || 'Shader parameters')}</h3>
+                            <p class="shader-popup-note">${escapeHtml(shaderName)} · ${escapeHtml(layerName)} layer</p>
+                        </div>
+                        <button id="shaderParamPopupClose" class="shader-popup-close" type="button">Close</button>
+                    </div>
+                    ${content}
+                    <p class="shader-popup-note" id="shaderParamPopupMessage"></p>
+                </div>`;
+            popup.classList.add('visible');
+            popup.setAttribute('aria-hidden', 'false');
+            wireShaderParameterControls(shaderName);
         }
         function moveSelectedOptions(sourceId, targetId) {
             const source = document.getElementById(sourceId);
@@ -742,8 +1108,77 @@ QByteArray SceneControlServer::build_index_html() const
                 };
             }
         }
+        function wireShaderParameterPopups() {
+            for (const layer of ['video', 'playback', 'screen']) {
+                const select = document.getElementById(`${layer}Shaders`);
+                if (!select) continue;
+                select.onchange = () => {
+                    const selected = select.selectedOptions[0];
+                    if (!selected) {
+                        return;
+                    }
+                    renderShaderParameterPopup(selected.value, layer);
+                };
+            }
+        }
+        function startReconnect(output) {
+            // Process restarts via execv; poll /api/state until the server is back, then reload.
+            setTimeout(async () => {
+                for (let i = 0; i < 30; i++) {
+                    try { await fetch('/api/state'); location.reload(); return; } catch {}
+                    await new Promise(r => setTimeout(r, 500));
+                }
+                const msg = document.getElementById('displayOutputMessage');
+                if (msg) msg.textContent = 'Could not reconnect after switch.';
+                const group = document.getElementById('displayOutputGroup');
+                if (group) for (const b of group.querySelectorAll('[data-output]')) { b.disabled = false; }
+            }, 1000);
+        }
+        function wireDisplayOutputButtons(activeOutput) {
+            const group = document.getElementById('displayOutputGroup');
+            const msg   = document.getElementById('displayOutputMessage');
+            if (!group) return;
+            // Highlight the currently active output on load
+            for (const b of group.querySelectorAll('[data-output]')) {
+                b.classList.toggle('active', b.dataset.output === activeOutput);
+            }
+            for (const btn of group.querySelectorAll('[data-output]')) {
+                btn.onclick = async () => {
+                    const output = btn.dataset.output;
+                    for (const b of group.querySelectorAll('[data-output]')) { b.disabled = true; }
+                    msg.textContent = `Switching to ${output}\u2026`;
+                    try {
+                        const res  = await fetch('/api/display-output', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ output })
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            msg.textContent = `Switching to ${output}\u2026 reconnecting.`;
+                            startReconnect(output);
+                        } else {
+                            msg.textContent = `Failed: ${data.error || 'unknown error'}`;
+                            for (const b of group.querySelectorAll('[data-output]')) { b.disabled = false; }
+                        }
+                    } catch (err) {
+                        // execv() replaces the process before the HTTP response is sent,
+                        // so the fetch() always throws a TypeError (NetworkError) on success.
+                        // Any other exception type is a genuine failure.
+                        if (err instanceof TypeError) {
+                            msg.textContent = `Switching to ${output}\u2026 reconnecting.`;
+                            startReconnect(output);
+                        } else {
+                            msg.textContent = `Request error: ${err}`;
+                            for (const b of group.querySelectorAll('[data-output]')) { b.disabled = false; }
+                        }
+                    }
+                };
+            }
+        }
     async function refreshState() {
     const state = await fetch('/api/state').then(response => response.json());
+                currentState = state;
                 const presetManager = state.presetManager || { groups: [], activeScenePath: '', activeSceneReadOnly: false, saveMode: 'new-preset-only' };
             const pinkKeyAudioAlgorithms = [
                 { value: '0', label: '0: Bass focus' },
@@ -760,35 +1195,52 @@ QByteArray SceneControlServer::build_index_html() const
                     <div class="grid status-grid">
             <div>
               <strong>Scene file</strong>
-              <div>${escapeHtml(state.sceneFile)}</div>
+              <div class="val">${escapeHtml(state.sceneFile)}</div>
             </div>
             <div>
               <strong>Opened video</strong>
-              <div>${escapeHtml(state.openedDevices.video)}</div>
+              <div class="val">${escapeHtml(state.openedDevices.video)}</div>
             </div>
             <div>
               <strong>Opened audio</strong>
-              <div>${escapeHtml(state.openedDevices.audio)}</div>
+              <div class="val">${escapeHtml(state.openedDevices.audio)}</div>
             </div>
             <div>
               <strong>Opened MIDI</strong>
-              <div>${escapeHtml(state.openedDevices.midi)}</div>
+              <div class="val">${escapeHtml(state.openedDevices.midi)}</div>
             </div>
           </div>
           <label>Window status</label>
-          <pre>${escapeHtml(state.status.windowStatus || '<none>')}</pre>
+          <pre id="winStatus">${escapeHtml(state.status.windowStatus || '\u2014')}</pre>
           <label>Fatal render error</label>
-          <pre>${escapeHtml(state.status.fatalRenderError || '<none>')}</pre>
+          <pre id="fatalError">${escapeHtml(state.status.fatalRenderError || '\u2014')}</pre>
+        </section>
+        <section>
+          <h2>Display Output</h2>
+          ${(() => {
+            const d = state.displayOutput || {};
+            const s = d.screen || {};
+            const res = (s.width && s.height) ? `${s.width}\u00d7${s.height}` + (s.refreshRate ? ` @${s.refreshRate}Hz` : '') : '';
+            const connLabel = d.connector ? `${d.connector}${res ? ' \u2014 ' + res : ''}` : '';
+            return connLabel ? `<p class="muted">Active: <strong>${escapeHtml(connLabel)}</strong></p>` : '';
+          })()}
+          <div class="output-btn-group" id="displayOutputGroup">
+            <button type="button" data-output="hdmi">HDMI</button>
+            <button type="button" data-output="composite-pal">Composite PAL</button>
+            <button type="button" data-output="composite-ntsc">Composite NTSC</button>
+          </div>
+          <p class="muted" id="displayOutputMessage"></p>
+          <p class="muted">Switching restarts the process (~5s). Requires <code>dtoverlay=vc4-kms-v3d,composite</code> and <code>video=Composite-1:720x480@60ie</code> in boot config.</p>
         </section>
                 <section>
                     <h2>Presets</h2>
                     <label for="presetScenePath">Scene preset</label>
                     <select id="presetScenePath">${buildPresetOptions(presetManager.groups, presetManager.activeScenePath)}</select>
                     <div class="row">
-                        <input type="text" value="${escapeHtml(presetManager.root || '')}" readonly>
+                        <div class="val">${escapeHtml(presetManager.root || '\u2014')}</div>
                         <button id="loadPresetButton" type="button">Load preset</button>
                     </div>
-                    <p class="muted">Directories map 1:1 to preset groups and scene files map 1:1 to selectable scenes. Loading a preset updates the visual scene immediately. ${presetManager.activeSceneReadOnly ? 'The initial startup scene is read-only, so future save flows must create a new preset instead of rewriting that source file.' : 'The current active preset is not the initial read-only startup scene.'} Device reopening is still read-only.</p>
+                    <p class="muted">${presetManager.activeSceneReadOnly ? 'Startup scene is read-only — saving will create a new preset.' : 'Active preset is editable.'} Device reopening is read-only.</p>
                 </section>
         <section>
           <h2>Background</h2>
@@ -822,7 +1274,7 @@ QByteArray SceneControlServer::build_index_html() const
                     <div class="grid">
                         <div>
                             <label>Playback file</label>
-                            <input type="text" value="${escapeHtml(state.playbackInput.file || '<none>')}" readonly>
+                            <div class="val">${escapeHtml(state.playbackInput.file || '\u2014')}</div>
                         </div>
                         <div>
                             <label for="playbackStartMs">Start ms</label>
@@ -862,18 +1314,18 @@ QByteArray SceneControlServer::build_index_html() const
                         </div>
                         <div>
                             <label for="pinkKeyAudioReactivity">Audio reactivity</label>
-                            <input id="pinkKeyAudioReactivity" type="number" min="0" max="1.5" step="0.01" value="${escapeHtml(state.pinkKey.audioReactivity ?? 0.45)}">
+                            <input id="pinkKeyAudioReactivity" type="number" min="0" max="1.5" step="0.01" value="${Number(state.pinkKey.audioReactivity ?? 0.45).toFixed(3)}">
                         </div>
                         <div>
                             <label for="pinkKeyMidiReactivity">MIDI reactivity</label>
-                            <input id="pinkKeyMidiReactivity" type="number" min="0" max="1.5" step="0.01" value="${escapeHtml(state.pinkKey.midiReactivity ?? 0.35)}">
+                            <input id="pinkKeyMidiReactivity" type="number" min="0" max="1.5" step="0.01" value="${Number(state.pinkKey.midiReactivity ?? 0.35).toFixed(3)}">
                         </div>
                     </div>
                     <p class="muted">Detector modes: 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 centroid, 5 full-spectrum average.</p>
                 </section>
                 <section>
           <h2>Shaders</h2>
-          <div class="grid">
+          <div class="shader-section">
                         ${buildShaderEditor('video', state.layers.video, state.availableShaders)}
                         ${buildShaderEditor('playback', state.layers.playback, state.availableShaders)}
                         ${buildShaderEditor('screen', state.layers.screen, state.availableShaders)}
@@ -899,6 +1351,8 @@ QByteArray SceneControlServer::build_index_html() const
       document.getElementById('refreshButton').onclick = refreshState;
                         document.getElementById('loadPresetButton').onclick = loadPreset;
             wireShaderEditorButtons();
+        wireShaderParameterPopups();
+            wireDisplayOutputButtons((state.displayOutput || {}).current || '');
     }
         async function loadPreset() {
             const presetPath = document.getElementById('presetScenePath')?.value || '';
@@ -1010,9 +1464,38 @@ QJsonObject SceneControlServer::build_state_object() const
                             {QStringLiteral("midi"), QJsonArray::fromStringList(collect_midi_labels())}});
     object.insert(QStringLiteral("availableShaders"), QJsonArray::fromStringList(available_shader_files()));
     object.insert(QStringLiteral("availableBackgroundFiles"), QJsonArray::fromStringList(available_background_files()));
+    object.insert(QStringLiteral("shaderParameters"), shader_parameters_to_json(window_));
     object.insert(QStringLiteral("status"),
                   QJsonObject{{QStringLiteral("windowStatus"), window_->status_message()},
                               {QStringLiteral("fatalRenderError"), window_->fatal_render_error()}});
+
+    // Display output: current connector preference + active Qt screen geometry
+    {
+        const char *connector = pi::preferred_connector_name();
+        QString output_key;
+        if (std::strcmp(connector, pi::kCompositeConnectorName) == 0)
+            output_key = QStringLiteral("composite-pal");
+        else
+            output_key = QStringLiteral("hdmi");
+
+        QJsonObject screen_info;
+        const QScreen *screen = window_->screen();
+        if (screen == nullptr && !QGuiApplication::screens().isEmpty())
+            screen = QGuiApplication::screens().first();
+        if (screen != nullptr)
+        {
+            const QSize sz = screen->size();
+            screen_info.insert(QStringLiteral("name"), screen->name());
+            screen_info.insert(QStringLiteral("width"), sz.width());
+            screen_info.insert(QStringLiteral("height"), sz.height());
+            screen_info.insert(QStringLiteral("refreshRate"), qRound(screen->refreshRate()));
+        }
+        object.insert(QStringLiteral("displayOutput"),
+                      QJsonObject{{QStringLiteral("current"), output_key},
+                                  {QStringLiteral("connector"), QString::fromUtf8(connector)},
+                                  {QStringLiteral("screen"), screen_info}});
+    }
+
     return object;
 }
 

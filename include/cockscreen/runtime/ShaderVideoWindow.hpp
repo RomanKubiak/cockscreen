@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -78,6 +79,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 
     void apply_scene_update(SceneDefinition scene);
     void set_status_overlay_text(QString text);
+    void set_shader_uniform_override(const std::string &shader_name, const std::string &uniform_name, float value);
+    [[nodiscard]] std::map<std::string, float> shader_uniform_overrides(std::string_view shader_name) const;
 
     void set_frame(const core::ControlFrame &frame);
 
@@ -135,6 +138,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
                    int frame_index, const QVector2D &channel0_resolution) const;
     void apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     void apply_scene_osc_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
+    void apply_shader_uniform_overrides(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     GLuint render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
               float elapsed_seconds, float frame_delta_seconds, int frame_index);
 
@@ -200,6 +204,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     int background_image_texture_width_{0};
     int background_image_texture_height_{0};
     bool background_image_texture_dirty_{false};
+    std::map<std::string, std::map<std::string, float>> shader_uniform_overrides_;
     std::vector<RenderStage> render_stages_;
     int render_stage_index_{0};
     int render_frame_index_{0};
