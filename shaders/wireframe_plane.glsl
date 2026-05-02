@@ -36,7 +36,7 @@ void main()
     float horizontal_line_width = line_width * 0.2;
     float top_line_width = horizontal_line_width * 1.6;
     float plane_mask = step(top_edge_y + top_line_width * 1.2, screen_y);
-    float travel = u_time * 0.12;
+    float travel = u_time * 0.15;
 
     float vertical_minor = line_mask(world_x * 8.0, line_width) * plane_mask;
     float vertical_major = line_mask(world_x * 2.0, line_width) * plane_mask;
@@ -57,6 +57,7 @@ void main()
     grid = max(grid, horizontal * plane_mask);
     grid = max(grid, top_line);
 
-    vec3 composed = max(base.rgb, vec3(grid));
+    vec3 wireframe_color = vec3(1.0, 0.08, 0.05) * grid;
+    vec3 composed = max(base.rgb, wireframe_color);
     gl_FragColor = vec4(composed, base.a);
 }
