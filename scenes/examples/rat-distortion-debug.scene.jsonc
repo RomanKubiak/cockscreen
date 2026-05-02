@@ -1,5 +1,5 @@
 {
-    /* Debug scene for inspecting rat_distortion internals over the wireframe plane. */
+    /* Test scene for viewing rat_distortion over a rotating wheel source. */
     "resources_directory": "../../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     "shader_directory": "../../shaders/",
@@ -71,8 +71,8 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "wireframe_plane.glsl",
-            "rat_distortion_debug.glsl"
+            "rat_distortion_debug.glsl",
+            "rat_distortion.glsl"
         ]
     },
     "layer_order": [
