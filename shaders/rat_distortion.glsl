@@ -109,48 +109,33 @@ void main()
     vec3 rim_red = vec3(1.0, 0.0, 0.0);
     vec3 alien_tint = mix(hot_red, rim_red, smoothstep(0.35, 1.0, red_energy + red_base * 0.4));
 
-    vec2 grid = uv * u_resolution / 128.0;
-    vec2 cell_id = floor(grid);
+    vec2 grid = uv * u_resolution / 168.0;
     vec2 cell_uv = fract(grid) - 0.5;
-    float phase = floor(u_time * 5.0);
-    float pulse = hash21(cell_id + phase * 0.73);
-    float pulse_gate = step(0.64, pulse);
-    float pulse_age = fract(u_time * 5.0 + hash21(cell_id + 11.0));
-    float growth_window = smoothstep(0.0, 0.12, pulse_age) * (1.0 - smoothstep(0.74, 0.99, pulse_age));
-
     vec2 local = vec2(dot(cell_uv, tangent), dot(cell_uv, edge_direction));
-    float crawl_phase = u_time * (0.70 + hash21(cell_id + 20.0) * 0.9) + hash21(cell_id + 25.0) * 6.28318530718;
-    float crawl_tangent = sin(crawl_phase) * 0.16;
-    float crawl_depth = cos(crawl_phase * 0.63) * 0.08;
-    vec2 crawling_local = local + vec2(crawl_tangent, crawl_depth);
+    vec2 tooth_local = vec2(local.x * 1.35, abs(local.y));
 
-    float primary_height = 1.10 + hash21(cell_id + 3.1) * 0.90;
-    float primary_width = 0.028 + hash21(cell_id + 9.4) * 0.026;
-    float angle_a = mix(-0.12, 0.16, hash21(cell_id + 2.3));
-    float angle_b = mix(-0.52, -0.10, hash21(cell_id + 5.7));
-    float angle_c = mix(0.10, 0.58, hash21(cell_id + 8.9));
-    float angle_d = mix(-0.38, 0.38, hash21(cell_id + 13.7));
+    float tooth_height = 1.75;
+    float tooth_base = 0.022;
+    float primary_tooth = triangle_shape(tooth_local + vec2(0.0, 0.01), tooth_height, tooth_base);
+    float side_tooth_left =
+        triangle_shape(vec2((local.x + 0.34) * 1.1, abs(local.y) + 0.03), tooth_height * 0.72, tooth_base * 0.78);
+    float side_tooth_right =
+        triangle_shape(vec2((local.x - 0.34) * 1.1, abs(local.y) + 0.03), tooth_height * 0.72, tooth_base * 0.78);
+    float growth_shape = max(primary_tooth, max(side_tooth_left, side_tooth_right));
+    float edge_band = smoothstep(0.0, 0.035, edge_strength) * (1.0 - smoothstep(0.05, 0.20, abs(local.y)));
+    float alien_growth = growth_shape * edge_band * red_focus * 2.10;
 
-    vec2 thorn_a_point = rotate2(angle_a) * (crawling_local + vec2(0.0, 0.06));
-    vec2 thorn_b_point = rotate2(angle_b) * (crawling_local + vec2(0.08, 0.04));
-    vec2 thorn_c_point = rotate2(angle_c) * (crawling_local + vec2(-0.09, 0.05));
-    vec2 thorn_d_point = rotate2(angle_d) * (crawling_local + vec2(0.03, 0.02));
+    float halo = smoothstep(0.20, 0.0, abs(local.x)) * smoothstep(1.35, 0.0, abs(abs(local.y) - 0.44));
+    float root_glow = smoothstep(0.10, 0.0, length(vec2(local.x * 3.0, abs(local.y) - 0.02)));
+    alien_growth = max(alien_growth, halo * edge_strength * 0.95);
+    alien_growth = max(alien_growth, root_glow * edge_strength * 0.65);
 
-    float thorn_a = thorn_shape(thorn_a_point, primary_height, primary_width, 0.16, 0.022);
-    float thorn_b = thorn_shape(thorn_b_point, primary_height * (0.72 + hash21(cell_id + 1.6) * 0.22),
-                                primary_width * (0.72 + hash21(cell_id + 4.6) * 0.18), -0.22, -0.018);
-    float thorn_c = thorn_shape(thorn_c_point, primary_height * (0.66 + hash21(cell_id + 7.6) * 0.26),
-                                primary_width * (0.64 + hash21(cell_id + 10.6) * 0.18), 0.24, 0.020);
-    float thorn_d = thorn_shape(thorn_d_point, primary_height * (0.52 + hash21(cell_id + 12.6) * 0.18),
-                                primary_width * (0.52 + hash21(cell_id + 15.6) * 0.12), -0.12, -0.014);
-    float growth_shape = max(max(thorn_a, thorn_b), max(thorn_c, thorn_d));
-    float edge_band = smoothstep(0.0, 0.04, edge_strength) * (1.0 - smoothstep(0.10, 0.42, abs(local.y)));
-    float alien_growth = growth_shape * edge_band * pulse_gate * growth_window * red_focus * 1.65;
-
-    float halo = smoothstep(0.34, 0.0, abs(crawling_local.x)) * smoothstep(1.10, 0.0, abs(crawling_local.y - 0.36));
-    float root_glow = smoothstep(0.16, 0.0, length(vec2(crawling_local.x * 2.2, crawling_local.y - 0.02)));
-    alien_growth = max(alien_growth, halo * edge_strength * pulse_gate * growth_window * 0.82);
-    alien_growth = max(alien_growth, root_glow * edge_strength * pulse_gate * growth_window * 0.52);
+    vec2 tooth_distortion = edge_direction * alien_growth * texel * 16.0;
+    vec2 tooth_uv = clamp(distorted_uv - tooth_distortion, 0.0, 1.0);
+    vec3 tooth_sample = vec3(texture2D(u_texture, clamp(tooth_uv + vec2(chroma * 0.6, 0.0), 0.0, 1.0)).r,
+                             texture2D(u_texture, tooth_uv).g,
+                             texture2D(u_texture, clamp(tooth_uv - vec2(chroma * 0.6, 0.0), 0.0, 1.0)).b);
+    color = mix(color, tooth_sample, clamp(alien_growth * 0.55, 0.0, 1.0));
 
     color += alien_tint * alien_growth * (1.30 + red_energy * 1.55 + edge_strength * 1.45);
     color = mix(color, alien_tint, clamp(alien_growth * 0.88, 0.0, 1.0));
