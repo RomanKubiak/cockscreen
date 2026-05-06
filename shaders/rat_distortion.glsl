@@ -11,6 +11,10 @@ uniform float u_rat_tooth_height_max;
 uniform float u_rat_tooth_base_min;
 uniform float u_rat_tooth_base_max;
 uniform float u_rat_tooth_animation_seconds;
+uniform float u_rat_tooth_fade_in_seconds;
+uniform float u_rat_tooth_fade_out_seconds;
+uniform float u_rat_tooth_fade_start_opacity;
+uniform float u_rat_tooth_fade_end_opacity;
 
 float hash11(float value)
 {
@@ -45,6 +49,46 @@ float saw_tooth_shape(vec2 point, float height, float base_width, float lean)
     vec2 tooth_point = point;
     tooth_point.x += lean * tooth_point.y;
     return triangle_shape(tooth_point, height, base_width);
+}
+
+float saw_blade_tooth_shape(vec2 point, float height, float base_width, float lean, float skew, float tip_shift,
+                            float jaggedness, float seed, float cycle)
+{
+    vec2 tooth_point = point;
+    tooth_point.x += lean * tooth_point.y;
+
+    float y = clamp(tooth_point.y / max(height, 0.0001), 0.0, 1.0);
+    float taper = smoothstep(0.0, 1.0, y);
+    float contour_a = sin(y * 10.0 + seed * 6.28318530718 + cycle * 6.0);
+    float contour_b = sin(y * 27.0 + seed * 13.0 - cycle * 3.25);
+    float contour = (contour_a * 0.18 + contour_b * 0.08) * jaggedness;
+    float center = mix(0.0, tip_shift, taper) + contour * base_width;
+    float trailing_width = mix(base_width * (1.0 + skew), 0.0, taper) * (1.0 + contour * 0.55);
+    float leading_width = mix(base_width * max(0.18, 1.0 - skew * 0.82), 0.0, taper) * (1.0 - contour * 0.35);
+
+    float inside = step(0.0, tooth_point.y) * step(tooth_point.y, height) *
+                   step(center - trailing_width, tooth_point.x) * step(tooth_point.x, center + leading_width);
+
+    float crumble_window = smoothstep(0.10, 0.92, y) * smoothstep(0.24, 0.98, cycle);
+    float crumble_noise = hash11(floor(y * mix(4.0, 11.0, jaggedness) + seed * 17.0 + cycle * 7.0));
+    float crumble = step(0.64, crumble_noise) * crumble_window * jaggedness * 0.72;
+    inside *= 1.0 - crumble;
+
+    return inside;
+}
+
+float tooth_cycle_envelope(float cycle, float fade_in_seconds, float fade_out_seconds, float animation_seconds,
+                           float start_opacity, float end_opacity, float seed, float jaggedness)
+{
+    float fade_in_window = clamp(fade_in_seconds / max(animation_seconds, 0.001), 0.001, 0.5);
+    float fade_out_window = clamp(fade_out_seconds / max(animation_seconds, 0.001), 0.001, 0.5);
+    float fade_in_jitter = mix(0.0, fade_in_window * 0.55, hash11(seed + 71.3) * jaggedness);
+    float fade_out_jitter = mix(0.0, fade_out_window * 0.55, hash11(seed + 82.1) * jaggedness);
+
+    float fade_in = smoothstep(fade_in_jitter, fade_in_jitter + fade_in_window, cycle);
+    float fade_out = 1.0 - smoothstep(1.0 - fade_out_window - fade_out_jitter, 1.0 - fade_out_jitter, cycle);
+    float opacity = mix(clamp(start_opacity, 0.0, 1.0), clamp(end_opacity, 0.0, 1.0), fade_in);
+    return fade_in * fade_out * opacity;
 }
 
 float thorn_shape(vec2 point, float height, float base_width, float lean, float barb_shift)
@@ -99,14 +143,17 @@ void main()
     vec2 edge_direction = normalize(mix(luma_gradient, red_gradient, 0.8) +
                                     vec2(color_dx.r - color_dx.b, color_dy.r - color_dy.b) * 0.18 + vec2(0.0001));
     vec2 centered_px = vec2((uv.x - 0.5) * u_resolution.x, (uv.y - 0.5) * u_resolution.y);
-    vec2 radial_direction = normalize(centered_px + vec2(0.0001));
-    edge_direction *= sign(dot(edge_direction, radial_direction));
-    vec2 tangent = vec2(-edge_direction.y, edge_direction.x);
+    float radius_px = length(centered_px);
+    vec2 radial_direction = centered_px / max(radius_px, 1.0);
+    vec2 tangent = vec2(-radial_direction.y, radial_direction.x);
+    float angle = atan(centered_px.y, centered_px.x);
 
-    vec2 distortion = edge_direction * edge_strength * (0.65 + 0.35 * sin(u_time * 2.2 + uv.y * 18.0)) * texel * 4.5;
+    float angle_seed = hash11(floor((angle + 3.14159265359) / 6.28318530718 * 24.0) + 17.1);
+    vec2 distortion = radial_direction * (0.12 + 0.30 * angle_seed) *
+                      (0.45 + 0.55 * sin(u_time * 1.9 + angle * 5.0 + angle_seed * 6.28318530718)) * texel * 1.8;
     vec2 distorted_uv = clamp(uv - distortion, 0.0, 1.0);
 
-    float chroma = edge_strength * (0.4 + 0.6 * sin(u_time * 2.7 + uv.y * 18.0)) * texel.x * 2.0;
+    float chroma = 0.0;
     vec3 color = vec3(texture2D(u_texture, clamp(distorted_uv + vec2(chroma, 0.0), 0.0, 1.0)).r,
                       texture2D(u_texture, distorted_uv).g,
                       texture2D(u_texture, clamp(distorted_uv - vec2(chroma, 0.0), 0.0, 1.0)).b);
@@ -133,58 +180,97 @@ void main()
     float tooth_base_min = u_rat_tooth_base_min > 0.0 ? u_rat_tooth_base_min : 0.012;
     float tooth_base_max = u_rat_tooth_base_max > tooth_base_min ? u_rat_tooth_base_max : 0.034;
     float tooth_animation_seconds = u_rat_tooth_animation_seconds > 0.01 ? u_rat_tooth_animation_seconds : 3.0;
+    float tooth_fade_in_seconds = u_rat_tooth_fade_in_seconds > 0.0 ? u_rat_tooth_fade_in_seconds : 0.18;
+    float tooth_fade_out_seconds = u_rat_tooth_fade_out_seconds > 0.0 ? u_rat_tooth_fade_out_seconds : 0.32;
+    float tooth_fade_start_opacity = u_rat_tooth_fade_start_opacity;
+    float tooth_fade_end_opacity = u_rat_tooth_fade_end_opacity;
 
     float estimated_rim_radius_px = min(u_resolution.x, u_resolution.y) * 0.28;
     float density_phase = clamp((tooth_density - 1.0) / 23.0, 0.0, 1.0);
-    float tooth_period_px = mix(160.0, 18.0, density_phase);
-    float tooth_track = dot(centered_px, tangent) / tooth_period_px + u_time / tooth_animation_seconds;
-    float tooth_index = floor(tooth_track);
+    float tooth_frequency = mix(6.0, 48.0, density_phase);
+    float tooth_period_px = max((6.28318530718 * estimated_rim_radius_px) / max(tooth_frequency, 1.0), 14.0);
+    float normalized_angle = (angle + 3.14159265359) / 6.28318530718;
+    float angle_track = normalized_angle * tooth_frequency;
+    float tooth_index = floor(angle_track);
+    float tooth_seed = hash11(tooth_index + 3.7);
+    float tooth_slot_jitter = (hash11(tooth_index + 19.7) - 0.5) * mix(0.08, 0.38, density_phase);
+    float tooth_track = angle_track + tooth_slot_jitter + u_time / tooth_animation_seconds;
     float tooth_phase = fract(tooth_track) - 0.5;
-    float projected_radius_px = dot(centered_px, edge_direction);
-    float rim_offset_px = projected_radius_px - estimated_rim_radius_px;
-    float rim_distance_px = max(0.0, rim_offset_px);
+    float rim_offset_px = radius_px - estimated_rim_radius_px;
+    float rim_distance_px = abs(rim_offset_px);
     float rim_distance = rim_distance_px / tooth_period_px;
 
-    float tooth_variation = hash11(tooth_index + 3.7);
-    float tooth_height_px = mix(tooth_height_min_px, tooth_height_max_px, tooth_variation);
-    float tooth_height = tooth_height_px / tooth_period_px;
-    float tooth_base = max(mix(tooth_base_min, tooth_base_max, hash11(tooth_index + 11.7)), 0.18 + tooth_height * 0.24);
-    float tooth_lean = mix(-0.14, 0.14, hash11(tooth_index + 21.7));
+    float tooth_variation = pow(tooth_seed, mix(0.65, 1.85, hash11(tooth_index + 9.3)));
+    float tooth_height_scale = mix(0.45, 1.0, hash11(tooth_index + 15.9));
+    float tooth_height_px = clamp(mix(tooth_height_min_px, tooth_height_max_px, tooth_variation) * tooth_height_scale,
+                                  1.0, max_tooth_height_px);
+    float tooth_jaggedness = mix(0.25, 0.85, hash11(tooth_index + 37.3));
+    float tooth_anim_speed = mix(0.55, 1.75, hash11(tooth_index + 45.1));
+    float tooth_anim_offset = hash11(tooth_index + 52.7);
+    float tooth_cycle = fract(u_time / tooth_animation_seconds * tooth_anim_speed + tooth_anim_offset +
+                              sin(u_time * mix(0.14, 0.38, hash11(tooth_index + 61.1)) + tooth_index * 0.83) * 0.07);
+    float tooth_visibility =
+        tooth_cycle_envelope(tooth_cycle, tooth_fade_in_seconds, tooth_fade_out_seconds, tooth_animation_seconds,
+                             tooth_fade_start_opacity, tooth_fade_end_opacity, tooth_index + 52.7, tooth_jaggedness);
+    tooth_visibility *= mix(0.42, 1.0, tooth_seed);
+    float tooth_height_live = tooth_height_px * mix(0.26, 1.0, tooth_visibility);
+    float tooth_height = tooth_height_live / tooth_period_px;
+    float tooth_base = max(mix(tooth_base_min, tooth_base_max, hash11(tooth_index + 11.7)), 0.12 + tooth_height * 0.18);
+    tooth_base *= mix(0.28, 1.0, tooth_visibility);
+    float tooth_skew = mix(0.34, 0.72, hash11(tooth_index + 17.3));
+    float tooth_lean = -mix(0.04, 0.18, hash11(tooth_index + 21.7));
+    float tooth_tip_shift = -tooth_base * mix(0.18, 0.46, hash11(tooth_index + 29.1));
+    float tooth_phase_jitter = (hash11(tooth_index + 43.9) - 0.5) * mix(0.15, 0.42, tooth_jaggedness);
+    float tooth_radial_jitter_px =
+        (hash11(tooth_index + 58.9) - 0.5) * tooth_height_px * mix(0.08, 0.28, density_phase);
+    rim_offset_px -= tooth_radial_jitter_px;
 
-    vec2 rim_uv = clamp(uv - edge_direction * rim_offset_px * texel, 0.0, 1.0);
+    vec2 rim_uv = clamp(uv - radial_direction * rim_offset_px * texel, 0.0, 1.0);
     vec3 rim_sample_center = texture2D(u_texture, rim_uv).rgb;
     vec3 rim_sample_left = texture2D(u_texture, clamp(rim_uv - tangent * texel * 2.0, 0.0, 1.0)).rgb;
     vec3 rim_sample_right = texture2D(u_texture, clamp(rim_uv + tangent * texel * 2.0, 0.0, 1.0)).rgb;
     float rim_red_focus =
         max(red_dominance(rim_sample_center), max(red_dominance(rim_sample_left), red_dominance(rim_sample_right)));
     rim_red_focus = smoothstep(0.08, 0.55, rim_red_focus);
-    float tooth_anchor = rim_red_focus;
+    float rim_band = 1.0 - smoothstep(0.0, tooth_height_px * 0.65 + 8.0, rim_distance_px);
+    float rim_irregularity = mix(0.55, 1.35, hash11(floor(normalized_angle * tooth_frequency) + 91.7));
+    float tooth_anchor = rim_band;
+    float tooth_color_anchor = max(rim_red_focus, rim_band);
 
-    vec2 tooth_point = vec2(tooth_phase, (rim_distance_px - 1.0) / tooth_period_px);
-    float tooth_body = saw_tooth_shape(tooth_point, tooth_height, tooth_base, tooth_lean);
-    float tooth_outer = saw_tooth_shape(vec2(tooth_phase, (rim_distance_px + 1.5) / tooth_period_px),
-                                        tooth_height * 1.03, tooth_base * 1.08, tooth_lean);
+    vec2 tooth_point = vec2(fract(tooth_phase + tooth_phase_jitter) - 0.5, (rim_distance_px - 1.0) / tooth_period_px);
+    float tooth_body =
+        saw_blade_tooth_shape(tooth_point, tooth_height, tooth_base, tooth_lean, tooth_skew, tooth_tip_shift,
+                              tooth_jaggedness, hash11(tooth_index + 33.7), tooth_cycle);
+    float tooth_outer = saw_blade_tooth_shape(
+        vec2(fract(tooth_phase + tooth_phase_jitter * 0.6) - 0.5, (rim_distance_px + 1.5) / tooth_period_px),
+        tooth_height * 1.03, tooth_base * 1.08, tooth_lean, tooth_skew, tooth_tip_shift * 1.05, tooth_jaggedness,
+        hash11(tooth_index + 33.7), tooth_cycle);
     float growth_shape = tooth_body;
     float tooth_outline = max(tooth_outer - tooth_body, 0.0);
-    float edge_band = tooth_anchor * smoothstep(0.5, 3.0, rim_offset_px) *
-                      (1.0 - smoothstep(2.0, tooth_height_px + 6.0, rim_distance_px));
-    float alien_growth = growth_shape * edge_band * 2.60;
+    float edge_band = tooth_anchor * (1.0 - smoothstep(0.0, tooth_height_px + 6.0, rim_distance_px));
+    float rim_motion = 0.55 + 0.45 * sin(u_time * mix(0.6, 2.1, tooth_jaggedness) + tooth_index * 1.71 +
+                                         tooth_anim_offset * 6.28318530718);
+    float rim_strength = clamp((rim_band * rim_irregularity + tooth_visibility * 0.15) * rim_motion, 0.0, 1.0);
+    float alien_growth = growth_shape * edge_band * 2.60 * tooth_visibility * rim_irregularity;
 
-    vec2 tooth_distortion = edge_direction * alien_growth * texel * (8.0 + tooth_height_px * 0.16);
+    float chroma = rim_strength * (0.25 + 0.55 * tooth_jaggedness) * texel.x * (1.0 + 0.35 * tooth_visibility);
+    vec2 tooth_distortion = radial_direction * rim_strength * texel * (4.5 + tooth_height_px * 0.10);
     vec2 tooth_uv = clamp(distorted_uv - tooth_distortion, 0.0, 1.0);
     vec3 tooth_sample = vec3(texture2D(u_texture, clamp(tooth_uv + vec2(chroma * 0.6, 0.0), 0.0, 1.0)).r,
                              texture2D(u_texture, tooth_uv).g,
                              texture2D(u_texture, clamp(tooth_uv - vec2(chroma * 0.6, 0.0), 0.0, 1.0)).b);
-    color = mix(color, tooth_sample, clamp(alien_growth * 0.55, 0.0, 1.0));
+    color = mix(color, tooth_sample, clamp(rim_strength * 0.20 + alien_growth * 0.12, 0.0, 1.0));
 
-    vec3 tooth_tint = mix(alien_tint, vec3(1.0, 0.0, 0.0), tooth_anchor);
-    vec3 tooth_body_tint = mix(vec3(0.62, 0.0, 0.0), vec3(1.0, 0.05, 0.03), tooth_anchor);
-    vec3 tooth_outline_tint = mix(vec3(0.18, 0.0, 0.0), vec3(0.45, 0.01, 0.01), tooth_anchor);
-    color += tooth_tint * alien_growth * (1.10 + red_energy * 0.85 + tooth_anchor * 1.60);
-    color = mix(color, tooth_outline_tint, clamp(tooth_outline * edge_band * 0.55, 0.0, 1.0));
-    color = mix(color, tooth_body_tint, clamp(tooth_body * edge_band * 0.98, 0.0, 1.0));
-    color = mix(color, tooth_tint, clamp(alien_growth * 0.92, 0.0, 1.0));
+    vec3 tooth_tint = mix(alien_tint, vec3(1.0, 0.0, 0.0), tooth_color_anchor);
+    vec3 tooth_body_tint = mix(vec3(0.62, 0.0, 0.0), vec3(1.0, 0.05, 0.03), tooth_color_anchor);
+    vec3 tooth_outline_tint = mix(vec3(0.18, 0.0, 0.0), vec3(0.45, 0.01, 0.01), tooth_color_anchor);
+    color += tooth_tint * alien_growth * (0.82 + red_energy * 0.55 + tooth_anchor * 1.20);
+    color = mix(color, tooth_outline_tint,
+                clamp(tooth_outline * edge_band * tooth_visibility * (0.72 + 0.18 * tooth_jaggedness), 0.0, 1.0));
+    color = mix(color, tooth_body_tint,
+                clamp(tooth_body * edge_band * tooth_visibility * (0.86 + 0.14 * tooth_jaggedness), 0.0, 1.0));
+    color = mix(color, tooth_tint, clamp(alien_growth * 0.45, 0.0, 1.0));
 
-    color = mix(base.rgb, color, clamp(edge_strength + alien_growth * 0.55, 0.0, 1.0));
+    color = mix(base.rgb, color, clamp(rim_strength + alien_growth * 0.55, 0.0, 1.0));
     gl_FragColor = vec4(clamp(color, 0.0, 1.0), base.a);
 }

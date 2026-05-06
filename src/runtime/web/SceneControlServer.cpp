@@ -9,11 +9,13 @@
 #include <QAudioDevice>
 #include <QCameraDevice>
 #include <QGuiApplication>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QHostAddress>
 #include <QMediaDevices>
+#include <QSaveFile>
 #include <QScreen>
 #include <QTcpSocket>
 #include <QUrl>
@@ -80,6 +82,101 @@ std::filesystem::path preset_root_directory(const std::filesystem::path &scene_f
     }
 
     return scene_file.parent_path();
+}
+
+std::filesystem::path shader_preset_file_path(const std::filesystem::path &shader_directory, std::string_view shader_name)
+{
+    if (shader_directory.empty() || shader_name.empty())
+    {
+        return {};
+    }
+
+    const std::filesystem::path shader_path{std::string{shader_name}};
+    return shader_directory / std::filesystem::path{shader_path.generic_string() + ".preset"};
+}
+
+bool read_json_object_file(const std::filesystem::path &file_path, QJsonObject *object, QString *error_message)
+{
+    if (object == nullptr)
+    {
+        return false;
+    }
+
+    *object = QJsonObject{};
+    if (file_path.empty() || !std::filesystem::exists(file_path))
+    {
+        return true;
+    }
+
+    QFile file{QString::fromStdString(file_path.generic_string())};
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Unable to open preset file %1").arg(file.fileName());
+        }
+        return false;
+    }
+
+    QJsonParseError parse_error;
+    const auto document = QJsonDocument::fromJson(file.readAll(), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isObject())
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Invalid preset file %1").arg(file.fileName());
+        }
+        return false;
+    }
+
+    *object = document.object();
+    return true;
+}
+
+bool write_json_object_file(const std::filesystem::path &file_path, const QJsonObject &object, QString *error_message)
+{
+    if (file_path.empty())
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Preset file path is empty");
+        }
+        return false;
+    }
+
+    std::error_code error;
+    std::filesystem::create_directories(file_path.parent_path(), error);
+    if (error)
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Unable to create preset directory %1")
+                                 .arg(QString::fromStdString(file_path.parent_path().generic_string()));
+        }
+        return false;
+    }
+
+    QSaveFile file{QString::fromStdString(file_path.generic_string())};
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Unable to write preset file %1").arg(file.fileName());
+        }
+        return false;
+    }
+
+    const auto payload = QJsonDocument{object}.toJson(QJsonDocument::Compact);
+    if (file.write(payload) != payload.size() || !file.commit())
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Unable to commit preset file %1").arg(file.fileName());
+        }
+        return false;
+    }
+
+    return true;
 }
 
 std::string relative_path_string(const std::filesystem::path &path, const std::filesystem::path &root)
@@ -297,6 +394,10 @@ constexpr ShaderParameterSpec kRatDistortionParameterSpecs[] = {
     {"u_rat_tooth_base_min", "Tooth min base", "float", 0.005, 0.08, 0.001, 0.012},
     {"u_rat_tooth_base_max", "Tooth max base", "float", 0.006, 0.12, 0.001, 0.034},
     {"u_rat_tooth_animation_seconds", "Tooth animation seconds", "float", 0.15, 12.0, 0.01, 3.0},
+    {"u_rat_tooth_fade_in_seconds", "Tooth fade-in seconds", "float", 0.01, 3.0, 0.01, 0.18},
+    {"u_rat_tooth_fade_out_seconds", "Tooth fade-out seconds", "float", 0.01, 3.0, 0.01, 0.32},
+    {"u_rat_tooth_fade_start_opacity", "Tooth fade start opacity", "float", 0.0, 1.0, 0.01, 0.0},
+    {"u_rat_tooth_fade_end_opacity", "Tooth fade end opacity", "float", 0.0, 1.0, 0.01, 1.0},
 };
 
 double shader_parameter_viewport_height(const SceneDefinition *scene)
@@ -402,6 +503,62 @@ QJsonObject shader_parameters_to_json(const SceneDefinition *scene, const Shader
     return result;
 }
 
+QJsonObject shader_parameter_values_to_json(const SceneDefinition *scene, const ShaderVideoWindow *window)
+{
+    QJsonObject values;
+    if (window == nullptr)
+    {
+        return values;
+    }
+
+    const auto overrides = window->shader_uniform_overrides("rat_distortion.glsl");
+    for (const auto &spec : kRatDistortionParameterSpecs)
+    {
+        const auto it = overrides.find(spec.uniform);
+        const double minimum = shader_parameter_minimum_value(spec, scene);
+        const double maximum = shader_parameter_maximum_value(spec, scene);
+        const double default_value = shader_parameter_default_value(spec, scene);
+        const double value = it != overrides.end() ? std::clamp(static_cast<double>(it->second), minimum, maximum)
+                                                   : default_value;
+        values.insert(QString::fromUtf8(spec.uniform), value);
+    }
+
+    return values;
+}
+
+QJsonObject shader_preset_state_to_json(const std::filesystem::path &shader_directory)
+{
+    QJsonObject result;
+    if (shader_directory.empty())
+    {
+        return result;
+    }
+
+    const auto preset_path = shader_preset_file_path(shader_directory, "rat_distortion.glsl");
+    QJsonObject store;
+    if (!read_json_object_file(preset_path, &store, nullptr))
+    {
+        return result;
+    }
+
+    QJsonArray presets;
+    for (auto it = store.begin(); it != store.end(); ++it)
+    {
+        if (!it.value().isObject())
+        {
+            continue;
+        }
+
+        presets.push_back(QJsonObject{{QStringLiteral("name"), it.key()},
+                                      {QStringLiteral("values"), it.value().toObject()}});
+    }
+
+    result.insert(QStringLiteral("rat_distortion.glsl"),
+                  QJsonObject{{QStringLiteral("file"), QString::fromStdString(preset_path.generic_string())},
+                              {QStringLiteral("presets"), presets}});
+    return result;
+}
+
 bool apply_shader_parameter_values(const QString &shader_name, const QJsonObject &values, const SceneDefinition *scene,
                                    ShaderVideoWindow *window, QString *error_message)
 {
@@ -453,6 +610,51 @@ bool apply_shader_parameter_values(const QString &shader_name, const QJsonObject
         }
 
         window->set_shader_uniform_override(shader_key, spec->uniform, static_cast<float>(value));
+    }
+
+    return true;
+}
+
+bool save_shader_preset_values(const QString &shader_name, const QString &preset_name, const QJsonObject &values,
+                               const SceneDefinition *scene, ShaderVideoWindow *window,
+                               const std::filesystem::path &shader_directory, QString *error_message)
+{
+    const auto shader_key = shader_name.trimmed().toStdString();
+    const auto preset_key = preset_name.trimmed();
+    if (preset_key.isEmpty())
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Preset name cannot be empty");
+        }
+        return false;
+    }
+
+    if (!apply_shader_parameter_values(shader_name, values, scene, window, error_message))
+    {
+        return false;
+    }
+
+    if (!shader_parameter_shader_supported(shader_key))
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("No editable presets are defined for %1").arg(shader_name.trimmed());
+        }
+        return false;
+    }
+
+    const auto preset_path = shader_preset_file_path(shader_directory, shader_key);
+    QJsonObject store;
+    if (!read_json_object_file(preset_path, &store, error_message))
+    {
+        return false;
+    }
+
+    store.insert(preset_key, shader_parameter_values_to_json(scene, window));
+    if (!write_json_object_file(preset_path, store, error_message))
+    {
+        return false;
     }
 
     return true;
@@ -707,6 +909,44 @@ void SceneControlServer::handle_request(QTcpSocket *socket, const HttpRequest &r
         return;
     }
 
+    if (request.method == QStringLiteral("POST") && path == QStringLiteral("/api/shader-presets"))
+    {
+        QJsonParseError parse_error;
+        const auto document = QJsonDocument::fromJson(request.body, &parse_error);
+        if (parse_error.error != QJsonParseError::NoError || !document.isObject())
+        {
+            send_response(socket, 400, QByteArray{"application/json; charset=utf-8"},
+                          QJsonDocument{QJsonObject{{QStringLiteral("ok"), false},
+                                                    {QStringLiteral("error"), QStringLiteral("Invalid JSON payload")}}}
+                              .toJson(QJsonDocument::Compact));
+            return;
+        }
+
+        const auto object = document.object();
+        const auto shader_name = object.value(QStringLiteral("shader")).toString().trimmed();
+        const auto preset_name = object.value(QStringLiteral("presetName")).toString().trimmed();
+        const auto values = object.value(QStringLiteral("values"));
+        if (shader_name.isEmpty() || preset_name.isEmpty() || !values.isObject())
+        {
+            send_response(socket, 400, QByteArray{"application/json; charset=utf-8"},
+                          QJsonDocument{QJsonObject{{QStringLiteral("ok"), false},
+                                                    {QStringLiteral("error"),
+                                                     QStringLiteral("Expected shader, presetName and values object")}}}
+                              .toJson(QJsonDocument::Compact));
+            return;
+        }
+
+        QString error_message;
+        const bool applied = save_shader_preset_values(shader_name, preset_name, values.toObject(), scene_, window_,
+                                                       shader_directory_, &error_message);
+        send_response(socket, applied ? 200 : 400, QByteArray{"application/json; charset=utf-8"},
+                      QJsonDocument{QJsonObject{{QStringLiteral("ok"), applied},
+                                                {QStringLiteral("error"), error_message},
+                                                {QStringLiteral("state"), build_state_object()}}}
+                          .toJson(QJsonDocument::Compact));
+        return;
+    }
+
     if (request.method == QStringLiteral("POST") && path == QStringLiteral("/api/apply"))
     {
         QJsonParseError parse_error;
@@ -912,6 +1152,10 @@ QByteArray SceneControlServer::build_index_html() const
                 .shader-param-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: var(--muted); font-size: 0.9rem; }
                 .shader-param-inputs { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 12px; align-items: center; }
                 .shader-param-inputs input[type="range"] { padding: 0; }
+                .shader-preset-panel { display: grid; gap: 12px; border: 1px solid var(--field-border); border-radius: 12px; padding: 12px; background: #121212; }
+                .shader-preset-panel h4 { margin: 0; font-size: 0.95rem; }
+                .shader-preset-row { display: grid; gap: 6px; }
+                .shader-preset-row input, .shader-preset-row select { min-height: 42px; }
                 .shader-popup-note { margin: 0; color: var(--muted); }
   </style>
 </head>
@@ -1023,6 +1267,37 @@ QByteArray SceneControlServer::build_index_html() const
                 parameter.value = value;
             }
         }
+        function shaderPresetCatalog(shaderName) {
+            return currentState?.shaderPresets?.[shaderName] || { file: '', presets: [] };
+        }
+        function collectShaderParameterValues(shaderName) {
+            const popup = document.getElementById('shaderParamPopup');
+            const values = {};
+            if (!popup) return values;
+
+            for (const row of popup.querySelectorAll('[data-param-uniform]')) {
+                const uniform = row.getAttribute('data-param-uniform');
+                const valueType = row.getAttribute('data-param-type') || 'float';
+                const input = row.querySelector('input[data-role="number"]') || row.querySelector('input[type="range"]');
+                if (!uniform || !input) {
+                    continue;
+                }
+
+                const numeric = Number(input.value);
+                if (!Number.isFinite(numeric)) {
+                    continue;
+                }
+
+                values[uniform] = valueType === 'integer' ? Math.round(numeric) : numeric;
+            }
+
+            return values;
+        }
+        function presetValuesForName(shaderName, presetName) {
+            const presets = shaderPresetCatalog(shaderName).presets || [];
+            const preset = presets.find(entry => entry && entry.name === presetName);
+            return preset?.values || null;
+        }
         async function submitShaderParameter(shaderName, uniformName, rawValue, valueType) {
             const numeric = Number(rawValue);
             if (!Number.isFinite(numeric)) {
@@ -1042,6 +1317,9 @@ QByteArray SceneControlServer::build_index_html() const
                     currentState = result.state || currentState;
                     updateCurrentShaderParameterValue(shaderName, uniformName, value);
                     if (message) message.textContent = 'Parameter applied.';
+                    if (currentShaderPopup && currentShaderPopup.shader === shaderName) {
+                        renderShaderParameterPopup(shaderName, currentShaderPopup.layer);
+                    }
                 } else if (message) {
                     message.textContent = `Update failed: ${result.error || 'unknown error'}`;
                 }
@@ -1063,6 +1341,60 @@ QByteArray SceneControlServer::build_index_html() const
                 await submitShaderParameter(shaderName, uniformName, rawValue, valueType);
             }, delayMs);
             shaderParameterSubmitTimers.set(timerKey, timerId);
+        }
+        async function applyShaderPreset(shaderName, presetName) {
+            if (!presetName) {
+                return;
+            }
+
+            const values = presetValuesForName(shaderName, presetName);
+            if (!values) {
+                const message = document.getElementById('shaderPresetMessage');
+                if (message) message.textContent = 'Preset not found.';
+                return;
+            }
+
+            const response = await fetch('/api/shader-params', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shader: shaderName, values })
+            });
+            const result = await response.json();
+            if (result.ok) {
+                currentState = result.state || currentState;
+                if (currentShaderPopup) {
+                    renderShaderParameterPopup(shaderName, currentShaderPopup.layer);
+                }
+            } else {
+                const message = document.getElementById('shaderPresetMessage');
+                if (message) message.textContent = `Preset load failed: ${result.error || 'unknown error'}`;
+            }
+        }
+        async function saveShaderPreset(shaderName) {
+            const nameInput = document.getElementById('shaderPresetName');
+            const presetName = nameInput?.value?.trim() || '';
+            if (!presetName) {
+                const message = document.getElementById('shaderPresetMessage');
+                if (message) message.textContent = 'Enter a preset name first.';
+                return;
+            }
+
+            const values = collectShaderParameterValues(shaderName);
+            const response = await fetch('/api/shader-presets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shader: shaderName, presetName, values })
+            });
+            const result = await response.json();
+            if (result.ok) {
+                currentState = result.state || currentState;
+                if (currentShaderPopup) {
+                    renderShaderParameterPopup(shaderName, currentShaderPopup.layer);
+                }
+            } else {
+                const message = document.getElementById('shaderPresetMessage');
+                if (message) message.textContent = `Preset save failed: ${result.error || 'unknown error'}`;
+            }
         }
         function wireShaderParameterControls(shaderName) {
             const popup = document.getElementById('shaderParamPopup');
@@ -1098,6 +1430,58 @@ QByteArray SceneControlServer::build_index_html() const
                 number.onchange = () => submitShaderParameter(shaderName, uniform, number.value, valueType);
             }
         }
+        function wireShaderPresetControls(shaderName) {
+            const popup = document.getElementById('shaderParamPopup');
+            if (!popup) return;
+
+            const presetSelect = document.getElementById('shaderPresetSelect');
+            const presetName = document.getElementById('shaderPresetName');
+            const loadButton = document.getElementById('shaderPresetLoad');
+            const saveButton = document.getElementById('shaderPresetSave');
+            const message = document.getElementById('shaderPresetMessage');
+            const catalog = shaderPresetCatalog(shaderName);
+
+            if (!presetSelect) {
+                return;
+            }
+
+            presetSelect.innerHTML = '';
+            const presets = Array.isArray(catalog.presets) ? catalog.presets : [];
+            if (presets.length === 0) {
+                presetSelect.innerHTML = '<option value="">No saved presets</option>';
+                presetSelect.disabled = true;
+                if (loadButton) loadButton.disabled = true;
+            } else {
+                presetSelect.disabled = false;
+                if (loadButton) loadButton.disabled = false;
+                for (const preset of presets) {
+                    const option = document.createElement('option');
+                    option.value = preset.name;
+                    option.textContent = preset.name;
+                    presetSelect.appendChild(option);
+                }
+            }
+
+            if (presetName && presets.length > 0 && !presetName.value.trim()) {
+                presetName.value = presets[0].name;
+            }
+
+            presetSelect.onchange = () => {
+                if (presetName) {
+                    presetName.value = presetSelect.value;
+                }
+                applyShaderPreset(shaderName, presetSelect.value);
+            };
+            if (loadButton) {
+                loadButton.onclick = () => applyShaderPreset(shaderName, presetSelect.value);
+            }
+            if (saveButton) {
+                saveButton.onclick = () => saveShaderPreset(shaderName);
+            }
+            if (message) {
+                message.textContent = catalog.file ? `Preset file: ${catalog.file}` : 'No preset file yet.';
+            }
+        }
         function renderShaderParameterPopup(shaderName, layerName) {
             const popup = document.getElementById('shaderParamPopup');
             if (!popup) return;
@@ -1130,6 +1514,14 @@ QByteArray SceneControlServer::build_index_html() const
                 }).join('')}</div>`;
             }
 
+            const presets = shaderPresetCatalog(shaderName);
+            const presetOptions = (Array.isArray(presets.presets) ? presets.presets : [])
+                .map(preset => `<option value="${escapeHtml(preset.name)}">${escapeHtml(preset.name)}</option>`)
+                .join('');
+            const presetInitialValue = (Array.isArray(presets.presets) && presets.presets.length > 0) ? escapeHtml(presets.presets[0].name) : '';
+            const presetLoadDisabled = !Array.isArray(presets.presets) || presets.presets.length === 0 ? 'disabled' : '';
+            const presetHint = presets.file ? `Preset file: ${escapeHtml(presets.file)}` : 'No preset file yet.';
+
             popup.innerHTML = `
                 <div class="shader-popup-card" role="dialog" aria-modal="true" aria-label="Shader parameters">
                     <div class="shader-popup-header">
@@ -1140,11 +1532,28 @@ QByteArray SceneControlServer::build_index_html() const
                         <button id="shaderParamPopupClose" class="shader-popup-close" type="button">Close</button>
                     </div>
                     ${content}
+                    <div class="shader-preset-panel">
+                        <h4>Presets</h4>
+                        <div class="shader-preset-row">
+                            <label for="shaderPresetSelect">Saved presets</label>
+                            <select id="shaderPresetSelect">${presetOptions || '<option value="">No saved presets</option>'}</select>
+                        </div>
+                        <div class="shader-preset-row">
+                            <label for="shaderPresetName">Preset name</label>
+                            <input id="shaderPresetName" type="text" value="${presetInitialValue}" placeholder="preset name">
+                        </div>
+                        <div class="row">
+                            <button id="shaderPresetLoad" type="button" ${presetLoadDisabled}>Load preset</button>
+                            <button id="shaderPresetSave" type="button">Save current</button>
+                        </div>
+                        <p class="shader-popup-note" id="shaderPresetMessage">${presetHint}</p>
+                    </div>
                     <p class="shader-popup-note" id="shaderParamPopupMessage"></p>
                 </div>`;
             popup.classList.add('visible');
             popup.setAttribute('aria-hidden', 'false');
             wireShaderParameterControls(shaderName);
+            wireShaderPresetControls(shaderName);
         }
         function moveSelectedOptions(sourceId, targetId) {
             const source = document.getElementById(sourceId);
@@ -1555,6 +1964,7 @@ QJsonObject SceneControlServer::build_state_object() const
     object.insert(QStringLiteral("availableShaders"), QJsonArray::fromStringList(available_shader_files()));
     object.insert(QStringLiteral("availableBackgroundFiles"), QJsonArray::fromStringList(available_background_files()));
     object.insert(QStringLiteral("shaderParameters"), shader_parameters_to_json(scene_, window_));
+    object.insert(QStringLiteral("shaderPresets"), shader_preset_state_to_json(shader_directory_));
     object.insert(QStringLiteral("status"),
                   QJsonObject{{QStringLiteral("windowStatus"), window_->status_message()},
                               {QStringLiteral("fatalRenderError"), window_->fatal_render_error()}});
