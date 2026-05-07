@@ -16,7 +16,7 @@ class WaveshareAds1256Monitor final
     WaveshareAds1256Monitor(const WaveshareAds1256Monitor &) = delete;
     WaveshareAds1256Monitor &operator=(const WaveshareAds1256Monitor &) = delete;
 
-    bool start();
+    bool start(bool verbose_debug = false);
     void stop();
 
   private:

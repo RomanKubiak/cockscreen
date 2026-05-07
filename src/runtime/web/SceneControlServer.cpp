@@ -1485,6 +1485,8 @@ QByteArray SceneControlServer::build_index_html() const
         function renderShaderParameterPopup(shaderName, layerName) {
             const popup = document.getElementById('shaderParamPopup');
             if (!popup) return;
+            const previousScrollTop = popup.querySelector('.shader-popup-card')?.scrollTop ?? 0;
+            const previousScrollLeft = popup.querySelector('.shader-popup-card')?.scrollLeft ?? 0;
             const layerEnabled = document.getElementById(`${layerName}Enabled`)?.checked;
             const shaderParameters = currentState?.shaderParameters || {};
             const spec = shaderParameters[shaderName];
@@ -1554,6 +1556,11 @@ QByteArray SceneControlServer::build_index_html() const
             popup.setAttribute('aria-hidden', 'false');
             wireShaderParameterControls(shaderName);
             wireShaderPresetControls(shaderName);
+            const popupCard = popup.querySelector('.shader-popup-card');
+            if (popupCard) {
+                popupCard.scrollTop = previousScrollTop;
+                popupCard.scrollLeft = previousScrollLeft;
+            }
         }
         function moveSelectedOptions(sourceId, targetId) {
             const source = document.getElementById(sourceId);

@@ -9,6 +9,7 @@
 #include "../../include/cockscreen/runtime/OscInputMonitor.hpp"
 #if defined(__linux__) && defined(__aarch64__)
 #include "../../include/cockscreen/runtime/pi/WaveshareAds1256Monitor.hpp"
+#include "../../include/cockscreen/runtime/pi/DisplaySwitch.hpp"
 #endif
 #include "../../include/cockscreen/runtime/Scene.hpp"
 #include "../../include/cockscreen/runtime/ShaderVideoWindow.hpp"
@@ -33,6 +34,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <cstdlib>
 #include <iostream>
@@ -83,6 +85,12 @@ int show_fatal_error_window(QApplication *application, QString message)
 {
     if (application == nullptr)
     {
+        return 2;
+    }
+
+    if (QGuiApplication::screens().isEmpty())
+    {
+        std::cerr << message.toStdString() << '\n';
         return 2;
     }
 
@@ -171,6 +179,29 @@ QString build_audio_peak_overlay_line(const AudioAnalysisWindow &audio_analysis)
     }
 
     return segments.join(QStringLiteral(" | "));
+}
+
+QString raw_video_device_path_for(const std::optional<QCameraDevice> &video_device, const ApplicationSettings &settings)
+{
+    if (video_device.has_value())
+    {
+        QString device_path = QString::fromUtf8(video_device->id());
+        if (device_path.startsWith(QStringLiteral("v4l2:")))
+        {
+            device_path.remove(0, QStringLiteral("v4l2:").size());
+        }
+
+        if (!device_path.isEmpty())
+        {
+            const std::filesystem::path candidate_path{device_path.toStdString()};
+            if (std::filesystem::exists(candidate_path))
+            {
+                return device_path;
+            }
+        }
+    }
+
+    return QString::fromStdString(settings.video_device);
 }
 
 QString build_audio_overlay_text(const AudioAnalysisWindow &audio_analysis, const QString &audio_label)
@@ -504,7 +535,7 @@ int Application::run(int argc, char *argv[])
     if (is_pi_target())
     {
         ads1256_monitor = std::make_unique<WaveshareAds1256Monitor>();
-        if (!ads1256_monitor->start())
+        if (!ads1256_monitor->start(settings_.verbose_debug))
         {
             std::cerr << "[ads1256] analog monitor disabled" << '\n';
             ads1256_monitor.reset();
@@ -536,12 +567,51 @@ int Application::run(int argc, char *argv[])
         QSurfaceFormat::setDefaultFormat(format);
     }
 
+#if defined(__linux__) && defined(__aarch64__)
+    // Write a single-connector KMS config before constructing QApplication.
+    // This works under both vc4-kms-v3d and vc4-fkms-v3d:
+    //   - kms:  required to avoid "No usable crtc/encoder pair" (composite VEC
+    //           shares the same CRTC as HDMI; listing both connectors fails).
+    //           Note: composite GL output does NOT work under kms regardless —
+    //           the VEC has no EGL-capable scanout planes. Switch to fkms for
+    //           accelerated composite.
+    //   - fkms: firmware owns the display mux; single-connector config pins the
+    //           active output correctly and composite GL works at full speed.
+    // Always overwrite — the env var may be inherited from the execv parent but
+    // the preference file may have changed.
+    {
+        const char *connector = pi::preferred_connector_name();
+        std::cout << "[kms] using connector: " << connector << '\n';
+
+        char kms_cfg[256];
+        std::snprintf(kms_cfg, sizeof(kms_cfg), // NOLINT(cppcoreguidelines-pro-type-vararg)
+                      "{\n    \"device\": \"/dev/dri/card0\",\n"
+                      "    \"outputs\": [{ \"name\": \"%s\", \"mode\": \"current\" }]\n}\n",
+                      connector);
+
+        const char *const kTmpPath = "/tmp/cockscreen-kms.json";
+        if (std::FILE *f = std::fopen(kTmpPath, "w")) // NOLINT(cppcoreguidelines-owning-memory)
+        {
+            std::fwrite(kms_cfg, 1, std::strlen(kms_cfg), f);
+            std::fclose(f); // NOLINT(cppcoreguidelines-owning-memory)
+            ::setenv("QT_QPA_EGLFS_KMS_CONFIG", kTmpPath, 1);
+        }
+    }
+#endif
+
     QApplication application{argc, argv};
     application.setApplicationName(QStringLiteral("cockscreen"));
     const auto qt_platform_name = application.platformName().toStdString();
     if (is_pi_target())
     {
         QApplication::setOverrideCursor(Qt::BlankCursor);
+    }
+
+    const bool has_screens = !QGuiApplication::screens().isEmpty();
+    if (!has_screens)
+    {
+        application.setQuitOnLastWindowClosed(false);
+        std::cerr << "[Application] no screens detected; running headless" << '\n';
     }
 
     if (settings_.scene_file.empty())
@@ -653,10 +723,13 @@ int Application::run(int argc, char *argv[])
         return 2;
 #else
         const QString shader_label = shader_label_for(settings_);
+        QString selected_video_label;
+        auto video_device = select_video_input(settings_, &selected_video_label);
+        const QString video_device_path = raw_video_device_path_for(video_device, settings_);
 
         // --- Step 2: start loopback pipeline if configured for the video input.
         LoopbackPipeline loopback_pipeline;
-        std::string effective_video_device = settings_.video_device;
+        std::string effective_video_device = video_device_path.toStdString();
         if (scene.video_input.loopback.enabled)
         {
             QString prereq_error;
@@ -666,7 +739,7 @@ int Application::run(int argc, char *argv[])
                 return 2;
             }
             const bool started = loopback_pipeline.start_for_device(
-                settings_.video_device, settings_.width, settings_.height,
+                video_device_path.toStdString(), settings_.width, settings_.height,
                 scene.video_input.loopback);
             if (started)
             {
@@ -690,11 +763,11 @@ int Application::run(int argc, char *argv[])
 
         DirectVideoWindow window{effective_settings, shader_label, scene.show_status_overlay,
                                  scene.video_input.artifact};
-        if (is_pi_target())
+        if (has_screens && is_pi_target())
         {
             window.showFullScreen();
         }
-        else
+        else if (has_screens)
         {
             window.show();
         }
@@ -709,7 +782,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(window.render_fps(), 0, 'f', 1)
                                          .arg(frame.gain, 0, 'f', 2);
             const QString device_line = QStringLiteral("Video %1 | format %2 | shader %3 | render path %4")
-                                            .arg(QString::fromStdString(settings_.video_device))
+                                            .arg(QString::fromStdString(effective_settings.video_device))
                                             .arg(window.capture_format_label())
                                             .arg(shader_label)
                                             .arg(QString::fromStdString(settings_.render_path));
@@ -740,7 +813,7 @@ int Application::run(int argc, char *argv[])
                                          .arg(window.render_fps(), 0, 'f', 1)
                                          .arg(live_frame.gain, 0, 'f', 2);
             const QString device_line = QStringLiteral("Video %1 | format %2 | shader %3 | render path %4")
-                                            .arg(QString::fromStdString(settings_.video_device))
+                                            .arg(QString::fromStdString(effective_settings.video_device))
                                             .arg(window.capture_format_label())
                                             .arg(shader_label)
                                             .arg(QString::fromStdString(settings_.render_path));
@@ -764,8 +837,8 @@ int Application::run(int argc, char *argv[])
 
         std::cout << "Cockscreen initial scaffold" << '\n';
         std::cout << "Target platform: " << COCKSCREEN_TARGET_PLATFORM << '\n';
-        std::cout << "Video input: " << settings_.video_device << '\n';
-        std::cout << "Video device: " << settings_.video_device << '\n';
+        std::cout << "Video input: " << effective_settings.video_device << '\n';
+        std::cout << "Video device: " << effective_settings.video_device << '\n';
         std::cout << "Video format: " << window.capture_format_label().toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
@@ -793,6 +866,7 @@ int Application::run(int argc, char *argv[])
         QString selected_video_label;
         auto video_device = select_video_input(settings_, &selected_video_label);
         const auto [requested_width, requested_height] = support::requested_video_dimensions(scene);
+        const QString video_device_path = raw_video_device_path_for(video_device, settings_);
 
 #ifndef _WIN32
         // --- Step 2: start video-layer loopback pipeline if configured.
@@ -805,7 +879,7 @@ int Application::run(int argc, char *argv[])
                 // Sender-only: GStreamer encodes → RTP → UDP.  This app
                 // receives via appsink (no v4l2loopback device needed).
                 const bool started = qt_video_loopback.start_for_device(
-                    settings_.video_device, requested_width, requested_height,
+                    video_device_path.toStdString(), requested_width, requested_height,
                     scene.video_input.loopback);
                 if (!started)
                 {
@@ -815,11 +889,13 @@ int Application::run(int argc, char *argv[])
                 }
                 // Give the sender ~200 ms to start emitting RTP packets.
                 QThread::msleep(200);
-                appsink_capture.start(scene.video_input.loopback.udp_port, nullptr,
-                                      LoopbackPipeline::uses_h264());
-                // video_device stays set so ShaderVideoWindow opens the
-                // real camera; we override its video_sink_ via video_sink_ptr()
-                // after construction below.
+                if (!appsink_capture.start(scene.video_input.loopback.udp_port, nullptr,
+                                           LoopbackPipeline::uses_h264(), settings_.verbose_debug))
+                {
+                    std::cerr << "Video appsink receiver: " << appsink_capture.status_message().toStdString() << "\n";
+                    return 2;
+                }
+                // The shader window will attach its sink after construction below.
                 selected_video_label =
                     QStringLiteral("appsink:udp:%1").arg(scene.video_input.loopback.udp_port);
             }
@@ -832,7 +908,7 @@ int Application::run(int argc, char *argv[])
                     return 2;
                 }
                 const bool started = qt_video_loopback.start_for_device(
-                    settings_.video_device, requested_width, requested_height,
+                    video_device_path.toStdString(), requested_width, requested_height,
                     scene.video_input.loopback);
 
                 if (started)
@@ -880,8 +956,8 @@ int Application::run(int argc, char *argv[])
         const QString top_layer_name = effective_top_layer_name(scene, video_on_top);
         const bool show_status_overlay = scene.show_status_overlay;
 
-        ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
-                     camera_format_text, video_on_top, show_status_overlay};
+        ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), video_device_path,
+                                 selected_video_label, camera_format_text, video_on_top, show_status_overlay};
         if (!window.fatal_render_error().isEmpty())
         {
             std::cerr << window.fatal_render_error().toStdString() << '\n';
@@ -892,8 +968,12 @@ int Application::run(int argc, char *argv[])
         if (scene.video_input.loopback.enabled && scene.video_input.loopback.use_appsink)
         {
             appsink_capture.stop();
-            appsink_capture.start(scene.video_input.loopback.udp_port, window.video_sink_ptr(),
-                                  LoopbackPipeline::uses_h264());
+            if (!appsink_capture.start(scene.video_input.loopback.udp_port, window.video_sink_ptr(),
+                                       LoopbackPipeline::uses_h264(), settings_.verbose_debug))
+            {
+                std::cerr << "Video appsink receiver: " << appsink_capture.status_message().toStdString() << "\n";
+                return 2;
+            }
             std::cout << "[appsink] " << appsink_capture.status_message().toStdString() << '\n';
         }
 #endif
@@ -908,7 +988,8 @@ int Application::run(int argc, char *argv[])
                                           scene.resources_directory,
                                           std::filesystem::path{settings_.shader_directory},
                                           web_device_info,
-                                          settings_.scene_file_is_read_only};
+                                          settings_.scene_file_is_read_only,
+                                          argc, argv};
         if (web_server_bind.has_value())
         {
             if (control_server.start(web_server_bind->address, web_server_bind->port))
@@ -922,11 +1003,11 @@ int Application::run(int argc, char *argv[])
                 return 2;
             }
         }
-        if (is_pi_target())
+        if (has_screens && is_pi_target())
         {
             window.showFullScreen();
         }
-        else
+        else if (has_screens)
         {
             window.show();
         }
@@ -1045,11 +1126,11 @@ int Application::run(int argc, char *argv[])
 
     VideoWindow window{settings_, video_device.value_or(QCameraDevice{}), selected_video_label, camera_format_text,
                        video_shader_label, show_status_overlay};
-    if (is_pi_target())
+    if (has_screens && is_pi_target())
     {
         window.showFullScreen();
     }
-    else
+    else if (has_screens)
     {
         window.show();
     }

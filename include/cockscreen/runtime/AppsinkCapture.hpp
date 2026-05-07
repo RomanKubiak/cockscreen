@@ -34,7 +34,8 @@ class AppsinkCapture
     // Start the GStreamer appsink pipeline listening on udp_port.
     // use_h264: true → expect H.264 RTP (pt=96); false → expect MJPEG RTP (pt=26).
     // sink must remain valid for the lifetime of AppsinkCapture.
-    [[nodiscard]] bool start(int udp_port, QVideoSink *sink, bool use_h264 = true);
+    [[nodiscard]] bool start(int udp_port, QVideoSink *sink, bool use_h264 = true,
+                             bool verbose_debug = false);
 
     void stop();
 
@@ -46,6 +47,7 @@ class AppsinkCapture
     bool thread_started_{false};
     std::atomic<bool> running_{false};
     QString status_message_;
+    bool verbose_debug_{false};
 };
 
 } // namespace cockscreen::runtime

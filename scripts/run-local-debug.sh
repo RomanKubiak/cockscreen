@@ -11,4 +11,4 @@ if [[ -n "$existing_pids" ]]; then
 	kill $existing_pids 2>/dev/null || true
 fi
 
-exec sudo "$binary" "$@"
+exec sudo "$binary" --enable-web-server http://0.0.0.0:8080 "$@"

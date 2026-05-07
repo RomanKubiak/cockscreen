@@ -1,10 +1,14 @@
 #include "cockscreen/runtime/ShaderVideoWindow.hpp"
 
 #include "cockscreen/runtime/ArtifactInjector.hpp"
+#include "cockscreen/runtime/V4l2Capture.hpp"
 #include "cockscreen/runtime/shadervideo/Support.hpp"
 
 #include <QColor>
+#include <QFont>
+#include <QFontDatabase>
 #include <QImage>
+#include <QVideoFrameFormat>
 #include <QOpenGLFramebufferObjectFormat>
 #include <QPainter>
 #include <QPoint>
@@ -18,38 +22,328 @@ namespace cockscreen::runtime
 
 namespace helper = shader_window;
 
-void ShaderVideoWindow::handle_frame(const QVideoFrame &frame)
+namespace
+{
+
+inline unsigned char clamp_byte(int value)
+{
+    return static_cast<unsigned char>(std::clamp(value, 0, 255));
+}
+
+inline void write_rgba_pixel(uchar *pixel, int red, int green, int blue)
+{
+    pixel[0] = clamp_byte(red);
+    pixel[1] = clamp_byte(green);
+    pixel[2] = clamp_byte(blue);
+    pixel[3] = 255;
+}
+
+inline void yuv_to_rgb(int y, int u, int v, int *red, int *green, int *blue)
+{
+    const int c = y - 16;
+    const int d = u - 128;
+    const int e = v - 128;
+    *red = (298 * c + 409 * e + 128) >> 8;
+    *green = (298 * c - 100 * d - 208 * e + 128) >> 8;
+    *blue = (298 * c + 516 * d + 128) >> 8;
+}
+
+bool image_looks_blank(const QImage &image)
+{
+    if (image.isNull())
+    {
+        return true;
+    }
+
+    const QImage rgba = image.format() == QImage::Format_RGBA8888 ? image : image.convertToFormat(QImage::Format_RGBA8888);
+    if (rgba.isNull())
+    {
+        return true;
+    }
+
+    const int sample_step_x = std::max(rgba.width() / 64, 1);
+    const int sample_step_y = std::max(rgba.height() / 36, 1);
+    int sample_count = 0;
+    int bright_samples = 0;
+    int total_luma = 0;
+
+    for (int y = 0; y < rgba.height(); y += sample_step_y)
+    {
+        const uchar *row = rgba.constScanLine(y);
+        for (int x = 0; x < rgba.width(); x += sample_step_x)
+        {
+            const uchar *pixel = row + x * 4;
+            const int luma = (pixel[0] * 2126 + pixel[1] * 7152 + pixel[2] * 722) / 10000;
+            total_luma += luma;
+            if (luma > 24)
+            {
+                ++bright_samples;
+            }
+            ++sample_count;
+        }
+    }
+
+    if (sample_count == 0)
+    {
+        return true;
+    }
+
+    const double average_luma = static_cast<double>(total_luma) / static_cast<double>(sample_count);
+    return average_luma < 12.0 && bright_samples == 0;
+}
+
+QImage frame_to_rgba8888(const QVideoFrame &frame)
 {
     if (!frame.isValid())
     {
-        return;
+        return {};
     }
 
-    const QImage image = frame.toImage();
+    if (const QImage direct = frame.toImage(); !direct.isNull())
+    {
+        return direct.convertToFormat(QImage::Format_RGBA8888);
+    }
+
+    QVideoFrame mapped{frame};
+    if (!mapped.map(QVideoFrame::ReadOnly))
+    {
+        return {};
+    }
+
+    const auto pixel_format = mapped.pixelFormat();
+    const auto image_format = QVideoFrameFormat::imageFormatFromPixelFormat(pixel_format);
+    if (image_format != QImage::Format_Invalid)
+    {
+        const QImage wrapped{mapped.bits(0), mapped.width(), mapped.height(), mapped.bytesPerLine(0), image_format};
+        const QImage converted = wrapped.copy().convertToFormat(QImage::Format_RGBA8888);
+        mapped.unmap();
+        return converted;
+    }
+
+    if (pixel_format == QVideoFrameFormat::Format_YUYV || pixel_format == QVideoFrameFormat::Format_UYVY)
+    {
+        QImage converted{mapped.width(), mapped.height(), QImage::Format_RGBA8888};
+        if (converted.isNull())
+        {
+            mapped.unmap();
+            return {};
+        }
+
+        const int width = mapped.width();
+        const int height = mapped.height();
+        const int stride = mapped.bytesPerLine(0);
+        const uchar *source = mapped.bits(0);
+
+        for (int y = 0; y < height; ++y)
+        {
+            const uchar *row = source + y * stride;
+            uchar *dst = converted.scanLine(y);
+            for (int x = 0; x < width; x += 2)
+            {
+                int y0 = 0;
+                int y1 = 0;
+                int u = 0;
+                int v = 0;
+
+                if (pixel_format == QVideoFrameFormat::Format_YUYV)
+                {
+                    y0 = row[0];
+                    u = row[1];
+                    y1 = row[2];
+                    v = row[3];
+                }
+                else
+                {
+                    u = row[0];
+                    y0 = row[1];
+                    v = row[2];
+                    y1 = row[3];
+                }
+
+                int red = 0;
+                int green = 0;
+                int blue = 0;
+                yuv_to_rgb(y0, u, v, &red, &green, &blue);
+                write_rgba_pixel(dst, red, green, blue);
+
+                if (x + 1 < width)
+                {
+                    yuv_to_rgb(y1, u, v, &red, &green, &blue);
+                    write_rgba_pixel(dst + 4, red, green, blue);
+                }
+
+                row += 4;
+                dst += 8;
+            }
+        }
+
+        mapped.unmap();
+        return converted;
+    }
+
+    mapped.unmap();
+    return {};
+}
+
+#ifndef _WIN32
+QImage frame_to_rgba8888(const V4l2FrameView &frame)
+{
+    if (frame.data == nullptr || frame.width <= 0 || frame.height <= 0)
+    {
+        return {};
+    }
+
+    if (frame.pixel_format == V4l2PixelFormat::rgb24)
+    {
+        const QImage wrapped{frame.data, frame.width, frame.height, frame.stride, QImage::Format_RGB888};
+        return wrapped.copy().convertToFormat(QImage::Format_RGBA8888);
+    }
+
+    if (frame.pixel_format == V4l2PixelFormat::bgr24)
+    {
+        const QImage wrapped{frame.data, frame.width, frame.height, frame.stride, QImage::Format_BGR888};
+        return wrapped.copy().convertToFormat(QImage::Format_RGBA8888);
+    }
+
+    if (frame.pixel_format == V4l2PixelFormat::yuyv || frame.pixel_format == V4l2PixelFormat::uyvy)
+    {
+        QImage converted{frame.width, frame.height, QImage::Format_RGBA8888};
+        if (converted.isNull())
+        {
+            return {};
+        }
+
+        const int width = frame.width;
+        const int height = frame.height;
+        const int stride = frame.stride;
+        const auto *source = reinterpret_cast<const uchar *>(frame.data);
+
+        for (int y = 0; y < height; ++y)
+        {
+            const uchar *row = source + y * stride;
+            uchar *dst = converted.scanLine(y);
+            for (int x = 0; x < width; x += 2)
+            {
+                int y0 = 0;
+                int y1 = 0;
+                int u = 0;
+                int v = 0;
+
+                if (frame.pixel_format == V4l2PixelFormat::yuyv)
+                {
+                    y0 = row[0];
+                    u = row[1];
+                    y1 = row[2];
+                    v = row[3];
+                }
+                else
+                {
+                    u = row[0];
+                    y0 = row[1];
+                    v = row[2];
+                    y1 = row[3];
+                }
+
+                int red = 0;
+                int green = 0;
+                int blue = 0;
+                yuv_to_rgb(y0, u, v, &red, &green, &blue);
+                write_rgba_pixel(dst, red, green, blue);
+
+                if (x + 1 < width)
+                {
+                    yuv_to_rgb(y1, u, v, &red, &green, &blue);
+                    write_rgba_pixel(dst + 4, red, green, blue);
+                }
+
+                row += 4;
+                dst += 8;
+            }
+        }
+
+        return converted;
+    }
+
+    return {};
+}
+#endif
+
+} // namespace
+
+QImage ShaderVideoWindow::build_no_signal_frame(int width, int height)
+{
+    QImage image{width, height, QImage::Format_RGBA8888};
+    if (image.isNull())
+    {
+        return {};
+    }
+
+    image.fill(QColor{0, 0, 0});
+
+    QPainter painter{&image};
+    painter.setRenderHint(QPainter::Antialiasing, false);
+
+    const int bar_height = std::max(height * 2 / 3, 1);
+    const int bar_width = std::max(width / 7, 1);
+    const QColor bars[] = {
+        QColor{235, 235, 235},
+        QColor{235, 235, 0},
+        QColor{0, 235, 235},
+        QColor{0, 235, 0},
+        QColor{235, 0, 235},
+        QColor{235, 0, 0},
+        QColor{0, 0, 235},
+    };
+
+    for (int index = 0; index < 7; ++index)
+    {
+        painter.fillRect(index * bar_width, 0, index == 6 ? width - index * bar_width : bar_width, bar_height,
+                         bars[index]);
+    }
+
+    painter.fillRect(0, bar_height, width, std::max(height / 12, 1), QColor{32, 32, 32});
+    painter.fillRect(0, bar_height + std::max(height / 12, 1), width, height - bar_height,
+                     QColor{8, 8, 8});
+
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    font.setBold(true);
+    font.setPointSize(std::max(height / 12, 18));
+    painter.setFont(font);
+    painter.setPen(QColor{255, 255, 255});
+    painter.drawText(image.rect(), Qt::AlignCenter, QStringLiteral("NO SIGNAL"));
+
+    font.setBold(false);
+    font.setPointSize(std::max(height / 28, 11));
+    painter.setFont(font);
+    painter.setPen(QColor{220, 220, 220});
+    const QRect info_rect{0, bar_height + std::max(height / 16, 1), width, std::max(height / 4, 1)};
+    painter.drawText(info_rect, Qt::AlignHCenter | Qt::AlignTop,
+                     QStringLiteral("raw V4L2 capture is active, but no frames have arrived yet"));
+    return image;
+}
+
+void ShaderVideoWindow::handle_frame(const QVideoFrame &frame)
+{
+    const QImage image = frame_to_rgba8888(frame);
     if (image.isNull())
     {
         return;
     }
 
-    latest_frame_ = image.convertToFormat(QImage::Format_RGBA8888);
+    latest_frame_ = image;
     texture_dirty_ = true;
     update();
 }
 
 void ShaderVideoWindow::handle_playback_frame(const QVideoFrame &frame)
 {
-    if (!frame.isValid())
-    {
-        return;
-    }
-
-    const QImage image = frame.toImage();
+    const QImage image = frame_to_rgba8888(frame);
     if (image.isNull())
     {
         return;
     }
 
-    latest_playback_frame_ = image.convertToFormat(QImage::Format_RGBA8888);
+    latest_playback_frame_ = image;
     playback_texture_dirty_ = true;
     update();
 }
@@ -360,6 +654,64 @@ void ShaderVideoWindow::ensure_scene_fbos()
 
 void ShaderVideoWindow::upload_latest_frame()
 {
+#ifndef _WIN32
+    if (raw_video_capture_active_)
+    {
+        bool received_frame = false;
+        const auto raw_frame = raw_video_capture_.dequeue();
+        if (raw_frame.has_value())
+        {
+            const QImage image = frame_to_rgba8888(*raw_frame);
+            raw_video_capture_.release();
+            if (!image.isNull())
+            {
+                if (image_looks_blank(image))
+                {
+                    ++raw_video_blank_frame_count_;
+                    if (raw_video_blank_frame_count_ >= 12)
+                    {
+                        latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
+                        texture_dirty_ = true;
+                        raw_video_placeholder_shown_ = true;
+                        if (status_message_.isEmpty())
+                        {
+                            status_message_ = QStringLiteral("Analog input appears blank");
+                        }
+                        received_frame = true;
+                    }
+                }
+                else
+                {
+                    raw_video_blank_frame_count_ = 0;
+                    latest_frame_ = image;
+                    texture_dirty_ = true;
+                    raw_video_frame_received_ = true;
+                    raw_video_placeholder_shown_ = false;
+                    received_frame = true;
+                    if (status_message_ == QStringLiteral("No raw video frames yet") ||
+                        status_message_ == QStringLiteral("Analog input appears blank"))
+                    {
+                        status_message_.clear();
+                    }
+                }
+            }
+        }
+
+        if (!received_frame && !raw_video_frame_received_ &&
+            std::chrono::steady_clock::now() - raw_video_capture_start_time_ > std::chrono::milliseconds{1500} &&
+            latest_frame_.isNull() && !raw_video_placeholder_shown_)
+        {
+            latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
+            texture_dirty_ = true;
+            raw_video_placeholder_shown_ = true;
+            if (status_message_.isEmpty())
+            {
+                status_message_ = QStringLiteral("No raw video frames yet");
+            }
+        }
+    }
+#endif
+
     if (latest_frame_.isNull() || !texture_dirty_)
     {
         return;

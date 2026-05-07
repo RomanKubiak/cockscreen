@@ -3,13 +3,13 @@
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     /* Background image object form supports file + placement. */
-    "background_image": {
-        "file": "textures/masazer.jpg",
-        /* Parser accepts centered as an alias for center. */
-        "placement": "centered"
-    },
+    //"background_image": {
+    //   "file": "textures/masazer.jpg",
+    /* Parser accepts centered as an alias for center. */
+    // "placement": "centered"
+    //}, 
     "shader_directory": "../shaders/",
-    "render_path": "qt-shader",
+    "render_path": "v4l2-dmabuf-egl",
     "geometry": {
         "width": 1024,
         "height": 600
@@ -17,10 +17,10 @@
     "inputs": {
         "video": {
             "enabled": true,
-            "device": "/dev/video1",
+            "device": "/dev/video0",
             "format": "qvga",
-            "scale": 0.25,
-            "on_top": false,
+            "scale": 1.0,
+            "on_top": true,
             "position": {
                 "x": 0.5,
                 "y": 0.5
@@ -50,11 +50,11 @@
             "a": 1.0
         },
         "audio": {
-            "enabled": true,
+            "enabled": false,
             "device": "PCM2902 Audio Codec"
         },
         "midi": {
-            "enabled": true,
+            "enabled": false,
             "device": "SQ-1"
         }
     },
@@ -68,22 +68,15 @@
     /* Enabled layer + ordered shader chain per compositing stage. */
     "video": {
         "enabled": true,
-        "shaders": [
-            "pink_key.glsl",
-            "video_sphere.glsl"
-        ]
+        "shaders": []
     },
     "playback": {
         "enabled": false,
-        "shaders": [
-            "pixelize_loop.glsl"
-        ]
+        "shaders": []
     },
     "screen": {
         "enabled": true,
-        "shaders": [
-            "kaleidoscope.glsl"
-        ]
+        "shaders": []
     },
     /* Compositing order from back to front. */
     "layer_order": [

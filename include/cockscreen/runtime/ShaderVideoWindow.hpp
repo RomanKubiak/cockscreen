@@ -43,6 +43,7 @@
 #include "AppsinkCapture.hpp"
 #include "LoopbackCapture.hpp"
 #include "LoopbackPipeline.hpp"
+#include "V4l2Capture.hpp"
 #endif
 #include "Scene.hpp"
 #include "RuntimeHelpers.hpp"
@@ -56,7 +57,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 {
   public:
     explicit ShaderVideoWindow(const ApplicationSettings &settings, SceneDefinition scene, QCameraDevice video_device,
-                               QString video_label, QString format_label, bool video_on_top,
+                               QString video_device_path, QString video_label, QString format_label, bool video_on_top,
                                bool show_status_overlay,
                                QWidget *parent = nullptr);
     ~ShaderVideoWindow() override;
@@ -116,6 +117,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_background_texture();
     void upload_latest_frame();
     void upload_latest_playback_frame();
+    static QImage build_no_signal_frame(int width, int height);
     QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const;
     void record_fatal_render_error(QString text);
     void build_render_stages();
@@ -168,6 +170,14 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString fatal_render_error_;
     QString status_overlay_text_;
     StatusOverlay *fatal_error_overlay_{nullptr};
+  #ifndef _WIN32
+    V4l2Capture raw_video_capture_;
+    bool raw_video_capture_active_{false};
+    bool raw_video_frame_received_{false};
+    bool raw_video_placeholder_shown_{false};
+    int raw_video_blank_frame_count_{0};
+    std::chrono::steady_clock::time_point raw_video_capture_start_time_{std::chrono::steady_clock::now()};
+  #endif
     QOpenGLShaderProgram video_program_;
     QOpenGLShaderProgram screen_program_;
     QOpenGLShaderProgram blit_program_;

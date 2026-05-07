@@ -172,8 +172,9 @@ struct WaveshareAds1256Monitor::Impl
         close_all();
     }
 
-    bool start()
+    bool start(bool verbose_debug = false)
     {
+        verbose_debug_ = verbose_debug;
         stop_requested_.store(false, std::memory_order_release);
 
         if (thread_.joinable())
@@ -188,12 +189,14 @@ struct WaveshareAds1256Monitor::Impl
 
         if (!open_mux_gpio())
         {
-            std::cerr << "[ads1256] CD74HC4067 support not active; falling back to AD0 only" << '\n';
+            if (verbose_debug_)
+                std::cerr << "[ads1256] CD74HC4067 support not active; falling back to AD0 only" << '\n';
         }
 
         if (!open_gate_gpio())
         {
-            std::cerr << "[ads1256] gate input support not active" << '\n';
+            if (verbose_debug_)
+                std::cerr << "[ads1256] gate input support not active" << '\n';
         }
 
         if (!initialize_adc())
@@ -204,12 +207,12 @@ struct WaveshareAds1256Monitor::Impl
         std::cout << "[ads1256] monitoring AD" << channel_ << " via " << spi_device_path_ << " (VREF="
                   << std::fixed << std::setprecision(2) << vref_volts_ << " V, period="
                   << sample_period_.count() << " ms)" << '\n';
-        if (mux_enabled_)
+        if (verbose_debug_ && mux_enabled_)
         {
             std::cout << "[ads1256] CD74HC4067 active on AD0 using BCM5/BCM6/BCM13/BCM26, scanning "
                       << mux_channel_count_ << " channels" << '\n';
         }
-        if (gate_input_fd_ >= 0)
+        if (verbose_debug_ && gate_input_fd_ >= 0)
         {
             std::cout << "[ads1256] gate inputs active on BCM16/BCM19/BCM20" << '\n';
         }
@@ -626,7 +629,8 @@ struct WaveshareAds1256Monitor::Impl
                 }
 
                 const double voltage = raw_to_voltage(raw);
-                std::cout << format_voltage_line("mux", mux_channel, voltage, raw) << '\n' << std::flush;
+                if (verbose_debug_)
+                    std::cout << format_voltage_line("mux", mux_channel, voltage, raw) << '\n' << std::flush;
             }
 
             return true;
@@ -639,7 +643,8 @@ struct WaveshareAds1256Monitor::Impl
         }
 
         const double voltage = raw_to_voltage(raw);
-        std::cout << format_voltage_line("", channel_, voltage, raw) << '\n' << std::flush;
+        if (verbose_debug_)
+            std::cout << format_voltage_line("", channel_, voltage, raw) << '\n' << std::flush;
         return true;
     }
 
@@ -660,7 +665,8 @@ struct WaveshareAds1256Monitor::Impl
         {
             last_gate_values_ = values;
             have_last_gate_values_ = true;
-            std::cout << format_gate_line(values) << '\n' << std::flush;
+            if (verbose_debug_)
+                std::cout << format_gate_line(values) << '\n' << std::flush;
         }
     }
 
@@ -751,6 +757,7 @@ struct WaveshareAds1256Monitor::Impl
     std::chrono::milliseconds sample_period_{1000};
     bool mux_enabled_{false};
     bool have_last_gate_values_{false};
+    bool verbose_debug_{false};
     std::atomic<bool> stop_requested_{false};
     std::thread thread_;
 };
@@ -762,9 +769,9 @@ WaveshareAds1256Monitor::~WaveshareAds1256Monitor()
     stop();
 }
 
-bool WaveshareAds1256Monitor::start()
+bool WaveshareAds1256Monitor::start(bool verbose_debug)
 {
-    return impl_ != nullptr && impl_->start();
+    return impl_ != nullptr && impl_->start(verbose_debug);
 }
 
 void WaveshareAds1256Monitor::stop()

@@ -92,6 +92,7 @@ if(NOT WIN32)
             src/runtime/v4l2/Buffers.cpp
             src/runtime/v4l2/Capture.cpp
             src/runtime/v4l2/Formats.cpp
+            src/runtime/pi/DisplaySwitch.cpp
     )
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")

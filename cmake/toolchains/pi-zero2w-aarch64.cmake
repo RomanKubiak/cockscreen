@@ -74,6 +74,11 @@ set(ENV{PKG_CONFIG_LIBDIR}
     "${CMAKE_SYSROOT}/usr/lib/${_cockscreen_target_triplet}/pkgconfig:${CMAKE_SYSROOT}/usr/lib/pkgconfig:${CMAKE_SYSROOT}/usr/share/pkgconfig")
 set(ENV{PKG_CONFIG_PATH} "")
 
+# Explicitly point CMake at the host pkg-config binary so FindPkgConfig succeeds
+# under cross-compilation (where CMAKE_FIND_ROOT_PATH_MODE_PROGRAM is NEVER).
+# The env vars above ensure it queries the sysroot libraries, not host ones.
+set(PKG_CONFIG_EXECUTABLE "/usr/bin/pkg-config" CACHE FILEPATH "Host pkg-config used for cross-compilation" FORCE)
+
 if(NOT DEFINED QT_HOST_PATH)
     set(QT_HOST_PATH "/usr" CACHE PATH "Host Qt installation used for moc, rcc, and other host tools")
 endif()
