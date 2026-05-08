@@ -73,6 +73,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] QString playback_error_text() const;
     [[nodiscard]] QString playback_status_text() const;
     [[nodiscard]] std::optional<std::uintmax_t> playback_file_size_bytes() const;
+    [[nodiscard]] QImage latest_video_frame_image() const;
 
     // Returns a pointer to the internal QVideoSink so external capture sources
     // (e.g. AppsinkCapture) can push frames directly without going through QCamera.
@@ -170,6 +171,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString fatal_render_error_;
     QString status_overlay_text_;
     StatusOverlay *fatal_error_overlay_{nullptr};
+    bool camera_signal_locked_{false};
+    bool camera_placeholder_shown_{false};
+    std::chrono::steady_clock::time_point camera_capture_start_time_{std::chrono::steady_clock::now()};
   #ifndef _WIN32
     V4l2Capture raw_video_capture_;
     bool raw_video_capture_active_{false};

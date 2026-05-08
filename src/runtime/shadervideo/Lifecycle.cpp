@@ -135,7 +135,6 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                      });
 
     const auto [requested_width, requested_height] = helper::requested_video_dimensions(scene_, settings_);
-
     const bool use_camera_capture = !video_label_.startsWith(QStringLiteral("appsink:")) && !video_device.isNull();
     if (use_camera_capture)
     {
@@ -482,6 +481,11 @@ QString ShaderVideoWindow::playback_status_text() const
 std::optional<std::uintmax_t> ShaderVideoWindow::playback_file_size_bytes() const
 {
     return playback_file_size_bytes_;
+}
+
+QImage ShaderVideoWindow::latest_video_frame_image() const
+{
+    return latest_frame_.copy();
 }
 
 void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)

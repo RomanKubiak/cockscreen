@@ -18,7 +18,7 @@
         "video": {
             "enabled": true,
             "device": "/dev/video0",
-            "format": "qvga",
+            "format": "720x576",
             "scale": 1.0,
             "on_top": true,
             "position": {

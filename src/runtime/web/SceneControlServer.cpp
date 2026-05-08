@@ -7,6 +7,7 @@
 #include "cockscreen/runtime/pi/DisplaySwitch.hpp"
 
 #include <QAudioDevice>
+#include <QBuffer>
 #include <QCameraDevice>
 #include <QGuiApplication>
 #include <QFile>
@@ -870,6 +871,33 @@ void SceneControlServer::handle_request(QTcpSocket *socket, const HttpRequest &r
     {
         send_response(socket, 200, QByteArray{"application/json; charset=utf-8"},
                       QJsonDocument{build_state_object()}.toJson(QJsonDocument::Compact));
+        return;
+    }
+
+    if (request.method == QStringLiteral("GET") && path == QStringLiteral("/api/video-frame.png"))
+    {
+        if (window_ == nullptr)
+        {
+            send_response(socket, 404, QByteArray{"text/plain; charset=utf-8"}, QByteArray{"No video window"});
+            return;
+        }
+
+        const QImage frame = window_->latest_video_frame_image();
+        if (frame.isNull())
+        {
+            send_response(socket, 404, QByteArray{"text/plain; charset=utf-8"}, QByteArray{"No video frame available"});
+            return;
+        }
+
+        QByteArray payload;
+        QBuffer buffer{&payload};
+        if (!buffer.open(QIODevice::WriteOnly) || !frame.save(&buffer, "PNG"))
+        {
+            send_response(socket, 500, QByteArray{"text/plain; charset=utf-8"}, QByteArray{"Failed to encode frame"});
+            return;
+        }
+
+        send_response(socket, 200, QByteArray{"image/png"}, payload);
         return;
     }
 

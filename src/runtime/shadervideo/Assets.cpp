@@ -25,6 +25,8 @@ namespace helper = shader_window;
 namespace
 {
 
+constexpr auto kVideoSignalLockGracePeriod = std::chrono::seconds{4};
+
 inline unsigned char clamp_byte(int value)
 {
     return static_cast<unsigned char>(std::clamp(value, 0, 255));
@@ -328,6 +330,46 @@ void ShaderVideoWindow::handle_frame(const QVideoFrame &frame)
     if (image.isNull())
     {
         return;
+    }
+
+    const bool blank_image = image_looks_blank(image);
+    const bool within_lock_grace = !camera_signal_locked_ &&
+                                   std::chrono::steady_clock::now() - camera_capture_start_time_ <
+                                       kVideoSignalLockGracePeriod;
+
+    if (blank_image && within_lock_grace)
+    {
+        if (!camera_placeholder_shown_)
+        {
+            latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
+            texture_dirty_ = true;
+            camera_placeholder_shown_ = true;
+        }
+
+        if (status_message_.isEmpty() || status_message_ == QStringLiteral("Video capture could not start") ||
+            status_message_ == QStringLiteral("Analog input appears blank"))
+        {
+            status_message_ = QStringLiteral("Waiting for video signal lock");
+        }
+
+        update();
+        return;
+    }
+
+    if (!blank_image)
+    {
+        camera_signal_locked_ = true;
+        camera_placeholder_shown_ = false;
+        if (status_message_ == QStringLiteral("Waiting for video signal lock") ||
+            status_message_ == QStringLiteral("Analog input appears blank"))
+        {
+            status_message_.clear();
+        }
+    }
+    else if (!camera_signal_locked_ &&
+             (status_message_.isEmpty() || status_message_ == QStringLiteral("Waiting for video signal lock")))
+    {
+        status_message_ = QStringLiteral("Analog input appears blank");
     }
 
     latest_frame_ = image;
@@ -699,7 +741,7 @@ void ShaderVideoWindow::upload_latest_frame()
         }
 
         if (!received_frame && !raw_video_frame_received_ &&
-            std::chrono::steady_clock::now() - raw_video_capture_start_time_ > std::chrono::milliseconds{1500})
+            std::chrono::steady_clock::now() - raw_video_capture_start_time_ > kVideoSignalLockGracePeriod)
         {
             if (latest_frame_.isNull() && !raw_video_placeholder_shown_)
             {
