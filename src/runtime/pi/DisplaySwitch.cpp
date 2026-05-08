@@ -1,6 +1,7 @@
 #include "cockscreen/runtime/pi/DisplaySwitch.hpp"
 
 #include <cerrno>
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
@@ -9,6 +10,61 @@
 
 namespace cockscreen::runtime::pi
 {
+
+namespace
+{
+
+struct ConnectorCandidate
+{
+    const char *kms_name;
+    const char *sysfs_status_path;
+};
+
+constexpr std::array<ConnectorCandidate, 2> kConnectorCandidates{{
+    {kHdmiConnectorName, "/sys/class/drm/card0-HDMI-A-1/status"},
+    {kCompositeConnectorName, "/sys/class/drm/card0-Composite-1/status"},
+}};
+
+bool connector_is_connected(const char *status_path)
+{
+    if (status_path == nullptr)
+    {
+        return false;
+    }
+
+    std::FILE *f = std::fopen(status_path, "r"); // NOLINT(cppcoreguidelines-owning-memory)
+    if (f == nullptr)
+    {
+        return false;
+    }
+
+    char buffer[32]{};
+    const auto bytes_read = std::fread(buffer, 1, sizeof(buffer) - 1, f);
+    std::fclose(f); // NOLINT(cppcoreguidelines-owning-memory)
+    buffer[bytes_read] = '\0';
+
+    return std::strncmp(buffer, "connected", std::strlen("connected")) == 0;
+}
+
+const ConnectorCandidate *find_candidate_by_kms_name(const char *kms_name)
+{
+    if (kms_name == nullptr)
+    {
+        return nullptr;
+    }
+
+    for (const auto &candidate : kConnectorCandidates)
+    {
+        if (std::strcmp(candidate.kms_name, kms_name) == 0)
+        {
+            return &candidate;
+        }
+    }
+
+    return nullptr;
+}
+
+} // namespace
 
 const char *preferred_connector_name()
 {
@@ -27,6 +83,26 @@ const char *preferred_connector_name()
     if (std::strcmp(buf, kCompositeConnectorName) == 0)
         return kCompositeConnectorName;
     return kHdmiConnectorName;
+}
+
+const char *startup_connector_name()
+{
+    const char *preferred = preferred_connector_name();
+    if (const auto *preferred_candidate = find_candidate_by_kms_name(preferred);
+        preferred_candidate != nullptr && connector_is_connected(preferred_candidate->sysfs_status_path))
+    {
+        return preferred_candidate->kms_name;
+    }
+
+    for (const auto &candidate : kConnectorCandidates)
+    {
+        if (connector_is_connected(candidate.sysfs_status_path))
+        {
+            return candidate.kms_name;
+        }
+    }
+
+    return nullptr;
 }
 
 DisplaySwitchResult switch_display_output(DisplayOutput output, int argc, char **argv)

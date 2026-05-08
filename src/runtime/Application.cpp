@@ -580,21 +580,28 @@ int Application::run(int argc, char *argv[])
     // Always overwrite — the env var may be inherited from the execv parent but
     // the preference file may have changed.
     {
-        const char *connector = pi::preferred_connector_name();
-        std::cout << "[kms] using connector: " << connector << '\n';
-
-        char kms_cfg[256];
-        std::snprintf(kms_cfg, sizeof(kms_cfg), // NOLINT(cppcoreguidelines-pro-type-vararg)
-                      "{\n    \"device\": \"/dev/dri/card0\",\n"
-                      "    \"outputs\": [{ \"name\": \"%s\", \"mode\": \"current\" }]\n}\n",
-                      connector);
-
-        const char *const kTmpPath = "/tmp/cockscreen-kms.json";
-        if (std::FILE *f = std::fopen(kTmpPath, "w")) // NOLINT(cppcoreguidelines-owning-memory)
+        if (const char *connector = pi::startup_connector_name(); connector != nullptr)
         {
-            std::fwrite(kms_cfg, 1, std::strlen(kms_cfg), f);
-            std::fclose(f); // NOLINT(cppcoreguidelines-owning-memory)
-            ::setenv("QT_QPA_EGLFS_KMS_CONFIG", kTmpPath, 1);
+            std::cout << "[kms] using connector: " << connector << '\n';
+
+            char kms_cfg[256];
+            std::snprintf(kms_cfg, sizeof(kms_cfg), // NOLINT(cppcoreguidelines-pro-type-vararg)
+                          "{\n    \"device\": \"/dev/dri/card0\",\n"
+                          "    \"outputs\": [{ \"name\": \"%s\", \"mode\": \"current\" }]\n}\n",
+                          connector);
+
+            const char *const kTmpPath = "/tmp/cockscreen-kms.json";
+            if (std::FILE *f = std::fopen(kTmpPath, "w")) // NOLINT(cppcoreguidelines-owning-memory)
+            {
+                std::fwrite(kms_cfg, 1, std::strlen(kms_cfg), f);
+                std::fclose(f); // NOLINT(cppcoreguidelines-owning-memory)
+                ::setenv("QT_QPA_EGLFS_KMS_CONFIG", kTmpPath, 1);
+            }
+        }
+        else
+        {
+            std::cerr << "[kms] no connected DRM display connector detected; leaving eglfs KMS config unset" << '\n';
+            ::unsetenv("QT_QPA_EGLFS_KMS_CONFIG");
         }
     }
 #endif

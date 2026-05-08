@@ -31,6 +31,11 @@ constexpr const char *kCompositeConnectorName = "Composite1";
 /// Falls back to HDMI if no preference has been saved.
 const char *preferred_connector_name();
 
+/// Returns the connector name that should be used for startup, preferring the
+/// persisted preference only when that DRM connector is currently connected.
+/// Returns nullptr when no known display connector is connected.
+const char *startup_connector_name();
+
 /// Write the display preference and restart the process via execv.
 /// The calling process will be replaced; this function only returns on error.
 /// argc/argv must be the original values passed to main().

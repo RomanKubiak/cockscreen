@@ -1978,9 +1978,11 @@ QJsonObject SceneControlServer::build_state_object() const
 
     // Display output: current connector preference + active Qt screen geometry
     {
-        const char *connector = pi::preferred_connector_name();
+        const char *connector = pi::startup_connector_name();
         QString output_key;
-        if (std::strcmp(connector, pi::kCompositeConnectorName) == 0)
+        if (connector == nullptr)
+            output_key = QStringLiteral("headless");
+        else if (std::strcmp(connector, pi::kCompositeConnectorName) == 0)
             output_key = QStringLiteral("composite-pal");
         else
             output_key = QStringLiteral("hdmi");
@@ -1999,7 +2001,7 @@ QJsonObject SceneControlServer::build_state_object() const
         }
         object.insert(QStringLiteral("displayOutput"),
                       QJsonObject{{QStringLiteral("current"), output_key},
-                                  {QStringLiteral("connector"), QString::fromUtf8(connector)},
+                                  {QStringLiteral("connector"), connector == nullptr ? QString{} : QString::fromUtf8(connector)},
                                   {QStringLiteral("screen"), screen_info}});
     }
 
