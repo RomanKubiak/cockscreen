@@ -78,9 +78,7 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     : QOpenGLWidget{parent}, settings_{settings}, scene_{std::move(scene)}, video_label_{std::move(video_label)},
       video_on_top_{video_on_top}, show_status_overlay_{show_status_overlay}, camera_format_label_{std::move(format_label)}
 {
-#ifdef _WIN32
     Q_UNUSED(video_device_path);
-#endif
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
     setAutoFillBackground(false);
@@ -138,33 +136,8 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
 
     const auto [requested_width, requested_height] = helper::requested_video_dimensions(scene_, settings_);
 
-#ifndef _WIN32
-    const bool use_raw_capture = !video_label_.startsWith(QStringLiteral("appsink:")) && !video_device.isNull() &&
-                                 !video_device_path.isEmpty();
-    if (use_raw_capture)
-    {
-        latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
-        texture_dirty_ = true;
-        raw_video_placeholder_shown_ = true;
-        status_message_ = QStringLiteral("Waiting for raw video frames");
-
-        if (!raw_video_capture_.open(video_device_path.toStdString(), requested_width, requested_height, true))
-        {
-            status_message_ = QString::fromStdString(raw_video_capture_.error_message());
-        }
-        else if (!raw_video_capture_.start())
-        {
-            status_message_ = QString::fromStdString(raw_video_capture_.error_message());
-        }
-        else
-        {
-            raw_video_capture_active_ = true;
-            raw_video_capture_start_time_ = std::chrono::steady_clock::now();
-            camera_format_label_ = QString::fromStdString(raw_video_capture_.format_label());
-        }
-    }
-#else
-    if (!video_device.isNull())
+    const bool use_camera_capture = !video_label_.startsWith(QStringLiteral("appsink:")) && !video_device.isNull();
+    if (use_camera_capture)
     {
         camera_ = new QCamera{video_device, this};
         if (const auto selected_format = select_camera_format(video_device, requested_width, requested_height);
@@ -179,7 +152,6 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         }
         capture_session_.setCamera(camera_);
     }
-#endif
 
     playback_player_.setVideoSink(&playback_sink_);
 
@@ -348,7 +320,6 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
             0.5F - 0.5F * std::cos(2.0F * audio_analysis::kPi * phase);
     }
 
-#ifdef _WIN32
     if (camera_ != nullptr)
     {
         camera_->start();
@@ -357,17 +328,11 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
             status_message_ = QStringLiteral("Video capture could not start");
         }
     }
-    else if (status_message_.isEmpty() && !(scene_.playback_input.enabled && !scene_.playback_input.file.empty()))
+    else if (status_message_.isEmpty() && !video_label_.startsWith(QStringLiteral("appsink:")) &&
+             !(scene_.playback_input.enabled && !scene_.playback_input.file.empty()))
     {
         status_message_ = QStringLiteral("No video capture device was found");
     }
-#else
-    if (status_message_.isEmpty() && !raw_video_capture_active_ && !video_label_.startsWith(QStringLiteral("appsink:")) &&
-        !(scene_.playback_input.enabled && !scene_.playback_input.file.empty()))
-    {
-        status_message_ = QStringLiteral("No video capture device was found");
-    }
-#endif
 }
 
 ShaderVideoWindow::~ShaderVideoWindow()

@@ -673,7 +673,8 @@ void ShaderVideoWindow::upload_latest_frame()
                         latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
                         texture_dirty_ = true;
                         raw_video_placeholder_shown_ = true;
-                        if (status_message_.isEmpty())
+                        if (status_message_.isEmpty() || status_message_ == QStringLiteral("Waiting for raw video frames") ||
+                            status_message_ == QStringLiteral("No raw video frames yet"))
                         {
                             status_message_ = QStringLiteral("Analog input appears blank");
                         }
@@ -698,13 +699,16 @@ void ShaderVideoWindow::upload_latest_frame()
         }
 
         if (!received_frame && !raw_video_frame_received_ &&
-            std::chrono::steady_clock::now() - raw_video_capture_start_time_ > std::chrono::milliseconds{1500} &&
-            latest_frame_.isNull() && !raw_video_placeholder_shown_)
+            std::chrono::steady_clock::now() - raw_video_capture_start_time_ > std::chrono::milliseconds{1500})
         {
-            latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
-            texture_dirty_ = true;
-            raw_video_placeholder_shown_ = true;
-            if (status_message_.isEmpty())
+            if (latest_frame_.isNull() && !raw_video_placeholder_shown_)
+            {
+                latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
+                texture_dirty_ = true;
+                raw_video_placeholder_shown_ = true;
+            }
+
+            if (status_message_.isEmpty() || status_message_ == QStringLiteral("Waiting for raw video frames"))
             {
                 status_message_ = QStringLiteral("No raw video frames yet");
             }
