@@ -179,6 +179,20 @@ const char *fullscreen_vertex_shader_source()
     attribute vec2 a_position;
     attribute vec2 a_texcoord;
     varying vec2 v_texcoord;
+    void main()
+    {
+        gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+        v_texcoord = a_texcoord;
+    }
+)";
+}
+
+const char *blit_vertex_shader_source()
+{
+    return R"(
+    attribute vec2 a_position;
+    attribute vec2 a_texcoord;
+    varying vec2 v_texcoord;
     uniform float u_rotation;     // radians, positive = clockwise
     uniform vec2  u_pivot;        // NDC pivot point (centre of the quad)
     uniform float u_aspect_ratio; // width / height for isotropic rotation

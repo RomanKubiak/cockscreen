@@ -1022,7 +1022,7 @@ void ShaderVideoWindow::initializeGL()
     build_render_stages();
 
     const QString fullscreen_vertex_shader_source =
-        helper::shader_source_for_current_context(QString::fromUtf8(helper::fullscreen_vertex_shader_source()));
+        helper::shader_source_for_current_context(QString::fromUtf8(helper::blit_vertex_shader_source()));
 
     if (!blit_program_.addShaderFromSourceCode(QOpenGLShader::Vertex, fullscreen_vertex_shader_source) ||
         !blit_program_.addShaderFromSourceCode(

@@ -30,6 +30,7 @@ inline constexpr int kIconAtlasCellSize{256};
 
 const char *vertex_shader_source();
 const char *fullscreen_vertex_shader_source();
+const char *blit_vertex_shader_source();
 const char *passthrough_fragment_shader_source();
 
 QString shadertoy_unsupported_reason(const QString &source);

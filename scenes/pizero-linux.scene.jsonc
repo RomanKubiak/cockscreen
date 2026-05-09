@@ -2,12 +2,6 @@
     /* Raspberry Pi Zero 2 W preset for fullscreen device use. */
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
-    /* Background image object form supports file + placement. */
-    "background_image": {
-        "file": "textures/masazer.jpg",
-        /* Parser accepts centered as an alias for center. */
-        "placement": "centered"
-    },
     "shader_directory": "../shaders/",
     "render_path": "qt-shader",
     "geometry": {
@@ -19,12 +13,14 @@
             "enabled": true,
             "device": "/dev/video1",
             "format": "qvga",
-            "scale": 0.25,
+            "scale": 0.15,
             "on_top": false,
             "position": {
-                "x": 0.5,
-                "y": 0.5
-            }
+                "x": 0.0,
+                "y": 1.8
+            },
+            /* Static base rotation in degrees (positive = clockwise). */
+            "rotation": 20.0
         },
         "playback": {
             "enabled": false,
@@ -58,7 +54,7 @@
             "device": "SQ-1"
         }
     },
-    "show_status_overlay": true,
+    "show_status_overlay": false,
     "timecode": false,
     "pink_key": {
         "audio_algorithm": 0,
@@ -69,8 +65,7 @@
     "video": {
         "enabled": true,
         "shaders": [
-            "pink_key.glsl",
-            "video_sphere.glsl"
+            "rotation_indicator.glsl"
         ]
     },
     "playback": {
@@ -81,9 +76,7 @@
     },
     "screen": {
         "enabled": true,
-        "shaders": [
-            "kaleidoscope.glsl"
-        ]
+        "shaders": []
     },
     /* Compositing order from back to front. */
     "layer_order": [
@@ -143,6 +136,25 @@
             "exponent": 1.0
         }
     ],
+    /*
+     * video_modulation: live modulation sources for the video quad transform.
+     * These are additive on top of the static "rotation" field above.
+     *
+     *   rotation_osc        – OSC address; value [0..1] maps to
+     *                         rotation_osc_min..rotation_osc_max degrees
+     *   rotation_midi_cc    – MIDI CC number (0-127); -1 = disabled
+     *   rotation_midi_channel – 0-based MIDI channel index
+     *   rotation_midi_min/max – degree range for MIDI CC 0..1
+     */
+    "video_modulation": {
+        "rotation_osc": "/cockscreen/video/rotation",
+        "rotation_osc_min": -180.0,
+        "rotation_osc_max": 180.0,
+        "rotation_midi_cc": 20,
+        "rotation_midi_channel": 0,
+        "rotation_midi_min": -180.0,
+        "rotation_midi_max": 180.0
+    },
     /* OSC mappings use address -> uniform translation with min/max/exponent shaping. */
     "osc_mappings": [
         {
