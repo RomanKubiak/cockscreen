@@ -190,7 +190,8 @@ void ShaderVideoWindow::paintGL()
     const QRectF playback_rect = helper::video_display_rect(scene_.playback_input, QSize{width(), height()});
     const QRectF full_rect{0.0, 0.0, static_cast<qreal>(width()), static_cast<qreal>(height())};
 
-    auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity) {
+    auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity,
+                                  float rotation_rad = 0.0F) {
         if (texture == 0 || !blit_program_.isLinked())
         {
             return;
@@ -223,6 +224,14 @@ void ShaderVideoWindow::paintGL()
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         blit_program_.setUniformValue("u_opacity", opacity);
+
+        // Rotation uniforms: pivot is the NDC centre of the quad.
+        const GLfloat pivot_x = (left + right) - 1.0F;
+        const GLfloat pivot_y = (top + bottom) - 1.0F;
+        const GLfloat aspect = static_cast<GLfloat>(width()) / std::max(static_cast<GLfloat>(height()), 1.0F);
+        blit_program_.setUniformValue("u_rotation", rotation_rad);
+        blit_program_.setUniformValue("u_pivot", QVector2D{pivot_x, pivot_y});
+        blit_program_.setUniformValue("u_aspect_ratio", aspect);
 
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         blit_program_.disableAttributeArray("a_position");
@@ -320,12 +329,44 @@ void ShaderVideoWindow::paintGL()
     const bool screen_base_valid = screen_base_texture != 0;
     const GLuint screen_output = render_layer_chain(QStringLiteral("screen"), screen_base_texture, screen_base_valid);
 
+    // Compute the effective video rotation in radians from static scene value + live modulation.
+    float video_rotation_deg = scene_.video_input.rotation;
+    if (!scene_.video_modulation.rotation_osc.empty())
+    {
+        const auto it = frame_.osc_values.find(scene_.video_modulation.rotation_osc);
+        if (it != frame_.osc_values.end())
+        {
+            const float v = std::clamp(it->second, 0.0F, 1.0F);
+            video_rotation_deg += scene_.video_modulation.rotation_osc_min +
+                                  v * (scene_.video_modulation.rotation_osc_max -
+                                       scene_.video_modulation.rotation_osc_min);
+        }
+    }
+    if (scene_.video_modulation.rotation_midi_cc >= 0 &&
+        scene_.video_modulation.rotation_midi_channel >= 0 &&
+        scene_.video_modulation.rotation_midi_channel < static_cast<int>(core::kMidiChannelCount))
+    {
+        const auto index = static_cast<std::size_t>(scene_.video_modulation.rotation_midi_channel) *
+                               core::kMidiCcCount +
+                           static_cast<std::size_t>(scene_.video_modulation.rotation_midi_cc);
+        if (index < frame_.midi_cc_values.size())
+        {
+            const float v = std::clamp(frame_.midi_cc_values[index], 0.0F, 1.0F);
+            video_rotation_deg += scene_.video_modulation.rotation_midi_min +
+                                  v * (scene_.video_modulation.rotation_midi_max -
+                                       scene_.video_modulation.rotation_midi_min);
+        }
+    }
+    const float video_rotation_rad =
+        video_rotation_deg * static_cast<float>(M_PI) / 180.0F;
+
     const auto layer_order = effective_layer_order(scene_, video_on_top_);
     for (const auto &layer_name : layer_order)
     {
         if (layer_name == QStringLiteral("video"))
         {
-            draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
+            draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity,
+                               video_rotation_rad);
             continue;
         }
 

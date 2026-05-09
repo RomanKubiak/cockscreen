@@ -18,6 +18,7 @@ struct SceneInput
     float scale{1.0F};
     float position_x{0.0F};
     float position_y{0.0F};
+    float rotation{0.0F};  // degrees, positive = clockwise
     std::optional<bool> on_top;
     std::int64_t start_ms{0};
     std::int64_t loop_start_ms{0};
@@ -114,6 +115,21 @@ struct OscMapping
     float exponent{1.0F};
 };
 
+// Modulation sources that drive the video quad's transform at runtime.
+// Values are additive on top of SceneInput::rotation / position / scale.
+struct SceneVideoModulation
+{
+    // OSC: float 0..1 at this address is scaled to min..max degrees and added to base rotation
+    std::string rotation_osc;
+    float rotation_osc_min{0.0F};
+    float rotation_osc_max{360.0F};
+    // MIDI CC: controller in [0..127] on given channel (0-based) drives the same range
+    int rotation_midi_cc{-1};      // -1 = disabled
+    int rotation_midi_channel{0};  // 0-based channel index
+    float rotation_midi_min{0.0F};
+    float rotation_midi_max{360.0F};
+};
+
 struct SceneDefinition
 {
     std::filesystem::path source_path;
@@ -139,6 +155,7 @@ struct SceneDefinition
     std::vector<MidiCcMapping> midi_cc_mappings;
     std::vector<MidiNoteMapping> midi_note_mappings;
     std::vector<OscMapping> osc_mappings;
+    SceneVideoModulation video_modulation;
 };
 
 std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path, std::string *error_message = nullptr);

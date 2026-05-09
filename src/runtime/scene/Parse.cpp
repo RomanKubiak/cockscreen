@@ -114,6 +114,7 @@ SceneInput parse_input(const QJsonObject &object)
     input.file = json_string(object, "file");
     input.format = json_string(object, "format");
     input.scale = std::max(0.01F, json_float(object, "scale", 1.0F));
+    input.rotation = json_float(object, "rotation", 0.0F);
 
     if (const auto on_top = object.value(QStringLiteral("on_top")); on_top.isBool())
     {
@@ -442,6 +443,18 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
                 scene.osc_mappings.push_back(std::move(mapping));
             }
         }
+    }
+
+    if (const auto vm = root.value(QStringLiteral("video_modulation")); vm.isObject())
+    {
+        const auto vm_object = vm.toObject();
+        scene.video_modulation.rotation_osc = json_string(vm_object, "rotation_osc");
+        scene.video_modulation.rotation_osc_min = json_float(vm_object, "rotation_osc_min", 0.0F);
+        scene.video_modulation.rotation_osc_max = json_float(vm_object, "rotation_osc_max", 360.0F);
+        scene.video_modulation.rotation_midi_cc = json_int(vm_object, "rotation_midi_cc", -1);
+        scene.video_modulation.rotation_midi_channel = json_int(vm_object, "rotation_midi_channel", 0);
+        scene.video_modulation.rotation_midi_min = json_float(vm_object, "rotation_midi_min", 0.0F);
+        scene.video_modulation.rotation_midi_max = json_float(vm_object, "rotation_midi_max", 360.0F);
     }
 
     return scene;
