@@ -649,11 +649,11 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         glActiveTexture(GL_TEXTURE0);
     }
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, stage->channel_textures[0] != 0 ? stage->channel_textures[0] : blank_texture_id_);
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, stage->channel_textures[1] != 0 ? stage->channel_textures[1] : blank_texture_id_);
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, stage->channel_textures[2] != 0 ? stage->channel_textures[2] : blank_texture_id_);
     glActiveTexture(GL_TEXTURE0);
     quad_vertex_buffer_.bind();
     quad_vertex_buffer_.allocate(kVertices, static_cast<int>(sizeof(kVertices)));
@@ -698,6 +698,18 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
 
 void ShaderVideoWindow::build_render_stages()
 {
+    // Release any per-stage channel textures from the previous build.
+    for (auto &stage : render_stages_)
+    {
+        for (GLuint &tex : stage.channel_textures)
+        {
+            if (tex != 0)
+            {
+                glDeleteTextures(1, &tex);
+                tex = 0;
+            }
+        }
+    }
     render_stages_.clear();
     video_shader_label_.clear();
     playback_shader_label_.clear();
@@ -726,7 +738,45 @@ void ShaderVideoWindow::build_render_stages()
             }
 
             stage.program = std::make_unique<QOpenGLShaderProgram>();
-            const auto fragment_source = load_fragment_shader_source(shader_path, false);
+            const auto fragment_source = load_fragment_shader_source(shader_path, false, &stage.resource_directory);
+
+            // Load per-shader channel textures (iChannel1-3) from the resource directory.
+            // Looks for channel1.{png,jpg,bmp,ppm}, channel2.{...}, channel3.{...}.
+            if (!stage.resource_directory.empty())
+            {
+                static constexpr std::array<const char *, 3> kChannelNames{"channel1", "channel2", "channel3"};
+                static constexpr std::array<const char *, 4> kImageExts{".png", ".jpg", ".bmp", ".ppm"};
+                for (std::size_t ch = 0; ch < kChannelNames.size(); ++ch)
+                {
+                    for (const auto *ext : kImageExts)
+                    {
+                        const auto candidate = stage.resource_directory / (std::string{kChannelNames[ch]} + ext);
+                        if (!std::filesystem::is_regular_file(candidate))
+                        {
+                            continue;
+                        }
+                        QImage img(QString::fromStdString(candidate.string()));
+                        if (img.isNull())
+                        {
+                            break;
+                        }
+                        const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888).mirrored(false, true);
+                        GLuint tex_id = 0;
+                        glGenTextures(1, &tex_id);
+                        glBindTexture(GL_TEXTURE_2D, tex_id);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgba.width(), rgba.height(), 0, GL_RGBA,
+                                     GL_UNSIGNED_BYTE, rgba.constBits());
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        stage.channel_textures[ch] = tex_id;
+                        break; // found a valid image for this channel
+                    }
+                }
+            }
             const auto unsupported_reason = helper::shadertoy_unsupported_reason(fragment_source);
             if (!unsupported_reason.isEmpty())
             {

@@ -417,6 +417,17 @@ ShaderVideoWindow::~ShaderVideoWindow()
         glDeleteTextures(1, &icon_atlas_texture_id_);
         icon_atlas_texture_id_ = 0;
     }
+    for (auto &stage : render_stages_)
+    {
+        for (GLuint &tex : stage.channel_textures)
+        {
+            if (tex != 0)
+            {
+                glDeleteTextures(1, &tex);
+                tex = 0;
+            }
+        }
+    }
     if (quad_vertex_buffer_.isCreated())
     {
         quad_vertex_buffer_.destroy();
@@ -1188,8 +1199,36 @@ void ShaderVideoWindow::resizeEvent(QResizeEvent *event)
     }
 }
 
-QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const
+QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan,
+                                                        std::filesystem::path *resource_dir_out) const
 {
+    // Helper: find a single .glsl file inside a directory and return its source.
+    // If found and resource_dir_out is non-null, writes the directory path to it.
+    auto scan_shader_dir = [&](const std::filesystem::path &dir) -> QString {
+        std::error_code ec;
+        for (const auto &entry : std::filesystem::directory_iterator{dir, ec})
+        {
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+            const auto ext = entry.path().extension().string();
+            if (ext == ".frag" || ext == ".glsl" || ext == ".vert" || ext == ".comp")
+            {
+                const auto source = helper::read_text_file_qstring(entry.path());
+                if (!source.isEmpty())
+                {
+                    if (resource_dir_out != nullptr)
+                    {
+                        *resource_dir_out = dir;
+                    }
+                    return source;
+                }
+            }
+        }
+        return {};
+    };
+
     if (!shader_file.empty())
     {
         std::filesystem::path shader_path{shader_file};
@@ -1199,21 +1238,70 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
         }
 
         const auto resolved_shader_path = helper::resolve_relative_path(shader_path);
-        if (!resolved_shader_path.has_value())
+        if (resolved_shader_path.has_value())
         {
-            const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
-                QStringLiteral("Shader import failed: could not resolve '%1'").arg(QString::fromStdString(shader_path.string())));
-            return {};
+            // Case 1: the path points directly to an existing file.
+            if (std::filesystem::is_regular_file(*resolved_shader_path))
+            {
+                const auto source = helper::read_text_file_qstring(*resolved_shader_path);
+                if (!source.isEmpty())
+                {
+                    // If the parent directory differs from the top-level shader
+                    // directory it is a per-shader resource directory.
+                    const auto resolved_shader_dir =
+                        helper::resolve_relative_path(std::filesystem::path{settings_.shader_directory});
+                    if (resource_dir_out != nullptr && resolved_shader_dir.has_value() &&
+                        resolved_shader_path->parent_path() != *resolved_shader_dir)
+                    {
+                        *resource_dir_out = resolved_shader_path->parent_path();
+                    }
+                    return source;
+                }
+            }
+            // Case 2: the path points to a directory (e.g. "synth" → shaders/synth/).
+            if (std::filesystem::is_directory(*resolved_shader_path))
+            {
+                const auto source = scan_shader_dir(*resolved_shader_path);
+                if (!source.isEmpty())
+                {
+                    return source;
+                }
+            }
         }
 
-        const auto source = helper::read_text_file_qstring(*resolved_shader_path);
-        if (source.isEmpty())
+        // Case 3: the path does not exist as a file.  Try treating the stem as a
+        // subdirectory name: shaders/<stem>/<stem>.glsl or any .glsl in shaders/<stem>/.
+        const auto stem = std::filesystem::path{shader_file}.stem();
+        const std::filesystem::path subdir_path =
+            std::filesystem::path{settings_.shader_directory} / stem;
+        const auto resolved_subdir = helper::resolve_relative_path(subdir_path);
+        if (resolved_subdir.has_value() && std::filesystem::is_directory(*resolved_subdir))
         {
-            const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
-                QStringLiteral("Shader import failed: could not read '%1'")
-                    .arg(QString::fromStdString(resolved_shader_path->string())));
+            // Prefer <stem>.glsl if it exists.
+            const auto named_file = *resolved_subdir / (std::string{stem} + ".glsl");
+            if (std::filesystem::is_regular_file(named_file))
+            {
+                const auto source = helper::read_text_file_qstring(named_file);
+                if (!source.isEmpty())
+                {
+                    if (resource_dir_out != nullptr)
+                    {
+                        *resource_dir_out = *resolved_subdir;
+                    }
+                    return source;
+                }
+            }
+            // Fall back to any .glsl in the directory.
+            const auto source = scan_shader_dir(*resolved_subdir);
+            if (!source.isEmpty())
+            {
+                return source;
+            }
         }
-        return source;
+
+        const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
+            QStringLiteral("Shader import failed: could not resolve '%1'").arg(QString::fromStdString(shader_path.string())));
+        return {};
     }
 
     if (!allow_directory_scan)
@@ -1227,21 +1315,7 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
         return {};
     }
 
-    for (const auto &entry : std::filesystem::directory_iterator{*resolved_shader_directory})
-    {
-        if (!entry.is_regular_file())
-        {
-            continue;
-        }
-
-        const auto extension = entry.path().extension().string();
-        if (extension == ".frag" || extension == ".glsl" || extension == ".vert" || extension == ".comp")
-        {
-            return helper::read_text_file_qstring(entry.path());
-        }
-    }
-
-    return {};
+    return scan_shader_dir(*resolved_shader_directory);
 }
 
 } // namespace cockscreen::runtime

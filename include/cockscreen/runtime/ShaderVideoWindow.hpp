@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -93,6 +94,11 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     {
       QString layer_name;
       std::string shader_path;
+      // Directory co-located with the shader file (non-empty for subdir shaders).
+      std::filesystem::path resource_directory;
+      // Per-stage channel textures: index 0→iChannel1, 1→iChannel2, 2→iChannel3.
+      // 0 means "not loaded" – the renderer falls back to blank_texture_id_.
+      std::array<GLuint, 3> channel_textures{0, 0, 0};
       bool camera_fit_vertex{false};
       bool allow_directory_scan{false};
       QString label;
@@ -113,7 +119,11 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_background_texture();
     void upload_latest_frame();
     void upload_latest_playback_frame();
-    QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const;
+    // Loads a fragment shader's GLSL source.  When the shader lives inside a
+    // per-shader subdirectory (e.g. shaders/synth/synth.glsl), the directory
+    // path is written into *resource_dir_out (if non-null).
+    QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan,
+                                        std::filesystem::path *resource_dir_out = nullptr) const;
     void record_fatal_render_error(QString text);
     void build_render_stages();
     void stop_playback_source();
