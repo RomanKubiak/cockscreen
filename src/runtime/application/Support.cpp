@@ -32,7 +32,25 @@ void collect_missing_layer_shaders(const char *layer_name, const SceneLayer &lay
             shader_path = std::filesystem::path{shader_directory} / shader_path;
         }
 
-        if (!resolve_relative_path(shader_path).has_value())
+        // Also check the per-shader subdirectory layout: shaders/<stem>/<stem>.glsl
+        const auto stem = std::filesystem::path{shader_file}.stem();
+        const std::filesystem::path subdir_path = std::filesystem::path{shader_directory} / stem;
+        const bool exists_flat = resolve_relative_path(shader_path).has_value();
+        const bool exists_subdir = std::filesystem::is_directory(subdir_path) &&
+                                   (std::filesystem::is_regular_file(subdir_path / (stem.string() + ".glsl")) ||
+                                    [&]() {
+                                        for (const auto &e : std::filesystem::directory_iterator{subdir_path})
+                                        {
+                                            const auto ext = e.path().extension().string();
+                                            if (ext == ".glsl" || ext == ".frag")
+                                            {
+                                                return true;
+                                            }
+                                        }
+                                        return false;
+                                    }());
+
+        if (!exists_flat && !exists_subdir)
         {
             missing_shaders->push_back("Missing scene shader [" + std::string(layer_name) + "]: " + shader_file +
                                        " (expected at " + shader_path.string() + ")");

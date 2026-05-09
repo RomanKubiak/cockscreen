@@ -176,7 +176,26 @@ bool validate_scene_shader_files(const SceneDefinition &scene, const std::filesy
                 shader_path = shader_directory / shader_path;
             }
 
-            if (!application_support::resolve_relative_path(shader_path).has_value())
+            const auto stem = std::filesystem::path{shader}.stem();
+            const std::filesystem::path subdir_path = shader_directory / stem;
+            const bool exists_flat = application_support::resolve_relative_path(shader_path).has_value();
+            const bool exists_subdir =
+                std::filesystem::is_directory(subdir_path) &&
+                (std::filesystem::is_regular_file(subdir_path / (stem.string() + ".glsl")) ||
+                 [&]() {
+                     std::error_code ec;
+                     for (const auto &e : std::filesystem::directory_iterator{subdir_path, ec})
+                     {
+                         const auto ext = e.path().extension().string();
+                         if (ext == ".glsl" || ext == ".frag")
+                         {
+                             return true;
+                         }
+                     }
+                     return false;
+                 }());
+
+            if (!exists_flat && !exists_subdir)
             {
                 if (error_message != nullptr)
                 {

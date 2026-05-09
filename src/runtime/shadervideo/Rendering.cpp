@@ -770,7 +770,22 @@ void ShaderVideoWindow::build_render_stages()
             }
 
             stage.program = std::make_unique<QOpenGLShaderProgram>();
-            const auto fragment_source = load_fragment_shader_source(shader_path, false, &stage.resource_directory);
+            const auto fragment_source_raw = load_fragment_shader_source(shader_path, false, &stage.resource_directory);
+
+            // Load common.glsl if present — it gets prepended to the main shader
+            // and all buffer passes (equivalent to ShaderToy's Common tab).
+            QString common_source;
+            if (!stage.resource_directory.empty())
+            {
+                const auto common_path = stage.resource_directory / "common.glsl";
+                if (std::filesystem::is_regular_file(common_path))
+                {
+                    common_source = helper::read_text_file_qstring(common_path);
+                }
+            }
+            const QString fragment_source = common_source.isEmpty()
+                                                ? fragment_source_raw
+                                                : common_source + QStringLiteral("\n") + fragment_source_raw;
 
             // Load per-shader channel textures (iChannel1-3) from the resource directory.
             // Looks for channel1.{png,jpg,bmp,ppm}, channel2.{...}, channel3.{...}.
@@ -828,7 +843,11 @@ void ShaderVideoWindow::build_render_stages()
                     {
                         continue;
                     }
-                    const auto buf_adapted = helper::adapt_fragment_shader_source(buf_src_raw);
+                    // Prepend common.glsl if available.
+                    const QString buf_src = common_source.isEmpty()
+                                               ? buf_src_raw
+                                               : common_source + QStringLiteral("\n") + buf_src_raw;
+                    const auto buf_adapted = helper::adapt_fragment_shader_source(buf_src);
                     const auto buf_fragment = helper::shader_source_for_current_context(
                         buf_adapted.isEmpty()
                             ? QString::fromUtf8(helper::passthrough_fragment_shader_source())
