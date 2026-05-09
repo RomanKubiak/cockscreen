@@ -427,6 +427,14 @@ ShaderVideoWindow::~ShaderVideoWindow()
                 tex = 0;
             }
         }
+        for (auto &buf : stage.shader_buffers)
+        {
+            for (int i = 0; i < 2; ++i)
+            {
+                delete buf.fbo[i];
+                buf.fbo[i] = nullptr;
+            }
+        }
     }
     if (quad_vertex_buffer_.isCreated())
     {

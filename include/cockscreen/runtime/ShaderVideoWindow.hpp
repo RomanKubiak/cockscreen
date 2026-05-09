@@ -92,6 +92,17 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 
     struct RenderStage
     {
+      // Intermediate multi-pass buffer (ShaderToy-style Buffer A/B/C/D).
+      // One entry per discovered bufferA.glsl … bufferD.glsl in the shader directory.
+      struct ShaderBuffer
+      {
+          char name{'A'};  // 'A', 'B', 'C', or 'D'
+          std::unique_ptr<QOpenGLShaderProgram> program;
+          // Ping-pong FBOs: current output alternates each frame.
+          QOpenGLFramebufferObject *fbo[2]{nullptr, nullptr};
+          int ping{0};  // index of the FBO written this frame
+      };
+
       QString layer_name;
       std::string shader_path;
       // Directory co-located with the shader file (non-empty for subdir shaders).
@@ -99,6 +110,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
       // Per-stage channel textures: index 0→iChannel1, 1→iChannel2, 2→iChannel3.
       // 0 means "not loaded" – the renderer falls back to blank_texture_id_.
       std::array<GLuint, 3> channel_textures{0, 0, 0};
+      // Multi-pass shader buffers (Buffer A..D). Populated when bufferA.glsl etc.
+      // are found alongside the main shader in its resource_directory.
+      std::vector<ShaderBuffer> shader_buffers;
       bool camera_fit_vertex{false};
       bool allow_directory_scan{false};
       QString label;
@@ -115,6 +129,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_icon_atlas_texture();
     void ensure_background_image_texture();
     void ensure_scene_fbos();
+    void ensure_shader_buffer_fbos(RenderStage &stage);
+    void render_shader_buffers(RenderStage &stage, GLuint video_texture, float elapsed_seconds,
+                               float frame_delta_seconds, int frame_index);
     void ensure_blank_texture();
     void ensure_background_texture();
     void upload_latest_frame();

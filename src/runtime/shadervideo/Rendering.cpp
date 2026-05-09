@@ -570,6 +570,11 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         return input_valid ? input_texture : blank_texture_id_;
     }
 
+    // Render multi-pass buffers (Buffer A/B/C/D) before the main stage so their
+    // outputs are ready to bind as iChannel1-3.
+    render_shader_buffers(*stage, input_valid ? input_texture : blank_texture_id_,
+                          elapsed_seconds, frame_delta_seconds, frame_index);
+
     ensure_blank_texture();
     const QColor clear_color = helper::scene_clear_color(scene_.background_color);
 
@@ -648,12 +653,31 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
         glBindTexture(GL_TEXTURE_2D, icon_atlas_texture_id_);
         glActiveTexture(GL_TEXTURE0);
     }
+    // Bind iChannel1-3 (GL_TEXTURE3-5).
+    // Priority: shader buffer output > static channel texture > blank.
+    // Buffer A → iChannel1, B → iChannel2, C → iChannel3, D → iChannel4 (if ever added).
+    auto buffer_tex_for = [&](char name) -> GLuint {
+        for (const auto &buf : stage->shader_buffers)
+        {
+            if (buf.name == name && buf.fbo[buf.ping] != nullptr)
+            {
+                return buf.fbo[buf.ping]->texture();
+            }
+        }
+        return 0;
+    };
+    const GLuint ch1 = buffer_tex_for('A') != 0 ? buffer_tex_for('A')
+                       : (stage->channel_textures[0] != 0 ? stage->channel_textures[0] : blank_texture_id_);
+    const GLuint ch2 = buffer_tex_for('B') != 0 ? buffer_tex_for('B')
+                       : (stage->channel_textures[1] != 0 ? stage->channel_textures[1] : blank_texture_id_);
+    const GLuint ch3 = buffer_tex_for('C') != 0 ? buffer_tex_for('C')
+                       : (stage->channel_textures[2] != 0 ? stage->channel_textures[2] : blank_texture_id_);
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, stage->channel_textures[0] != 0 ? stage->channel_textures[0] : blank_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, ch1);
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, stage->channel_textures[1] != 0 ? stage->channel_textures[1] : blank_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, ch2);
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, stage->channel_textures[2] != 0 ? stage->channel_textures[2] : blank_texture_id_);
+    glBindTexture(GL_TEXTURE_2D, ch3);
     glActiveTexture(GL_TEXTURE0);
     quad_vertex_buffer_.bind();
     quad_vertex_buffer_.allocate(kVertices, static_cast<int>(sizeof(kVertices)));
@@ -698,7 +722,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
 
 void ShaderVideoWindow::build_render_stages()
 {
-    // Release any per-stage channel textures from the previous build.
+    // Release any per-stage channel textures and shader buffers from the previous build.
     for (auto &stage : render_stages_)
     {
         for (GLuint &tex : stage.channel_textures)
@@ -707,6 +731,14 @@ void ShaderVideoWindow::build_render_stages()
             {
                 glDeleteTextures(1, &tex);
                 tex = 0;
+            }
+        }
+        for (auto &buf : stage.shader_buffers)
+        {
+            for (int i = 0; i < 2; ++i)
+            {
+                delete buf.fbo[i];
+                buf.fbo[i] = nullptr;
             }
         }
     }
@@ -777,6 +809,50 @@ void ShaderVideoWindow::build_render_stages()
                     }
                 }
             }
+            // Scan for multi-pass buffer shaders (bufferA.glsl … bufferD.glsl).
+            // These are compiled into ShaderBuffer entries whose FBO outputs feed
+            // iChannel1–iChannel3+extra of the main shader each frame.
+            if (!stage.resource_directory.empty())
+            {
+                static constexpr std::array<char, 4> kBufferNames{'A', 'B', 'C', 'D'};
+                for (char name : kBufferNames)
+                {
+                    const std::string buf_filename = std::string{"buffer"} + name + ".glsl";
+                    const auto buf_path = stage.resource_directory / buf_filename;
+                    if (!std::filesystem::is_regular_file(buf_path))
+                    {
+                        continue;
+                    }
+                    const auto buf_src_raw = helper::read_text_file_qstring(buf_path);
+                    if (buf_src_raw.isEmpty())
+                    {
+                        continue;
+                    }
+                    const auto buf_adapted = helper::adapt_fragment_shader_source(buf_src_raw);
+                    const auto buf_fragment = helper::shader_source_for_current_context(
+                        buf_adapted.isEmpty()
+                            ? QString::fromUtf8(helper::passthrough_fragment_shader_source())
+                            : buf_adapted);
+
+                    RenderStage::ShaderBuffer buf;
+                    buf.name = name;
+                    buf.program = std::make_unique<QOpenGLShaderProgram>();
+                    if (!buf.program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader_source) ||
+                        !buf.program->addShaderFromSourceCode(QOpenGLShader::Fragment, buf_fragment) ||
+                        !buf.program->link())
+                    {
+                        const auto log = buf.program->log();
+                        record_fatal_render_error(
+                            QStringLiteral("Buffer%1 shader failed for '%2':\n%3")
+                                .arg(name)
+                                .arg(stage.label)
+                                .arg(log.isEmpty() ? QStringLiteral("<no shader log>") : log));
+                    }
+                    // FBOs are sized lazily in ensure_shader_buffer_fbos().
+                    stage.shader_buffers.push_back(std::move(buf));
+                }
+            }
+
             const auto unsupported_reason = helper::shadertoy_unsupported_reason(fragment_source);
             if (!unsupported_reason.isEmpty())
             {
@@ -829,6 +905,127 @@ void ShaderVideoWindow::build_render_stages()
         playback_shader_label_ = QStringLiteral("<none>");
         screen_shader_label_ = QStringLiteral("<none>");
     }
+}
+
+void ShaderVideoWindow::ensure_shader_buffer_fbos(RenderStage &stage)
+{
+    if (stage.shader_buffers.empty() || width() <= 0 || height() <= 0)
+    {
+        return;
+    }
+    QOpenGLFramebufferObjectFormat fmt;
+    fmt.setAttachment(QOpenGLFramebufferObject::NoAttachment);
+    for (auto &buf : stage.shader_buffers)
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            if (buf.fbo[i] == nullptr || buf.fbo[i]->width() != width() || buf.fbo[i]->height() != height())
+            {
+                delete buf.fbo[i];
+                buf.fbo[i] = new QOpenGLFramebufferObject(width(), height(), fmt);
+            }
+        }
+    }
+}
+
+void ShaderVideoWindow::render_shader_buffers(RenderStage &stage, GLuint video_texture,
+                                              float elapsed_seconds, float frame_delta_seconds,
+                                              int frame_index)
+{
+    if (stage.shader_buffers.empty())
+    {
+        return;
+    }
+    ensure_shader_buffer_fbos(stage);
+    ensure_blank_texture();
+
+    const auto vertex_shader_source_str =
+        helper::shader_source_for_current_context(QString::fromUtf8(helper::fullscreen_vertex_shader_source()));
+    Q_UNUSED(vertex_shader_source_str);
+
+    static constexpr GLfloat kVertices[] = {
+        0.0F, 0.0F, 0.0F, 0.0F,
+        1.0F, 0.0F, 1.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 1.0F,
+        1.0F, 1.0F, 1.0F, 1.0F,
+    };
+
+    const QVector2D viewport_size{static_cast<float>(width()), static_cast<float>(height())};
+    const QVector2D video_size{
+        static_cast<float>(video_texture == texture_id_ && texture_width_ > 0 ? texture_width_ : width()),
+        static_cast<float>(video_texture == texture_id_ && texture_height_ > 0 ? texture_height_ : height())};
+
+    for (auto &buf : stage.shader_buffers)
+    {
+        if (buf.fbo[0] == nullptr || buf.fbo[1] == nullptr)
+        {
+            continue;
+        }
+        if (!buf.program || !buf.program->isLinked())
+        {
+            continue;
+        }
+
+        const int write_idx = buf.ping;
+        const int read_idx  = 1 - buf.ping;
+        QOpenGLFramebufferObject *target = buf.fbo[write_idx];
+        const GLuint self_prev_tex = buf.fbo[read_idx]->texture();
+
+        target->bind();
+        glViewport(0, 0, target->width(), target->height());
+        glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        buf.program->bind();
+        buf.program->setUniformValue("u_viewport_size", viewport_size);
+        buf.program->setUniformValue("u_video_size", video_size);
+        buf.program->setUniformValue("u_status_bar_height", static_cast<float>(kStatusBarHeight));
+        buf.program->setUniformValue("u_texture", 0);
+        bind_stage_common_uniforms(buf.program.get(), stage, elapsed_seconds);
+        bind_shadertoy_uniforms(buf.program.get(), elapsed_seconds, frame_delta_seconds, frame_index, video_size);
+
+        // iChannel0 = video/input, iChannel1 = this buffer's previous frame (feedback),
+        // iChannel2-3 = blank (other buffers could be wired here in future).
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, video_texture != 0 ? video_texture : blank_texture_id_);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, self_prev_tex);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+        glActiveTexture(GL_TEXTURE0);
+
+        quad_vertex_buffer_.bind();
+        quad_vertex_buffer_.allocate(kVertices, static_cast<int>(sizeof(kVertices)));
+        buf.program->enableAttributeArray("a_position");
+        buf.program->enableAttributeArray("a_texcoord");
+        buf.program->setAttributeBuffer("a_position", GL_FLOAT, 0, 2, 4 * sizeof(GLfloat));
+        buf.program->setAttributeBuffer("a_texcoord", GL_FLOAT, 2 * sizeof(GLfloat), 2, 4 * sizeof(GLfloat));
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        buf.program->disableAttributeArray("a_position");
+        buf.program->disableAttributeArray("a_texcoord");
+        quad_vertex_buffer_.release();
+
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        buf.program->release();
+        target->release();
+
+        // Flip ping-pong.
+        buf.ping = read_idx;
+    }
+
+    // Restore default framebuffer viewport.
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+    glViewport(0, 0, width(), height());
 }
 
 } // namespace cockscreen::runtime
