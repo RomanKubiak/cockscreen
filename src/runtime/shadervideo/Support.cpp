@@ -120,6 +120,8 @@ QString shadertoy_compatibility_block(bool needs_precision)
     block += QStringLiteral(R"(
 #if __VERSION__ < 130
 #define texture texture2D
+#define textureLod(s, uv, lod) texture2D(s, uv)
+#define texelFetch(s, coord, lod) texture2D(s, (vec2(coord) + vec2(0.5)) / iResolution.xy)
 #endif
 
 uniform float iTime;

@@ -92,6 +92,22 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 
     struct RenderStage
     {
+      enum class ChannelSourceKind
+      {
+        InputTexture,
+        PreviousFrame,
+        BufferOutput,
+        StaticTexture,
+        BlankTexture,
+      };
+
+      struct ChannelSource
+      {
+        ChannelSourceKind kind{ChannelSourceKind::InputTexture};
+        char buffer_name{'\0'};
+        int static_texture_index{-1};
+      };
+
       // Intermediate multi-pass buffer (ShaderToy-style Buffer A/B/C/D).
       // One entry per discovered bufferA.glsl … bufferD.glsl in the shader directory.
       struct ShaderBuffer
@@ -101,6 +117,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
           // Ping-pong FBOs: current output alternates each frame.
           QOpenGLFramebufferObject *fbo[2]{nullptr, nullptr};
           int ping{0};  // index of the FBO written this frame
+            bool has_custom_channel_sources{false};
+            std::array<ChannelSource, 4> channel_sources{};
       };
 
       QString layer_name;
@@ -113,6 +131,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
       // Multi-pass shader buffers (Buffer A..D). Populated when bufferA.glsl etc.
       // are found alongside the main shader in its resource_directory.
       std::vector<ShaderBuffer> shader_buffers;
+      bool has_custom_channel_sources{false};
+      std::array<ChannelSource, 4> channel_sources{};
       bool camera_fit_vertex{false};
       bool allow_directory_scan{false};
       QString label;

@@ -1,0 +1,5 @@
+{
+    "screen": {
+        "shaders": ["chimeras_breath.glsl"]
+    }
+}

@@ -1105,6 +1105,7 @@ void ShaderVideoWindow::record_fatal_render_error(QString text)
 
     if (fatal_render_error_.isEmpty())
     {
+        qCritical().noquote() << "Fatal render error:" << text;
         fatal_render_error_ = std::move(text);
         return;
     }
@@ -1212,6 +1213,26 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
 {
     // Helper: find a single .glsl file inside a directory and return its source.
     // If found and resource_dir_out is non-null, writes the directory path to it.
+    // Returns true for files that are support/pass files within a subdirectory,
+    // not the main Image-pass shader (common.glsl, bufferA-D.glsl, image.glsl).
+    auto is_subdir_support_file = [](const std::filesystem::path &p) -> bool {
+        const auto name = p.filename().string();
+        if (name == "common.glsl" || name == "image.glsl")
+        {
+            return true;
+        }
+        // buffer[A-D].glsl
+        if (name.size() == 11 && name.substr(0, 6) == "buffer" && name.substr(7) == ".glsl")
+        {
+            const char c = name[6];
+            if (c >= 'A' && c <= 'D')
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
     auto scan_shader_dir = [&](const std::filesystem::path &dir) -> QString {
         std::error_code ec;
         for (const auto &entry : std::filesystem::directory_iterator{dir, ec})
@@ -1221,17 +1242,23 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
                 continue;
             }
             const auto ext = entry.path().extension().string();
-            if (ext == ".frag" || ext == ".glsl" || ext == ".vert" || ext == ".comp")
+            if (ext != ".frag" && ext != ".glsl" && ext != ".vert" && ext != ".comp")
             {
-                const auto source = helper::read_text_file_qstring(entry.path());
-                if (!source.isEmpty())
+                continue;
+            }
+            // Skip support/pass files — they are not the Image pass.
+            if (is_subdir_support_file(entry.path()))
+            {
+                continue;
+            }
+            const auto source = helper::read_text_file_qstring(entry.path());
+            if (!source.isEmpty())
+            {
+                if (resource_dir_out != nullptr)
                 {
-                    if (resource_dir_out != nullptr)
-                    {
-                        *resource_dir_out = dir;
-                    }
-                    return source;
+                    *resource_dir_out = dir;
                 }
+                return source;
             }
         }
         return {};
@@ -1285,21 +1312,24 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
         const auto resolved_subdir = helper::resolve_relative_path(subdir_path);
         if (resolved_subdir.has_value() && std::filesystem::is_directory(*resolved_subdir))
         {
-            // Prefer <stem>.glsl if it exists.
-            const auto named_file = *resolved_subdir / (std::string{stem} + ".glsl");
-            if (std::filesystem::is_regular_file(named_file))
+            // Priority: image.glsl > <stem>.glsl > any other .glsl (excluding support files).
+            for (const auto &candidate : {std::string{"image.glsl"}, std::string{stem} + ".glsl"})
             {
-                const auto source = helper::read_text_file_qstring(named_file);
-                if (!source.isEmpty())
+                const auto named_file = *resolved_subdir / candidate;
+                if (std::filesystem::is_regular_file(named_file))
                 {
-                    if (resource_dir_out != nullptr)
+                    const auto source = helper::read_text_file_qstring(named_file);
+                    if (!source.isEmpty())
                     {
-                        *resource_dir_out = *resolved_subdir;
+                        if (resource_dir_out != nullptr)
+                        {
+                            *resource_dir_out = *resolved_subdir;
+                        }
+                        return source;
                     }
-                    return source;
                 }
             }
-            // Fall back to any .glsl in the directory.
+            // Fall back to any .glsl in the directory (excluding support files).
             const auto source = scan_shader_dir(*resolved_subdir);
             if (!source.isEmpty())
             {

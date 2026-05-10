@@ -3,6 +3,9 @@
 #include "cockscreen/runtime/StatusOverlay.hpp"
 #include "cockscreen/runtime/shadervideo/Support.hpp"
 
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QColor>
 #include <QDateTime>
 #include <QElapsedTimer>
@@ -28,6 +31,317 @@ namespace helper = shader_window;
 
 namespace
 {
+
+std::string strip_jsonc_comments(std::string_view input)
+{
+    std::string output;
+    output.reserve(input.size());
+
+    bool in_string = false;
+    bool escaping = false;
+    bool in_line_comment = false;
+    bool in_block_comment = false;
+
+    for (std::size_t index = 0; index < input.size(); ++index)
+    {
+        const char current = input[index];
+        const char next = index + 1 < input.size() ? input[index + 1] : '\0';
+
+        if (in_line_comment)
+        {
+            if (current == '\n')
+            {
+                in_line_comment = false;
+                output.push_back(current);
+            }
+            continue;
+        }
+
+        if (in_block_comment)
+        {
+            if (current == '*' && next == '/')
+            {
+                in_block_comment = false;
+                ++index;
+            }
+            else if (current == '\n')
+            {
+                output.push_back('\n');
+            }
+            continue;
+        }
+
+        if (!in_string && current == '/' && next == '/')
+        {
+            in_line_comment = true;
+            ++index;
+            continue;
+        }
+
+        if (!in_string && current == '/' && next == '*')
+        {
+            in_block_comment = true;
+            ++index;
+            continue;
+        }
+
+        output.push_back(current);
+
+        if (!in_string)
+        {
+            if (current == '"')
+            {
+                in_string = true;
+            }
+            continue;
+        }
+
+        if (escaping)
+        {
+            escaping = false;
+            continue;
+        }
+
+        if (current == '\\')
+        {
+            escaping = true;
+        }
+        else if (current == '"')
+        {
+            in_string = false;
+        }
+    }
+
+    return output;
+}
+
+ShaderVideoWindow::RenderStage::ChannelSource input_channel_source()
+{
+    return {};
+}
+
+ShaderVideoWindow::RenderStage::ChannelSource previous_frame_channel_source()
+{
+    ShaderVideoWindow::RenderStage::ChannelSource source;
+    source.kind = ShaderVideoWindow::RenderStage::ChannelSourceKind::PreviousFrame;
+    return source;
+}
+
+ShaderVideoWindow::RenderStage::ChannelSource blank_channel_source()
+{
+    ShaderVideoWindow::RenderStage::ChannelSource source;
+    source.kind = ShaderVideoWindow::RenderStage::ChannelSourceKind::BlankTexture;
+    return source;
+}
+
+ShaderVideoWindow::RenderStage::ChannelSource buffer_channel_source(char name)
+{
+    ShaderVideoWindow::RenderStage::ChannelSource source;
+    source.kind = ShaderVideoWindow::RenderStage::ChannelSourceKind::BufferOutput;
+    source.buffer_name = name;
+    return source;
+}
+
+ShaderVideoWindow::RenderStage::ChannelSource static_channel_source(int index)
+{
+    ShaderVideoWindow::RenderStage::ChannelSource source;
+    source.kind = ShaderVideoWindow::RenderStage::ChannelSourceKind::StaticTexture;
+    source.static_texture_index = index;
+    return source;
+}
+
+std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> default_main_channel_sources()
+{
+    return {input_channel_source(), static_channel_source(0), static_channel_source(1), static_channel_source(2)};
+}
+
+std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> default_buffer_channel_sources()
+{
+    return {input_channel_source(), previous_frame_channel_source(), blank_channel_source(), blank_channel_source()};
+}
+
+std::optional<ShaderVideoWindow::RenderStage::ChannelSource> parse_channel_source_name(QString value)
+{
+    value = value.trimmed().toLower();
+    if (value.isEmpty() || value == QStringLiteral("input") || value == QStringLiteral("video") ||
+        value == QStringLiteral("source"))
+    {
+        return input_channel_source();
+    }
+    if (value == QStringLiteral("self") || value == QStringLiteral("previous") || value == QStringLiteral("feedback"))
+    {
+        return previous_frame_channel_source();
+    }
+    if (value == QStringLiteral("blank") || value == QStringLiteral("none"))
+    {
+        return blank_channel_source();
+    }
+    if (value == QStringLiteral("channel1"))
+    {
+        return static_channel_source(0);
+    }
+    if (value == QStringLiteral("channel2"))
+    {
+        return static_channel_source(1);
+    }
+    if (value == QStringLiteral("channel3"))
+    {
+        return static_channel_source(2);
+    }
+    if (value == QStringLiteral("buffera"))
+    {
+        return buffer_channel_source('A');
+    }
+    if (value == QStringLiteral("bufferb"))
+    {
+        return buffer_channel_source('B');
+    }
+    if (value == QStringLiteral("bufferc"))
+    {
+        return buffer_channel_source('C');
+    }
+    if (value == QStringLiteral("bufferd"))
+    {
+        return buffer_channel_source('D');
+    }
+    return std::nullopt;
+}
+
+bool load_channel_routes(const std::filesystem::path &resource_directory,
+                         std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> *image_routes,
+                         std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> *buffer_a_routes,
+                         std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> *buffer_b_routes,
+                         std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> *buffer_c_routes,
+                         std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> *buffer_d_routes,
+                         QString *error_message)
+{
+    if (image_routes == nullptr || buffer_a_routes == nullptr || buffer_b_routes == nullptr ||
+        buffer_c_routes == nullptr || buffer_d_routes == nullptr)
+    {
+        return false;
+    }
+
+    const auto config_path = resource_directory / "channels.jsonc";
+    if (!std::filesystem::is_regular_file(config_path))
+    {
+        return false;
+    }
+
+    const auto text = read_text_file(config_path);
+    if (!text.has_value())
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Unable to read %1").arg(QString::fromStdString(config_path.string()));
+        }
+        return false;
+    }
+
+    QJsonParseError parse_error;
+    const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(strip_jsonc_comments(*text)), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isObject())
+    {
+        if (error_message != nullptr)
+        {
+            *error_message = QStringLiteral("Invalid channels.jsonc in %1: %2")
+                                 .arg(QString::fromStdString(config_path.string()), parse_error.errorString());
+        }
+        return false;
+    }
+
+    const auto parse_routes = [&](const QJsonObject &object, const QString &name,
+                                  std::array<ShaderVideoWindow::RenderStage::ChannelSource, 4> *routes) -> bool {
+        if (routes == nullptr || !object.contains(name) || !object.value(name).isObject())
+        {
+            return false;
+        }
+
+        bool changed = false;
+        const auto channel_object = object.value(name).toObject();
+        for (int index = 0; index < 4; ++index)
+        {
+            const QString key = QStringLiteral("iChannel%1").arg(index);
+            const QString alias = QStringLiteral("channel%1").arg(index);
+            const auto value = channel_object.contains(key) ? channel_object.value(key)
+                              : channel_object.contains(alias) ? channel_object.value(alias)
+                              : QJsonValue{};
+            if (!value.isString())
+            {
+                continue;
+            }
+            const auto parsed = parse_channel_source_name(value.toString());
+            if (!parsed.has_value())
+            {
+                if (error_message != nullptr)
+                {
+                    *error_message = QStringLiteral("Invalid %1.%2 source '%3' in %4")
+                                         .arg(name, key, value.toString(), QString::fromStdString(config_path.string()));
+                }
+                return false;
+            }
+            (*routes)[index] = *parsed;
+            changed = true;
+        }
+        return changed;
+    };
+
+    const auto object = document.object();
+    bool any = false;
+    any = parse_routes(object, QStringLiteral("image"), image_routes) || any;
+    any = parse_routes(object, QStringLiteral("bufferA"), buffer_a_routes) || any;
+    any = parse_routes(object, QStringLiteral("bufferB"), buffer_b_routes) || any;
+    any = parse_routes(object, QStringLiteral("bufferC"), buffer_c_routes) || any;
+    any = parse_routes(object, QStringLiteral("bufferD"), buffer_d_routes) || any;
+    return any;
+}
+
+const ShaderVideoWindow::RenderStage::ShaderBuffer *find_shader_buffer(const ShaderVideoWindow::RenderStage &stage,
+                                                                       char name)
+{
+    for (const auto &buffer : stage.shader_buffers)
+    {
+        if (buffer.name == name)
+        {
+            return &buffer;
+        }
+    }
+    return nullptr;
+}
+
+GLuint resolve_channel_texture(const ShaderVideoWindow::RenderStage &stage,
+                               const ShaderVideoWindow::RenderStage::ChannelSource &source,
+                               GLuint input_texture, GLuint previous_frame_texture, GLuint blank_texture_id)
+{
+    switch (source.kind)
+    {
+        case ShaderVideoWindow::RenderStage::ChannelSourceKind::InputTexture:
+            return input_texture != 0 ? input_texture : blank_texture_id;
+        case ShaderVideoWindow::RenderStage::ChannelSourceKind::PreviousFrame:
+            return previous_frame_texture != 0 ? previous_frame_texture : blank_texture_id;
+        case ShaderVideoWindow::RenderStage::ChannelSourceKind::BufferOutput:
+        {
+            const auto *buffer = find_shader_buffer(stage, source.buffer_name);
+            if (buffer == nullptr || buffer->fbo[buffer->ping] == nullptr)
+            {
+                return blank_texture_id;
+            }
+            return buffer->fbo[buffer->ping]->texture();
+        }
+        case ShaderVideoWindow::RenderStage::ChannelSourceKind::StaticTexture:
+            if (source.static_texture_index < 0 ||
+                source.static_texture_index >= static_cast<int>(stage.channel_textures.size()))
+            {
+                return blank_texture_id;
+            }
+            return stage.channel_textures[static_cast<std::size_t>(source.static_texture_index)] != 0
+                       ? stage.channel_textures[static_cast<std::size_t>(source.static_texture_index)]
+                       : blank_texture_id;
+        case ShaderVideoWindow::RenderStage::ChannelSourceKind::BlankTexture:
+            return blank_texture_id;
+    }
+
+    return blank_texture_id;
+}
 
 bool shader_mapping_matches(const std::string &mapping_shader, const std::string &stage_shader)
 {
@@ -624,10 +938,22 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     }
 
     const GLuint sampled_texture = input_valid ? input_texture : blank_texture_id_;
+    auto buffer_tex_for = [&](char name) -> GLuint {
+        const auto *buffer = find_shader_buffer(*stage, name);
+        if (buffer == nullptr || buffer->fbo[buffer->ping] == nullptr)
+        {
+            return 0;
+        }
+        return buffer->fbo[buffer->ping]->texture();
+    };
+    const GLuint main_channel0 = stage->has_custom_channel_sources
+                                     ? resolve_channel_texture(*stage, stage->channel_sources[0], sampled_texture, 0,
+                                                               blank_texture_id_)
+                                     : sampled_texture;
     const QVector2D viewport_size{static_cast<float>(width()), static_cast<float>(height())};
     const QVector2D video_size{
-        static_cast<float>(sampled_texture == texture_id_ && texture_width_ > 0 ? texture_width_ : width()),
-        static_cast<float>(sampled_texture == texture_id_ && texture_height_ > 0 ? texture_height_ : height())};
+        static_cast<float>(main_channel0 == texture_id_ && texture_width_ > 0 ? texture_width_ : width()),
+        static_cast<float>(main_channel0 == texture_id_ && texture_height_ > 0 ? texture_height_ : height())};
 
     stage->program->bind();
     stage->program->setUniformValue("u_viewport_size", viewport_size);
@@ -640,7 +966,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     apply_scene_osc_mappings(stage->program.get(), *stage);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, sampled_texture);
+    glBindTexture(GL_TEXTURE_2D, main_channel0);
     if (note_label_atlas_texture_id_ != 0)
     {
         glActiveTexture(GL_TEXTURE1);
@@ -656,22 +982,24 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     // Bind iChannel1-3 (GL_TEXTURE3-5).
     // Priority: shader buffer output > static channel texture > blank.
     // Buffer A → iChannel1, B → iChannel2, C → iChannel3, D → iChannel4 (if ever added).
-    auto buffer_tex_for = [&](char name) -> GLuint {
-        for (const auto &buf : stage->shader_buffers)
-        {
-            if (buf.name == name && buf.fbo[buf.ping] != nullptr)
-            {
-                return buf.fbo[buf.ping]->texture();
-            }
-        }
-        return 0;
-    };
-    const GLuint ch1 = buffer_tex_for('A') != 0 ? buffer_tex_for('A')
-                       : (stage->channel_textures[0] != 0 ? stage->channel_textures[0] : blank_texture_id_);
-    const GLuint ch2 = buffer_tex_for('B') != 0 ? buffer_tex_for('B')
-                       : (stage->channel_textures[1] != 0 ? stage->channel_textures[1] : blank_texture_id_);
-    const GLuint ch3 = buffer_tex_for('C') != 0 ? buffer_tex_for('C')
-                       : (stage->channel_textures[2] != 0 ? stage->channel_textures[2] : blank_texture_id_);
+    const GLuint ch1 = stage->has_custom_channel_sources
+                           ? resolve_channel_texture(*stage, stage->channel_sources[1], sampled_texture, 0,
+                                                     blank_texture_id_)
+                           : (buffer_tex_for('A') != 0 ? buffer_tex_for('A')
+                                                       : (stage->channel_textures[0] != 0 ? stage->channel_textures[0]
+                                                                                          : blank_texture_id_));
+    const GLuint ch2 = stage->has_custom_channel_sources
+                           ? resolve_channel_texture(*stage, stage->channel_sources[2], sampled_texture, 0,
+                                                     blank_texture_id_)
+                           : (buffer_tex_for('B') != 0 ? buffer_tex_for('B')
+                                                       : (stage->channel_textures[1] != 0 ? stage->channel_textures[1]
+                                                                                          : blank_texture_id_));
+    const GLuint ch3 = stage->has_custom_channel_sources
+                           ? resolve_channel_texture(*stage, stage->channel_sources[3], sampled_texture, 0,
+                                                     blank_texture_id_)
+                           : (buffer_tex_for('C') != 0 ? buffer_tex_for('C')
+                                                       : (stage->channel_textures[2] != 0 ? stage->channel_textures[2]
+                                                                                          : blank_texture_id_));
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, ch1);
     glActiveTexture(GL_TEXTURE4);
@@ -763,6 +1091,7 @@ void ShaderVideoWindow::build_render_stages()
             RenderStage stage;
             stage.layer_name = layer_name;
             stage.shader_path = shader_path;
+            stage.channel_sources = default_main_channel_sources();
             stage.label = QString::fromStdString(std::filesystem::path{shader_path}.filename().string());
             if (stage.label.isEmpty())
             {
@@ -829,6 +1158,20 @@ void ShaderVideoWindow::build_render_stages()
             // iChannel1–iChannel3+extra of the main shader each frame.
             if (!stage.resource_directory.empty())
             {
+                std::array<RenderStage::ChannelSource, 4> buffer_a_routes = default_buffer_channel_sources();
+                std::array<RenderStage::ChannelSource, 4> buffer_b_routes = default_buffer_channel_sources();
+                std::array<RenderStage::ChannelSource, 4> buffer_c_routes = default_buffer_channel_sources();
+                std::array<RenderStage::ChannelSource, 4> buffer_d_routes = default_buffer_channel_sources();
+                QString channels_error;
+                stage.has_custom_channel_sources = load_channel_routes(stage.resource_directory, &stage.channel_sources,
+                                                                       &buffer_a_routes, &buffer_b_routes,
+                                                                       &buffer_c_routes, &buffer_d_routes,
+                                                                       &channels_error);
+                if (!channels_error.isEmpty())
+                {
+                    record_fatal_render_error(channels_error);
+                }
+
                 static constexpr std::array<char, 4> kBufferNames{'A', 'B', 'C', 'D'};
                 for (char name : kBufferNames)
                 {
@@ -855,6 +1198,26 @@ void ShaderVideoWindow::build_render_stages()
 
                     RenderStage::ShaderBuffer buf;
                     buf.name = name;
+                    buf.channel_sources = default_buffer_channel_sources();
+                    switch (name)
+                    {
+                        case 'A':
+                            buf.channel_sources = buffer_a_routes;
+                            buf.has_custom_channel_sources = stage.has_custom_channel_sources;
+                            break;
+                        case 'B':
+                            buf.channel_sources = buffer_b_routes;
+                            buf.has_custom_channel_sources = stage.has_custom_channel_sources;
+                            break;
+                        case 'C':
+                            buf.channel_sources = buffer_c_routes;
+                            buf.has_custom_channel_sources = stage.has_custom_channel_sources;
+                            break;
+                        case 'D':
+                            buf.channel_sources = buffer_d_routes;
+                            buf.has_custom_channel_sources = stage.has_custom_channel_sources;
+                            break;
+                    }
                     buf.program = std::make_unique<QOpenGLShaderProgram>();
                     if (!buf.program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_shader_source) ||
                         !buf.program->addShaderFromSourceCode(QOpenGLShader::Fragment, buf_fragment) ||
@@ -1003,16 +1366,23 @@ void ShaderVideoWindow::render_shader_buffers(RenderStage &stage, GLuint video_t
         bind_stage_common_uniforms(buf.program.get(), stage, elapsed_seconds);
         bind_shadertoy_uniforms(buf.program.get(), elapsed_seconds, frame_delta_seconds, frame_index, video_size);
 
-        // iChannel0 = video/input, iChannel1 = this buffer's previous frame (feedback),
-        // iChannel2-3 = blank (other buffers could be wired here in future).
+        const auto routes = buf.has_custom_channel_sources ? buf.channel_sources : default_buffer_channel_sources();
+        const GLuint channel0_texture = resolve_channel_texture(stage, routes[0], video_texture, self_prev_tex,
+                                    blank_texture_id_);
+        const GLuint channel1_texture = resolve_channel_texture(stage, routes[1], video_texture, self_prev_tex,
+                                    blank_texture_id_);
+        const GLuint channel2_texture = resolve_channel_texture(stage, routes[2], video_texture, self_prev_tex,
+                                    blank_texture_id_);
+        const GLuint channel3_texture = resolve_channel_texture(stage, routes[3], video_texture, self_prev_tex,
+                                    blank_texture_id_);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, video_texture != 0 ? video_texture : blank_texture_id_);
+        glBindTexture(GL_TEXTURE_2D, channel0_texture);
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, self_prev_tex);
+        glBindTexture(GL_TEXTURE_2D, channel1_texture);
         glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+        glBindTexture(GL_TEXTURE_2D, channel2_texture);
         glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, blank_texture_id_);
+        glBindTexture(GL_TEXTURE_2D, channel3_texture);
         glActiveTexture(GL_TEXTURE0);
 
         quad_vertex_buffer_.bind();

@@ -1,0 +1,18 @@
+{
+    "bufferA": {
+        "iChannel0": "self"
+    },
+    "bufferB": {
+        "iChannel0": "bufferA"
+    },
+    "bufferC": {
+        "iChannel0": "bufferB"
+    },
+    "bufferD": {
+        "iChannel0": "bufferC",
+        "iChannel1": "self"
+    },
+    "image": {
+        "iChannel0": "bufferD"
+    }
+}
