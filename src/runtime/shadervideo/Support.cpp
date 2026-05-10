@@ -211,29 +211,11 @@ QString shadertoy_unsupported_reason(const QString &source)
         return {};
     }
 
-    QStringList reasons;
-    if (source_contains_pattern(source, "\\biChannel[1-3]\\b"))
-    {
-        reasons.push_back(
-            QStringLiteral("uses iChannel1..3, but the current ShaderToy adapter only supports iChannel0 in single-pass mode"));
-    }
-    if (source_contains_pattern(source, "\\btexelFetch\\s*\\("))
-    {
-        reasons.push_back(
-            QStringLiteral("uses texelFetch(), which this GLSL 110 single-pass ShaderToy adapter does not emulate"));
-    }
-    if (source_contains_pattern(source, "\\b(range|LOAD|STORE)\\s*\\("))
-    {
-        reasons.push_back(QStringLiteral(
-            "uses helper macros/functions that usually come from ShaderToy Common or Buffer passes, which are not implemented"));
-    }
-    if (source_contains_pattern(source, "\\b(ch0|ch1|ch2|ch3|BufferA|BufferB|BufferC|BufferD)\\b"))
-    {
-        reasons.push_back(QStringLiteral(
-            "references multipass buffer identifiers, but only single-pass Image shaders are supported right now"));
-    }
-
-    return reasons.join(QStringLiteral("\n- "));
+    // Multipass ShaderToy directories now support Common, Buffer A-D routing,
+    // iChannel1-3, textureLod(), and texelFetch() through compatibility shims.
+    // Keep the gate permissive and let actual GLSL compilation report any
+    // remaining unsupported constructs precisely.
+    return {};
 }
 
 QString adapt_fragment_shader_source(QString source)

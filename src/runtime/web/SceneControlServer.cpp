@@ -1302,15 +1302,6 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
             }
         }
 
-        if (!parsed_layer_order.empty() && parsed_layer_order.size() != 3)
-        {
-            if (error_message != nullptr)
-            {
-                *error_message = QStringLiteral("layerOrder must contain video, playback, and screen exactly once");
-            }
-            return false;
-        }
-
         updated.layer_order = std::move(parsed_layer_order);
     }
 

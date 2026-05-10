@@ -33,7 +33,7 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "chimeras_breath.glsl"
+            "chimeras_breath"
         ]
     },
     "layer_order": [

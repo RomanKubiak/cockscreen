@@ -254,7 +254,7 @@ std::vector<std::string> parse_layer_order(const QJsonValue &value)
         }
     }
 
-    return layer_order.size() == 3 ? layer_order : std::vector<std::string>{};
+    return layer_order;
 }
 
 std::filesystem::path resolve_shader_path(const std::filesystem::path &base_dir, const std::string &shader_file)

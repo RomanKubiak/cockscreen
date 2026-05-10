@@ -537,14 +537,14 @@ std::optional<WebServerBindConfig> parse_web_server_bind_url(const std::string &
     return WebServerBindConfig{address, static_cast<quint16>(url.port()), url.toString()};
 }
 
-QString effective_top_layer_name(const SceneDefinition &scene, bool video_on_top)
+QString effective_top_layer_name(const SceneDefinition &scene)
 {
     if (!scene.layer_order.empty())
     {
         return QString::fromStdString(scene.layer_order.back());
     }
 
-    return video_on_top ? QStringLiteral("video") : QStringLiteral("screen");
+    return QStringLiteral("<none>");
 }
 
 } // namespace
@@ -946,7 +946,7 @@ int Application::run(int argc, char *argv[])
         const QString camera_format_text = selected_format.has_value() ? camera_format_label(*selected_format)
                                                                       : QStringLiteral("unknown");
         const bool video_on_top = scene.video_input.on_top.value_or(settings_.top_layer == "video");
-        const QString top_layer_name = effective_top_layer_name(scene, video_on_top);
+        const QString top_layer_name = effective_top_layer_name(scene);
         const bool show_status_overlay = scene.show_status_overlay;
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), selected_video_label,
@@ -1199,7 +1199,7 @@ int Application::run(int argc, char *argv[])
     std::cout << playback_config_summary(scene).toStdString() << '\n';
     std::cout << "Video shader loaded: " << video_shader_label.toStdString() << '\n';
     std::cout << "Screen shader loaded: " << screen_shader_label.toStdString() << '\n';
-    std::cout << "Top layer: " << effective_top_layer_name(scene, video_on_top).toStdString() << '\n';
+    std::cout << "Top layer: " << effective_top_layer_name(scene).toStdString() << '\n';
     std::cout << "Render path: " << settings_.render_path << '\n';
     std::cout << "Window mode: Qt6 windowed" << '\n';
     std::cout << "Qt platform: " << qt_platform_name << '\n';

@@ -438,25 +438,15 @@ void draw_timecode_overlay(QPainter *painter, const QRect &viewport_rect, std::i
     painter->drawText(target, Qt::AlignCenter, label);
 }
 
-std::vector<QString> effective_layer_order(const SceneDefinition &scene, bool video_on_top)
+std::vector<QString> effective_layer_order(const SceneDefinition &scene)
 {
-    if (scene.layer_order.size() == 3)
+    std::vector<QString> order;
+    order.reserve(scene.layer_order.size());
+    for (const auto &layer_name : scene.layer_order)
     {
-        std::vector<QString> order;
-        order.reserve(scene.layer_order.size());
-        for (const auto &layer_name : scene.layer_order)
-        {
-            order.push_back(QString::fromStdString(layer_name));
-        }
-        return order;
+        order.push_back(QString::fromStdString(layer_name));
     }
-
-    if (video_on_top)
-    {
-        return {QStringLiteral("video"), QStringLiteral("playback"), QStringLiteral("screen")};
-    }
-
-    return {QStringLiteral("screen"), QStringLiteral("playback"), QStringLiteral("video")};
+    return order;
 }
 
 } // namespace
@@ -628,13 +618,47 @@ void ShaderVideoWindow::paintGL()
         return current_valid ? current_texture : 0;
     };
 
-    const GLuint video_output = render_layer_chain(QStringLiteral("video"), camera_texture, camera_valid);
-    const GLuint playback_output = render_layer_chain(QStringLiteral("playback"), playback_texture, playback_valid);
+    const auto layer_order = effective_layer_order(scene_);
+    const auto uses_layer = [&](const QString &name) {
+        return std::find(layer_order.begin(), layer_order.end(), name) != layer_order.end();
+    };
+    const GLuint video_output = uses_layer(QStringLiteral("video"))
+                                    ? render_layer_chain(QStringLiteral("video"), camera_texture, camera_valid)
+                                    : 0;
+    const GLuint playback_output = uses_layer(QStringLiteral("playback"))
+                                       ? render_layer_chain(QStringLiteral("playback"), playback_texture, playback_valid)
+                                       : 0;
     const GLuint screen_base_texture = background_image_texture_id_ != 0 ? background_image_texture_id_ : background_texture_id_;
     const bool screen_base_valid = screen_base_texture != 0;
-    const GLuint screen_output = render_layer_chain(QStringLiteral("screen"), screen_base_texture, screen_base_valid);
+    const GLuint screen_output = uses_layer(QStringLiteral("screen"))
+                                     ? render_layer_chain(QStringLiteral("screen"), screen_base_texture, screen_base_valid)
+                                     : 0;
 
-    const auto layer_order = effective_layer_order(scene_, video_on_top_);
+    const auto layer_is_enabled = [&](const QString &layer_name) {
+        if (layer_name == QStringLiteral("video"))
+        {
+            return scene_.video_layer.enabled;
+        }
+        if (layer_name == QStringLiteral("playback"))
+        {
+            return scene_.playback_layer.enabled;
+        }
+        if (layer_name == QStringLiteral("screen"))
+        {
+            return scene_.screen_layer.enabled;
+        }
+        return false;
+    };
+    const bool has_enabled_ordered_layer = std::any_of(layer_order.begin(), layer_order.end(), layer_is_enabled);
+    if (!has_enabled_ordered_layer)
+    {
+        status_message_ = QStringLiteral("Nothing to render");
+    }
+    else if (status_message_ == QStringLiteral("Nothing to render"))
+    {
+        status_message_.clear();
+    }
+
     for (const auto &layer_name : layer_order)
     {
         if (layer_name == QStringLiteral("video"))
