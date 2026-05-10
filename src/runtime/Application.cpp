@@ -40,6 +40,11 @@
 #include <optional>
 #include <utility>
 
+#if defined(__linux__)
+#include <csignal>
+#include <unistd.h>
+#endif
+
 namespace cockscreen::runtime
 {
 
@@ -97,6 +102,71 @@ int show_fatal_error_window(QApplication *application, QString message)
     }
 
     return application->exec();
+}
+
+int exit_with_fatal_error(QString message)
+{
+    std::cerr << message.toStdString() << '\n';
+    return 2;
+}
+
+void terminate_older_cockscreen_instances()
+{
+#if defined(__linux__)
+    const pid_t self_pid = getpid();
+    std::error_code self_error;
+    const auto self_executable = std::filesystem::weakly_canonical("/proc/self/exe", self_error);
+
+    std::error_code proc_error;
+    for (const auto &entry : std::filesystem::directory_iterator{"/proc", proc_error})
+    {
+        if (proc_error)
+        {
+            break;
+        }
+        if (!entry.is_directory())
+        {
+            continue;
+        }
+
+        const auto name = entry.path().filename().string();
+        if (name.empty() || !std::all_of(name.begin(), name.end(), [](unsigned char ch) { return std::isdigit(ch) != 0; }))
+        {
+            continue;
+        }
+
+        pid_t pid = 0;
+        try
+        {
+            pid = static_cast<pid_t>(std::stol(name));
+        }
+        catch (...)
+        {
+            continue;
+        }
+
+        if (pid <= 0 || pid == self_pid)
+        {
+            continue;
+        }
+
+        std::error_code exe_error;
+        const auto other_executable = std::filesystem::weakly_canonical(entry.path() / "exe", exe_error);
+        if (exe_error)
+        {
+            continue;
+        }
+
+        const bool same_binary = !self_error ? other_executable == self_executable
+                                             : other_executable.filename() == std::filesystem::path{"cockscreen"};
+        if (!same_binary)
+        {
+            continue;
+        }
+
+        ::kill(pid, SIGKILL);
+    }
+#endif
 }
 
 QStringList wrap_overlay_line(const QString &text, int preferred_chars)
@@ -536,33 +606,24 @@ int Application::run(int argc, char *argv[])
         QSurfaceFormat::setDefaultFormat(format);
     }
 
-    QApplication application{argc, argv};
-    application.setApplicationName(QStringLiteral("cockscreen"));
-    const auto qt_platform_name = application.platformName().toStdString();
-    if (is_pi_target())
-    {
-        QApplication::setOverrideCursor(Qt::BlankCursor);
-    }
-
     if (settings_.scene_file.empty())
     {
-        return show_fatal_error_window(
-            &application,
+        return exit_with_fatal_error(
             QStringLiteral("Scene file not specified. Pass --scene-file PATH or place a default scene beside the executable."));
     }
 
     const auto scene_path = support::resolve_relative_path(std::filesystem::path{settings_.scene_file});
     if (!scene_path.has_value())
     {
-        return show_fatal_error_window(
-            &application, QStringLiteral("Scene file not found: %1").arg(QString::fromStdString(settings_.scene_file)));
+        return exit_with_fatal_error(
+            QStringLiteral("Scene file not found: %1").arg(QString::fromStdString(settings_.scene_file)));
     }
 
     std::string scene_error;
     const auto loaded_scene = load_scene_definition(*scene_path, &scene_error);
     if (!loaded_scene.has_value())
     {
-        return show_fatal_error_window(&application, QString::fromStdString(scene_error));
+        return exit_with_fatal_error(QString::fromStdString(scene_error));
     }
 
     SceneDefinition scene = *loaded_scene;
@@ -578,18 +639,17 @@ int Application::run(int argc, char *argv[])
             lines.push_back(QString::fromStdString(message));
         }
         lines.push_back(QStringLiteral("Refusing to start due to missing scene shader files."));
-        return show_fatal_error_window(&application, lines.join('\n'));
+        return exit_with_fatal_error(lines.join('\n'));
     }
 
     if (const auto playback_error = validate_playback_source(scene); playback_error.has_value())
     {
-        return show_fatal_error_window(&application, *playback_error);
+        return exit_with_fatal_error(*playback_error);
     }
 
     if (!validate_render_path(settings_))
     {
-        return show_fatal_error_window(
-            &application,
+        return exit_with_fatal_error(
             QStringLiteral("Invalid render path: %1").arg(QString::fromStdString(settings_.render_path)));
     }
 
@@ -597,7 +657,17 @@ int Application::run(int argc, char *argv[])
     const auto web_server_bind = parse_web_server_bind_url(settings_.web_server_bind_url, &web_server_error);
     if (!settings_.web_server_bind_url.empty() && !web_server_bind.has_value())
     {
-        return show_fatal_error_window(&application, web_server_error);
+        return exit_with_fatal_error(web_server_error);
+    }
+
+    terminate_older_cockscreen_instances();
+
+    QApplication application{argc, argv};
+    application.setApplicationName(QStringLiteral("cockscreen"));
+    const auto qt_platform_name = application.platformName().toStdString();
+    if (is_pi_target())
+    {
+        QApplication::setOverrideCursor(Qt::BlankCursor);
     }
 
     QString audio_label;

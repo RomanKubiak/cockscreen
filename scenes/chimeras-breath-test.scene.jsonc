@@ -1,5 +1,42 @@
 {
+    "resources_directory": "../resources/",
+    "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
+    "shader_directory": "../shaders/",
+    "render_path": "qt-shader",
+    "geometry": {
+        "width": 1024,
+        "height": 600
+    },
+    "inputs": {
+        "video": {
+            "enabled": false
+        },
+        "playback": {
+            "enabled": false
+        },
+        "audio": {
+            "enabled": false
+        },
+        "midi": {
+            "enabled": false
+        }
+    },
+    "show_status_overlay": true,
+    "video": {
+        "enabled": false,
+        "shaders": []
+    },
+    "playback": {
+        "enabled": false,
+        "shaders": []
+    },
     "screen": {
-        "shaders": ["chimeras_breath.glsl"]
-    }
+        "enabled": true,
+        "shaders": [
+            "chimeras_breath.glsl"
+        ]
+    },
+    "layer_order": [
+        "screen"
+    ]
 }

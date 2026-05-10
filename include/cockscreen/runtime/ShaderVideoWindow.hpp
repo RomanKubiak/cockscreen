@@ -90,6 +90,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
   private:
     static constexpr int kStatusBarHeight{64};
 
+  public:
     struct RenderStage
     {
       enum class ChannelSourceKind
@@ -138,6 +139,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
       QString label;
       std::unique_ptr<QOpenGLShaderProgram> program;
     };
+
+  private:
 
     void handle_frame(const QVideoFrame &frame);
     void handle_playback_frame(const QVideoFrame &frame);
