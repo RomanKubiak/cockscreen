@@ -168,7 +168,7 @@
 		{
 			"label": "Remote Pi Start No Sync",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
