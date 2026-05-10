@@ -63,7 +63,7 @@
          */
         "playback": {
             /** @field enabled {boolean} Activates the file playback input. */
-            "enabled": true,
+            "enabled": false,
             /** @field file {string} Path to the video file. Relative paths are resolved from resources_directory. */
             "file": "/home/atom/Videos/pizza.mp4",
             /** @field scale {number} [0.01, ∞) Display scale relative to the window. Clamped to minimum 0.01. */
@@ -109,7 +109,7 @@
              */
             "loopback": {
                 /** @field enabled {boolean} Activates the loopback pipeline. When false, playback is direct (no re-encode, no netem). */
-                "enabled": true,
+                "enabled": false,
                 /** @field loss_percent {number} [0, 100] Percentage of UDP packets dropped by tc-netem. Dropped packets produce brief freeze holds. */
                 "loss_percent": 0.0,
                 /**
@@ -117,7 +117,7 @@
                  *   With use_appsink=true (H.264): corrupts P-frame bitstream → avdec_h264 outputs garbled macroblocks that persist
                  *   until the next IDR. Effective range for visible artifacts without full decode failure: 20–60.
                  */
-                "corrupt_percent": 0.0,
+                "corrupt_percent": 4.0,
                 /**
                  * @field delay_ms {integer} [0, ∞) Fixed added latency in milliseconds applied to the lo interface by tc-netem.
                  *   Must be > 0 for reorder_percent to have any visible effect.
@@ -127,7 +127,7 @@
                  * @field reorder_percent {number} [0, 100] Percentage of packets reordered (delivered out of sequence).
                  *   Requires delay_ms > 0. Stresses the RTP jitter buffer; can cause reference-frame mismatches in H.264.
                  */
-                "reorder_percent": 25.0,
+                "reorder_percent": 0.0,
                 /** @field udp_port {integer} Local UDP port for the loopback RTP stream. Sender writes, receiver binds. */
                 "udp_port": 5004,
                 /** @field loopback_device {string} v4l2loopback device path. Used only when use_appsink is false. */
@@ -180,7 +180,7 @@
          */
         "audio_playback": {
             /** @field enabled {boolean} Activates audio file playback. */
-            "enabled": true,
+            "enabled": false,
             /** @field file {string} Path to the audio file (mp3, wav, flac, etc.). */
             "file": "/home/atom/Music/We_Are_Dead.mp3",
             /** @field start_ms {integer} [0, ∞) Initial seek position in milliseconds. */
@@ -190,13 +190,13 @@
             /** @field loop_end_ms {integer} [0, ∞) Stream position that triggers a loop-back. 0 = full file (no early loop). */
             "loop_end_ms": 0,
             /** @field loop_repeat {integer} [0, ∞) Number of extra loop passes. 0 = infinite looping. */
-            "loop_repeat": 0,
+            "loop_repeat": 1,
             /** @field playback_rate {number} [0.01, ∞) Playback speed outside the loop segment. */
-            "playback_rate": 1.0,
+            "playback_rate": 2.0,
             /** @field playback_rate_looping {number} [0.01, ∞) Playback speed inside the active loop segment. */
-            "playback_rate_looping": 1.0,
+            "playback_rate_looping": 0.5,
             /** @field volume {number} [0, 1] Peak playback volume applied once fully faded in. */
-            "volume": 0.0,
+            "volume": 0.01,
             /** @field volume_initial {number} [0, 1] Volume level at t=0 before the intro fade begins. */
             "volume_initial": 0.05,
             /** @field volume_fade_in_ms {integer} [0, ∞) Milliseconds to ramp from volume_initial to volume at startup. */
@@ -269,7 +269,7 @@
         "enabled": false,
         /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
         "shaders": [
-            "toy_synthwave.glsl"
+            "wireframe_plane.glsl"
         ]
     },
     /**
@@ -282,17 +282,20 @@
         "enabled": true,
         /** @field shaders {string[]} Ordered .glsl filenames. */
         "shaders": [
-            "chimeras_breath"
+            // "rat_distortion_debug.glsl",
+            // "rave_lasers.glsl",
+            "toy_synthwave.glsl",
+            "rat_distortion.glsl"
         ]
     },
     /**
-     * @field layer_order {string[]} Back-to-front compositing order for any enabled subset of "screen", "video", and "playback".
-     *   The last entry is drawn on top. Duplicate or unknown entries are ignored during parsing.
-     *   Enabled layers that are omitted are not rendered. When the array is empty, nothing is rendered.
+     * @field layer_order {string[]} Back-to-front compositing order for "screen", "video", and "playback".
+     *   The last entry is drawn on top. Must contain all three names exactly once;
+     *   invalid or duplicate entries cause the whole field to be ignored.
+     *   When omitted, the runtime falls back to the legacy inputs.video.on_top field.
      */
     "layer_order": [
-        "screen",
-        "playback"
+        "screen"
     ],
     /**
      * @array midi_cc_mappings

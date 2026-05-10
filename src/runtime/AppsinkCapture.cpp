@@ -29,13 +29,14 @@ struct AppsinkContext
     GMainLoop  *loop{nullptr};
     std::atomic<bool> *running{nullptr};
     QString *status_message{nullptr};
+    bool verbose_debug{false};
 
     static GstFlowReturn on_new_sample(GstElement *appsink_elem, gpointer user_data)
     {
         auto *ctx = static_cast<AppsinkContext *>(user_data);
         static long frame_count = 0;
         ++frame_count;
-        if (frame_count <= 3 || frame_count % 60 == 0)
+        if (ctx->verbose_debug && (frame_count <= 3 || frame_count % 60 == 0))
             std::cerr << "[appsink] on_new_sample frame=" << frame_count << "\n";
 
         GstSample *sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink_elem));
@@ -129,6 +130,7 @@ struct ThreadArg
 {
     int udp_port;
     bool use_h264;
+    bool verbose_debug;
     QVideoSink *sink;
     std::atomic<bool> *running;
     QString *status_message;
@@ -190,6 +192,7 @@ void *capture_thread(void *arg_ptr)
     std::atomic<bool> *running   = arg->running;
     QVideoSink        *sink      = arg->sink;
     QString           *status    = arg->status_message;
+    const bool         verbose   = arg->verbose_debug;
     running->store(true);
     delete arg;
 
@@ -224,13 +227,13 @@ void *capture_thread(void *arg_ptr)
         if (sample == nullptr)
         {
             static long null_count = 0;
-            if (++null_count % 10 == 0)
+            if (verbose && ++null_count % 10 == 0)
                 std::cerr << "[appsink] pull timeout #" << null_count << " frames=" << frame_count << "\n";
             continue;
         }
 
         ++frame_count;
-        if (frame_count <= 3 || frame_count % 60 == 0)
+        if (verbose && (frame_count <= 3 || frame_count % 60 == 0))
             std::cerr << "[appsink] frame=" << frame_count << "\n";
 
         GstBuffer *buf  = gst_sample_get_buffer(sample);
@@ -290,13 +293,15 @@ AppsinkCapture::~AppsinkCapture()
     stop();
 }
 
-bool AppsinkCapture::start(int udp_port, QVideoSink *sink, bool use_h264)
+bool AppsinkCapture::start(int udp_port, QVideoSink *sink, bool use_h264, bool verbose_debug)
 {
     stop();
+    verbose_debug_ = verbose_debug;
 
     auto *arg           = new ThreadArg;
     arg->udp_port       = udp_port;
     arg->use_h264       = use_h264;
+    arg->verbose_debug  = verbose_debug;
     arg->sink           = sink;
     arg->running        = &running_;
     arg->status_message = &status_message_;

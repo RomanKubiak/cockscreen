@@ -29,9 +29,11 @@ LoopbackCapture::~LoopbackCapture()
     stop();
 }
 
-bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
+bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink,
+                             bool verbose_debug)
 {
     stop();
+    verbose_debug_ = verbose_debug;
     running_ = true;
 
     thread_ = QThread::create([this, device_path, sink]() {
@@ -275,7 +277,7 @@ bool LoopbackCapture::start(const std::string &device_path, QVideoSink *sink)
             }
 
             ++frame_count;
-            if (frame_count <= 3 || frame_count % 60 == 0)
+            if (verbose_debug_ && (frame_count <= 3 || frame_count % 60 == 0))
             {
                 const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - loop_start).count();

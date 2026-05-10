@@ -837,6 +837,43 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
     }
 }
 
+void ShaderVideoWindow::set_shader_uniform_override(const std::string &shader_name, const std::string &uniform_name,
+                                                    float value)
+{
+    if (shader_name.empty() || uniform_name.empty())
+    {
+        return;
+    }
+
+    shader_uniform_overrides_[shader_name][uniform_name] = value;
+    update();
+}
+
+std::map<std::string, float> ShaderVideoWindow::shader_uniform_overrides(std::string_view shader_name) const
+{
+    if (shader_name.empty())
+    {
+        return {};
+    }
+
+    const auto it = shader_uniform_overrides_.find(std::string{shader_name});
+    if (it != shader_uniform_overrides_.end())
+    {
+        return it->second;
+    }
+
+    const auto shader_filename = std::filesystem::path{shader_name}.filename().string();
+    for (const auto &[candidate_shader, overrides] : shader_uniform_overrides_)
+    {
+        if (shader_mapping_matches(candidate_shader, shader_filename))
+        {
+            return overrides;
+        }
+    }
+
+    return {};
+}
+
 void ShaderVideoWindow::apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const
 {
     if (program == nullptr || !program->isLinked())
@@ -924,6 +961,27 @@ void ShaderVideoWindow::apply_scene_osc_mappings(QOpenGLShaderProgram *program, 
         value = std::pow(value, mapping.exponent);
         value = mapping.minimum + (mapping.maximum - mapping.minimum) * value;
         program->setUniformValue(mapping.uniform.c_str(), value);
+    }
+}
+
+void ShaderVideoWindow::apply_shader_uniform_overrides(QOpenGLShaderProgram *program, const RenderStage &stage) const
+{
+    if (program == nullptr || !program->isLinked())
+    {
+        return;
+    }
+
+    for (const auto &[shader_name, overrides] : shader_uniform_overrides_)
+    {
+        if (!shader_mapping_matches(shader_name, stage.shader_path))
+        {
+            continue;
+        }
+
+        for (const auto &[uniform_name, value] : overrides)
+        {
+            program->setUniformValue(uniform_name.c_str(), value);
+        }
     }
 }
 
@@ -1056,6 +1114,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     bind_shadertoy_uniforms(stage->program.get(), elapsed_seconds, frame_delta_seconds, frame_index, video_size);
     apply_scene_midi_mappings(stage->program.get(), *stage);
     apply_scene_osc_mappings(stage->program.get(), *stage);
+    apply_shader_uniform_overrides(stage->program.get(), *stage);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, main_channel0);

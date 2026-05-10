@@ -77,11 +77,12 @@ void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
 namespace helper = shader_window;
 
 ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneDefinition scene, QCameraDevice video_device,
-                                     QString video_label, QString format_label, bool video_on_top,
+                                     QString video_device_path, QString video_label, QString format_label, bool video_on_top,
                                      bool show_status_overlay, QWidget *parent)
     : QOpenGLWidget{parent}, settings_{settings}, scene_{std::move(scene)}, video_label_{std::move(video_label)},
       video_on_top_{video_on_top}, show_status_overlay_{show_status_overlay}, camera_format_label_{std::move(format_label)}
 {
+    Q_UNUSED(video_device_path);
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
     setAutoFillBackground(false);
@@ -147,10 +148,11 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         });
         render_tick_timer_.start(16);
 
-    if (!video_device.isNull())
+    const auto [requested_width, requested_height] = helper::requested_video_dimensions(scene_, settings_);
+    const bool use_camera_capture = !video_label_.startsWith(QStringLiteral("appsink:")) && !video_device.isNull();
+    if (use_camera_capture)
     {
         camera_ = new QCamera{video_device, this};
-        const auto [requested_width, requested_height] = helper::requested_video_dimensions(scene_, settings_);
         if (const auto selected_format = select_camera_format(video_device, requested_width, requested_height);
             selected_format.has_value())
         {
@@ -244,7 +246,8 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                     {
                         playback_loopback_capture_ = new LoopbackCapture;
                         if (!playback_loopback_capture_->start(
-                                scene_.playback_input.loopback.loopback_device, &playback_sink_))
+                                scene_.playback_input.loopback.loopback_device, &playback_sink_,
+                                settings_.verbose_debug))
                         {
                             const QString error_text =
                                 QStringLiteral("Playback loopback capture failed: %1")
@@ -338,7 +341,8 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
             status_message_ = QStringLiteral("Video capture could not start");
         }
     }
-    else if (!(scene_.playback_input.enabled && !scene_.playback_input.file.empty()))
+    else if (status_message_.isEmpty() && !video_label_.startsWith(QStringLiteral("appsink:")) &&
+             !(scene_.playback_input.enabled && !scene_.playback_input.file.empty()))
     {
         status_message_ = QStringLiteral("No video capture device was found");
     }
@@ -510,6 +514,11 @@ QString ShaderVideoWindow::playback_status_text() const
 std::optional<std::uintmax_t> ShaderVideoWindow::playback_file_size_bytes() const
 {
     return playback_file_size_bytes_;
+}
+
+QImage ShaderVideoWindow::latest_video_frame_image() const
+{
+    return latest_frame_.copy();
 }
 
 void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)

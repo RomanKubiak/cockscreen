@@ -33,7 +33,8 @@ public:
     // already have a format negotiated by the GStreamer receiver (i.e. call
     // LoopbackPipeline::wait_for_device_ready() first). sink must remain valid
     // for the lifetime of the LoopbackCapture.
-    [[nodiscard]] bool start(const std::string &device_path, QVideoSink *sink);
+    [[nodiscard]] bool start(const std::string &device_path, QVideoSink *sink,
+                             bool verbose_debug = false);
 
     void stop();
 
@@ -44,6 +45,7 @@ private:
     QThread *thread_{nullptr};
     std::atomic<bool> running_{false};
     QString status_message_;
+    bool verbose_debug_{false};
 };
 
 } // namespace cockscreen::runtime

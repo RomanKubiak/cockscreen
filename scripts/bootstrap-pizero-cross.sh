@@ -76,6 +76,8 @@ SYSROOT_PACKAGES=(
 	libxcb-xkb-dev
 	libxkbcommon-dev
 	libxkbcommon-x11-dev
+	libgstreamer1.0-dev
+	libgstreamer-plugins-base1.0-dev
 )
 
 require_command() {
