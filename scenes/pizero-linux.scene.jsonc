@@ -65,7 +65,10 @@
         "audio_reactivity": 0.45,
         "midi_reactivity": 0.35
     },
-    /* Enabled layer + ordered shader chain per compositing stage. */
+    /* Enabled layer + ordered shader chain per compositing stage.
+       Keep Pi Zero 2 W presets on lighter shaders; heavyweight effects such as
+       rave_lasers.glsl and defender_autoplay.glsl are intentionally avoided here
+       because they can exceed the Pi's memory / driver budget. */
     "video": {
         "enabled": true,
         "shaders": [

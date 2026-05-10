@@ -703,6 +703,10 @@ cmake --preset pi-zero2w-debug
 cmake --build --preset pi-zero2w-debug
 ```
 
+Pi Zero 2 W shader budgets are tight. `rave_lasers.glsl` and `defender_autoplay.glsl`
+are currently known to exceed the Pi's memory / driver budget, so Pi presets should
+stick to lighter shaders.
+
 ### Pi Zero 2 W cross-compilation
 
 ```bash
@@ -761,4 +765,3 @@ cmake/           toolchain files
 scripts/         bootstrap scripts
 ```
 scripts/         bootstrap scripts
-
