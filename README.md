@@ -2,6 +2,8 @@
 
 A Qt6 / OpenGL ES shader pipeline for Raspberry Pi Zero 2 W and x86_64 Linux. It captures video, audio, MIDI, and OSC data and drives a real-time GLSL shader chain. Typical uses: live VJing, AV installations, generative visuals.
 
+The bundled `chimeras_breath` shader comes from https://www.shadertoy.com/view/4tGfDW.
+
 - USB video grabber capture (V4L2)
 - Shader-based video effects (OpenGL ES 2 / desktop GL 2.1)
 - Audio-driven modulation (ALSA loopback / WASAPI on Windows)

@@ -6,9 +6,13 @@
 
 #include <QAudioBuffer>
 #include <QAudioFormat>
+#include <QApplication>
 #include <QColor>
+#include <QCursor>
+#include <QEvent>
 #include <QOpenGLShader>
 #include <QResizeEvent>
+#include <QTouchEvent>
 #include <QUrl>
 
 #include <algorithm>
@@ -82,8 +86,13 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     setMinimumSize(900, 540);
     setAutoFillBackground(false);
     setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+    setMouseTracking(true);
     setAttribute(Qt::WA_AcceptTouchEvents, true);
+#if defined(__linux__) && defined(__aarch64__)
     setCursor(Qt::BlankCursor);
+#else
+    unsetCursor();
+#endif
 
     if (show_status_overlay_)
     {
@@ -132,6 +141,11 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                                                     ? QStringLiteral("Qt playback error %1").arg(static_cast<int>(error))
                                                     : error_string.trimmed();
                      });
+        render_tick_timer_.setTimerType(Qt::PreciseTimer);
+        QObject::connect(&render_tick_timer_, &QTimer::timeout, this, [this]() {
+            update();
+        });
+        render_tick_timer_.start(16);
 
     if (!video_device.isNull())
     {
@@ -417,6 +431,25 @@ ShaderVideoWindow::~ShaderVideoWindow()
         glDeleteTextures(1, &icon_atlas_texture_id_);
         icon_atlas_texture_id_ = 0;
     }
+    for (auto &stage : render_stages_)
+    {
+        for (GLuint &tex : stage.channel_textures)
+        {
+            if (tex != 0)
+            {
+                glDeleteTextures(1, &tex);
+                tex = 0;
+            }
+        }
+        for (auto &buf : stage.shader_buffers)
+        {
+            for (int i = 0; i < 2; ++i)
+            {
+                delete buf.fbo[i];
+                buf.fbo[i] = nullptr;
+            }
+        }
+    }
     if (quad_vertex_buffer_.isCreated())
     {
         quad_vertex_buffer_.destroy();
@@ -550,6 +583,155 @@ void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
     }
 
     update();
+}
+
+void ShaderVideoWindow::update_pointer_state(const QPointF &position, bool pressed, bool new_press)
+{
+    const float clamped_x = std::clamp(static_cast<float>(position.x()), 0.0F,
+                                       static_cast<float>(std::max(width() - 1, 0)));
+    const float clamped_y = std::clamp(static_cast<float>(position.y()), 0.0F,
+                                       static_cast<float>(std::max(height() - 1, 0)));
+
+    pointer_position_ = QVector2D{clamped_x, clamped_y};
+    if (new_press)
+    {
+        pointer_press_origin_ = pointer_position_;
+    }
+
+    pointer_has_position_ = true;
+    pointer_pressed_ = pressed;
+    update();
+}
+
+QVector4D ShaderVideoWindow::shadertoy_mouse_uniform()
+{
+    sync_pointer_state_from_cursor();
+
+    if (!pointer_has_position_)
+    {
+        return QVector4D{};
+    }
+
+    const float current_x = pointer_position_.x();
+    const float current_y = static_cast<float>(height()) - pointer_position_.y();
+    if (!pointer_pressed_)
+    {
+        return QVector4D{current_x, current_y, 0.0F, 0.0F};
+    }
+
+    return QVector4D{current_x, current_y,
+                     pointer_press_origin_.x(), static_cast<float>(height()) - pointer_press_origin_.y()};
+}
+
+void ShaderVideoWindow::sync_pointer_state_from_cursor()
+{
+    const QPoint local_pos = mapFromGlobal(QCursor::pos());
+    const bool inside_widget = rect().contains(local_pos);
+    const bool left_button_down = (QApplication::mouseButtons() & Qt::LeftButton) != 0;
+
+    if (!inside_widget && !left_button_down)
+    {
+        return;
+    }
+
+    const QVector2D previous_position = pointer_position_;
+    const bool was_pressed = pointer_pressed_;
+    update_pointer_state(local_pos, left_button_down, left_button_down && !was_pressed);
+
+    if (!left_button_down && inside_widget)
+    {
+        pointer_pressed_ = false;
+        if (pointer_position_ != previous_position || was_pressed)
+        {
+            update();
+        }
+    }
+}
+
+void ShaderVideoWindow::mousePressEvent(QMouseEvent *event)
+{
+    if (event != nullptr && event->button() == Qt::LeftButton)
+    {
+        update_pointer_state(event->position(), true, true);
+        event->accept();
+        return;
+    }
+
+    QOpenGLWidget::mousePressEvent(event);
+}
+
+void ShaderVideoWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    if (event != nullptr)
+    {
+        update_pointer_state(event->position(), pointer_pressed_, false);
+        event->accept();
+        return;
+    }
+
+    QOpenGLWidget::mouseMoveEvent(event);
+}
+
+void ShaderVideoWindow::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event != nullptr && event->button() == Qt::LeftButton)
+    {
+        update_pointer_state(event->position(), false, false);
+        event->accept();
+        return;
+    }
+
+    QOpenGLWidget::mouseReleaseEvent(event);
+}
+
+bool ShaderVideoWindow::event(QEvent *event)
+{
+    if (event == nullptr)
+    {
+        return QOpenGLWidget::event(event);
+    }
+
+    switch (event->type())
+    {
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        {
+            auto *touch_event = static_cast<QTouchEvent *>(event);
+            if (!touch_event->points().isEmpty())
+            {
+                const auto &point = touch_event->points().front();
+                update_pointer_state(point.position(), true, point.state() == QEventPoint::State::Pressed);
+                event->accept();
+                return true;
+            }
+            break;
+        }
+        case QEvent::TouchEnd:
+        {
+            auto *touch_event = static_cast<QTouchEvent *>(event);
+            if (!touch_event->points().isEmpty())
+            {
+                const auto &point = touch_event->points().front();
+                update_pointer_state(point.position(), false, false);
+            }
+            else
+            {
+                pointer_pressed_ = false;
+                update();
+            }
+            event->accept();
+            return true;
+        }
+        case QEvent::TouchCancel:
+            pointer_pressed_ = false;
+            update();
+            event->accept();
+            return true;
+        default:
+            break;
+    }
+
+    return QOpenGLWidget::event(event);
 }
 
 void ShaderVideoWindow::stop_playback_source()
@@ -1086,6 +1268,7 @@ void ShaderVideoWindow::record_fatal_render_error(QString text)
 
     if (fatal_render_error_.isEmpty())
     {
+        qCritical().noquote() << "Fatal render error:" << text;
         fatal_render_error_ = std::move(text);
         return;
     }
@@ -1188,8 +1371,62 @@ void ShaderVideoWindow::resizeEvent(QResizeEvent *event)
     }
 }
 
-QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const
+QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan,
+                                                        std::filesystem::path *resource_dir_out) const
 {
+    // Helper: find a single .glsl file inside a directory and return its source.
+    // If found and resource_dir_out is non-null, writes the directory path to it.
+    // Returns true for files that are support/pass files within a subdirectory,
+    // not the main Image-pass shader (common.glsl, bufferA-D.glsl, image.glsl).
+    auto is_subdir_support_file = [](const std::filesystem::path &p) -> bool {
+        const auto name = p.filename().string();
+        if (name == "common.glsl" || name == "image.glsl")
+        {
+            return true;
+        }
+        // buffer[A-D].glsl
+        if (name.size() == 11 && name.substr(0, 6) == "buffer" && name.substr(7) == ".glsl")
+        {
+            const char c = name[6];
+            if (c >= 'A' && c <= 'D')
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto scan_shader_dir = [&](const std::filesystem::path &dir) -> QString {
+        std::error_code ec;
+        for (const auto &entry : std::filesystem::directory_iterator{dir, ec})
+        {
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+            const auto ext = entry.path().extension().string();
+            if (ext != ".frag" && ext != ".glsl" && ext != ".vert" && ext != ".comp")
+            {
+                continue;
+            }
+            // Skip support/pass files — they are not the Image pass.
+            if (is_subdir_support_file(entry.path()))
+            {
+                continue;
+            }
+            const auto source = helper::read_text_file_qstring(entry.path());
+            if (!source.isEmpty())
+            {
+                if (resource_dir_out != nullptr)
+                {
+                    *resource_dir_out = dir;
+                }
+                return source;
+            }
+        }
+        return {};
+    };
+
     if (!shader_file.empty())
     {
         std::filesystem::path shader_path{shader_file};
@@ -1199,21 +1436,73 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
         }
 
         const auto resolved_shader_path = helper::resolve_relative_path(shader_path);
-        if (!resolved_shader_path.has_value())
+        if (resolved_shader_path.has_value())
         {
-            const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
-                QStringLiteral("Shader import failed: could not resolve '%1'").arg(QString::fromStdString(shader_path.string())));
-            return {};
+            // Case 1: the path points directly to an existing file.
+            if (std::filesystem::is_regular_file(*resolved_shader_path))
+            {
+                const auto source = helper::read_text_file_qstring(*resolved_shader_path);
+                if (!source.isEmpty())
+                {
+                    // If the parent directory differs from the top-level shader
+                    // directory it is a per-shader resource directory.
+                    const auto resolved_shader_dir =
+                        helper::resolve_relative_path(std::filesystem::path{settings_.shader_directory});
+                    if (resource_dir_out != nullptr && resolved_shader_dir.has_value() &&
+                        resolved_shader_path->parent_path() != *resolved_shader_dir)
+                    {
+                        *resource_dir_out = resolved_shader_path->parent_path();
+                    }
+                    return source;
+                }
+            }
+            // Case 2: the path points to a directory (e.g. "synth" → shaders/synth/).
+            if (std::filesystem::is_directory(*resolved_shader_path))
+            {
+                const auto source = scan_shader_dir(*resolved_shader_path);
+                if (!source.isEmpty())
+                {
+                    return source;
+                }
+            }
         }
 
-        const auto source = helper::read_text_file_qstring(*resolved_shader_path);
-        if (source.isEmpty())
+        // Case 3: the path does not exist as a file.  Try treating the stem as a
+        // subdirectory name: shaders/<stem>/<stem>.glsl or any .glsl in shaders/<stem>/.
+        const auto stem = std::filesystem::path{shader_file}.stem();
+        const std::filesystem::path subdir_path =
+            std::filesystem::path{settings_.shader_directory} / stem;
+        const auto resolved_subdir = helper::resolve_relative_path(subdir_path);
+        if (resolved_subdir.has_value() && std::filesystem::is_directory(*resolved_subdir))
         {
-            const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
-                QStringLiteral("Shader import failed: could not read '%1'")
-                    .arg(QString::fromStdString(resolved_shader_path->string())));
+            // Priority: image.glsl > <stem>.glsl > any other .glsl (excluding support files).
+            for (const auto &candidate : {std::string{"image.glsl"}, std::string{stem} + ".glsl"})
+            {
+                const auto named_file = *resolved_subdir / candidate;
+                if (std::filesystem::is_regular_file(named_file))
+                {
+                    const auto source = helper::read_text_file_qstring(named_file);
+                    if (!source.isEmpty())
+                    {
+                        if (resource_dir_out != nullptr)
+                        {
+                            *resource_dir_out = *resolved_subdir;
+                        }
+                        return source;
+                    }
+                }
+            }
+            // Fall back to any .glsl in the directory (excluding support files).
+            const auto source = scan_shader_dir(*resolved_subdir);
+            if (!source.isEmpty())
+            {
+                return source;
+            }
         }
-        return source;
+
+        const_cast<ShaderVideoWindow *>(this)->record_fatal_render_error(
+            QStringLiteral("Shader import failed: could not resolve '%1'").arg(QString::fromStdString(shader_path.string())));
+        return {};
     }
 
     if (!allow_directory_scan)
@@ -1227,21 +1516,7 @@ QString ShaderVideoWindow::load_fragment_shader_source(std::string_view shader_f
         return {};
     }
 
-    for (const auto &entry : std::filesystem::directory_iterator{*resolved_shader_directory})
-    {
-        if (!entry.is_regular_file())
-        {
-            continue;
-        }
-
-        const auto extension = entry.path().extension().string();
-        if (extension == ".frag" || extension == ".glsl" || extension == ".vert" || extension == ".comp")
-        {
-            return helper::read_text_file_qstring(entry.path());
-        }
-    }
-
-    return {};
+    return scan_shader_dir(*resolved_shader_directory);
 }
 
 } // namespace cockscreen::runtime

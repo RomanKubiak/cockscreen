@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -15,6 +16,7 @@
 #include <QImage>
 #include <QMediaCaptureSession>
 #include <QMediaPlayer>
+#include <QMouseEvent>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
@@ -24,7 +26,9 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QTimer>
+#include <QTouchEvent>
 #include <QVector2D>
+#include <QVector4D>
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
@@ -85,19 +89,72 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void initializeGL() override;
     void paintGL() override;
     void resizeEvent(QResizeEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    bool event(QEvent *event) override;
 
   private:
     static constexpr int kStatusBarHeight{64};
 
+  public:
     struct RenderStage
     {
+      enum class ChannelSourceKind
+      {
+        InputTexture,
+        PreviousFrame,
+        BufferOutput,
+        StaticTexture,
+        BlankTexture,
+      };
+
+      struct ChannelSource
+      {
+        ChannelSourceKind kind{ChannelSourceKind::InputTexture};
+        char buffer_name{'\0'};
+        int static_texture_index{-1};
+      };
+
+      // Intermediate multi-pass buffer (ShaderToy-style Buffer A/B/C/D).
+      // One entry per discovered bufferA.glsl … bufferD.glsl in the shader directory.
+      struct ShaderBuffer
+      {
+          char name{'A'};  // 'A', 'B', 'C', or 'D'
+          std::unique_ptr<QOpenGLShaderProgram> program;
+          // Ping-pong FBOs: current output alternates each frame.
+          QOpenGLFramebufferObject *fbo[2]{nullptr, nullptr};
+          int ping{0};  // index of the FBO written this frame
+            bool has_custom_channel_sources{false};
+            std::array<ChannelSource, 4> channel_sources{};
+      };
+
       QString layer_name;
       std::string shader_path;
+      // Directory co-located with the shader file (non-empty for subdir shaders).
+      std::filesystem::path resource_directory;
+      // Per-stage channel textures: index 0→iChannel1, 1→iChannel2, 2→iChannel3.
+      // 0 means "not loaded" – the renderer falls back to blank_texture_id_.
+      std::array<GLuint, 3> channel_textures{0, 0, 0};
+      // Multi-pass shader buffers (Buffer A..D). Populated when bufferA.glsl etc.
+      // are found alongside the main shader in its resource_directory.
+      std::vector<ShaderBuffer> shader_buffers;
+      // Optional per-layer background color rendered behind the layer's shader output.
+      SceneColor background_color;
+      // Optional per-layer background image rendered behind the layer's shader output.
+      SceneBackgroundImage background_image;
+      GLuint background_image_texture_id{0};
+      int background_image_texture_width{0};
+      int background_image_texture_height{0};
+      bool has_custom_channel_sources{false};
+      std::array<ChannelSource, 4> channel_sources{};
       bool camera_fit_vertex{false};
       bool allow_directory_scan{false};
       QString label;
       std::unique_ptr<QOpenGLShaderProgram> program;
     };
+
+  private:
 
     void handle_frame(const QVideoFrame &frame);
     void handle_playback_frame(const QVideoFrame &frame);
@@ -109,11 +166,18 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_icon_atlas_texture();
     void ensure_background_image_texture();
     void ensure_scene_fbos();
+    void ensure_shader_buffer_fbos(RenderStage &stage);
+    void render_shader_buffers(RenderStage &stage, GLuint video_texture, float elapsed_seconds,
+                               float frame_delta_seconds, int frame_index);
     void ensure_blank_texture();
     void ensure_background_texture();
     void upload_latest_frame();
     void upload_latest_playback_frame();
-    QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan) const;
+    // Loads a fragment shader's GLSL source.  When the shader lives inside a
+    // per-shader subdirectory (e.g. shaders/synth/synth.glsl), the directory
+    // path is written into *resource_dir_out (if non-null).
+    QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan,
+                                        std::filesystem::path *resource_dir_out = nullptr) const;
     void record_fatal_render_error(QString text);
     void build_render_stages();
     void stop_playback_source();
@@ -130,9 +194,12 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     [[nodiscard]] bool audio_playback_loop_enabled() const;
     void tick_audio_playback_volume();
     void process_audio_playback_buffer(const QAudioBuffer &buffer);
+    void update_pointer_state(const QPointF &position, bool pressed, bool new_press);
+    void sync_pointer_state_from_cursor();
+    [[nodiscard]] QVector4D shadertoy_mouse_uniform();
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
-                   int frame_index, const QVector2D &channel0_resolution) const;
+             int frame_index, const QVector2D &channel0_resolution);
     void apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     void apply_scene_osc_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     GLuint render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
@@ -156,6 +223,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QMediaPlayer audio_playback_player_;
     QAudioOutput audio_playback_audio_output_;
     QAudioBufferOutput audio_playback_buffer_output_;
+    QTimer render_tick_timer_;
     QTimer audio_playback_volume_timer_;
     QImage latest_frame_;
     QImage latest_playback_frame_;
@@ -201,6 +269,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     int background_image_texture_height_{0};
     bool background_image_texture_dirty_{false};
     std::vector<RenderStage> render_stages_;
+    QVector2D pointer_position_{};
+    QVector2D pointer_press_origin_{};
+    bool pointer_pressed_{false};
+    bool pointer_has_position_{false};
     int render_stage_index_{0};
     int render_frame_index_{0};
     std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};

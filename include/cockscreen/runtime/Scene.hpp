@@ -114,6 +114,8 @@ struct SceneLayer
 {
     bool enabled{true};
     std::vector<std::string> shaders;
+    SceneColor background_color;
+    SceneBackgroundImage background_image;
 };
 
 struct PinkKeySettings
