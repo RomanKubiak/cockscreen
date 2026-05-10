@@ -2,6 +2,13 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "Remote Pi Start No Sync",
+			"type": "node-terminal",
+			"request": "launch",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"cwd": "${workspaceFolder}"
+		},
+		{
 			"name": "Remote Pi Debug",
 			"type": "cppdbg",
 			"request": "launch",
