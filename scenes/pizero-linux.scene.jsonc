@@ -1,13 +1,6 @@
 {
     /* Raspberry Pi Zero 2 W preset for fullscreen device use. */
     "resources_directory": "../resources/",
-    "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
-    /* Background image object form supports file + placement. */
-    "background_image": {
-        "file": "textures/masazer.jpg",
-        /* Parser accepts centered as an alias for center. */
-        "placement": "centered"
-    },
     "shader_directory": "../shaders/",
     "render_path": "qt-shader",
     "geometry": {
@@ -15,171 +8,31 @@
         "height": 600
     },
     "inputs": {
-        "video": {
-            "enabled": true,
-            "device": "/dev/video1",
-            "format": "qvga",
-            "scale": 0.25,
-            "on_top": false,
-            "position": {
-                "x": 0.5,
-                "y": 0.5
-            }
-        },
-        "playback": {
-            "enabled": false,
-            "file": "/home/atom/Videos/video.mp4",
-            "scale": 0.28,
-            "on_top": true,
-            "position": {
-                "x": 0.02,
-                "y": 0.02
-            },
-            /* Null or omitted loop_end_ms disables a custom loop end. */
-            "start_ms": 0,
-            "loop_start_ms": 0,
-            "loop_end_ms": null,
-            "loop_repeat": 0,
-            "playback_rate": 1.0,
-            "playback_rate_looping": 1.0
-        },
         "background_color": {
             "r": 0.0,
             "g": 0.0,
             "b": 0.0,
             "a": 1.0
-        },
-        "audio": {
-            "enabled": true,
-            "device": "PCM2902 Audio Codec"
-        },
-        "midi": {
-            "enabled": true,
-            "device": "SQ-1"
         }
     },
-    "show_status_overlay": true,
-    "timecode": false,
-    "pink_key": {
-        "audio_algorithm": 0,
-        "audio_reactivity": 0.45,
-        "midi_reactivity": 0.35
-    },
+    "show_status_overlay": false,
     /* Enabled layer + ordered shader chain per compositing stage. */
     "video": {
-        "enabled": true,
-        "shaders": [
-            "pink_key.glsl",
-            "video_sphere.glsl"
-        ]
+        "enabled": false,
+        "shaders": []
     },
     "playback": {
         "enabled": false,
-        "shaders": [
-            "pixelize_loop.glsl"
-        ]
+        "shaders": []
     },
     "screen": {
         "enabled": true,
         "shaders": [
-            "kaleidoscope.glsl"
+            "defender_autoplay.glsl"
         ]
     },
     /* Compositing order from back to front. */
     "layer_order": [
-        "screen",
-        "playback",
-        "video"
-    ],
-    "midi_cc_mappings": [
-        {
-            "layer": "screen",
-            "shader": "wireframe_sphere.glsl",
-            "uniform": "u_wire_density",
-            "channel": 0,
-            "cc": 91,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "screen",
-            "shader": "pixelize_viewport.glsl",
-            "uniform": "u_pixelize_amount",
-            "channel": 0,
-            "cc": 92,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_h",
-            "channel": 0,
-            "cc": 93,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_hrange",
-            "channel": 0,
-            "cc": 94,
-            "min": 0.0,
-            "max": 0.5,
-            "exponent": 1.0
-        },
-        {
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_spread",
-            "channel": 0,
-            "cc": 95,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        }
-    ],
-    /* OSC mappings use address -> uniform translation with min/max/exponent shaping. */
-    "osc_mappings": [
-        {
-            "address": "/cockscreen/key/hue",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_h",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/hrange",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_hrange",
-            "min": 0.0,
-            "max": 0.5,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/spread",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_spread",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/smin",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_smin",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        }
+        "screen"
     ]
 }

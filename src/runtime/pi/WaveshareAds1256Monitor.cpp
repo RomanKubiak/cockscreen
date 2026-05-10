@@ -129,6 +129,12 @@ std::chrono::milliseconds parse_period_env(const char *name, int fallback_ms)
     return std::chrono::milliseconds{parsed.value_or(fallback_ms)};
 }
 
+bool verbose_logging_enabled()
+{
+    const char *value = std::getenv("COCKSCREEN_VERBOSE");
+    return value != nullptr && *value != '\0' && std::string_view{value} != "0";
+}
+
 } // namespace
 
 struct WaveshareAds1256Monitor::Impl
@@ -158,6 +164,7 @@ struct WaveshareAds1256Monitor::Impl
                                                                                          static_cast<int>(kGatePollPeriod.count()))},
           vref_volts_{parse_double_env("COCKSCREEN_ADS1256_VREF_VOLTS", 5.0)},
           sample_period_{parse_period_env("COCKSCREEN_ADS1256_PERIOD_MS", 1000)}
+          , verbose_{verbose_logging_enabled()}
     {
         if (mux_channel_count_ > 1)
         {
@@ -201,17 +208,20 @@ struct WaveshareAds1256Monitor::Impl
             return false;
         }
 
-        std::cout << "[ads1256] monitoring AD" << channel_ << " via " << spi_device_path_ << " (VREF="
-                  << std::fixed << std::setprecision(2) << vref_volts_ << " V, period="
-                  << sample_period_.count() << " ms)" << '\n';
-        if (mux_enabled_)
+        if (verbose_)
         {
-            std::cout << "[ads1256] CD74HC4067 active on AD0 using BCM5/BCM6/BCM13/BCM26, scanning "
-                      << mux_channel_count_ << " channels" << '\n';
-        }
-        if (gate_input_fd_ >= 0)
-        {
-            std::cout << "[ads1256] gate inputs active on BCM16/BCM19/BCM20" << '\n';
+            std::cout << "[ads1256] monitoring AD" << channel_ << " via " << spi_device_path_ << " (VREF="
+                      << std::fixed << std::setprecision(2) << vref_volts_ << " V, period="
+                      << sample_period_.count() << " ms)" << '\n';
+            if (mux_enabled_)
+            {
+                std::cout << "[ads1256] CD74HC4067 active on AD0 using BCM5/BCM6/BCM13/BCM26, scanning "
+                          << mux_channel_count_ << " channels" << '\n';
+            }
+            if (gate_input_fd_ >= 0)
+            {
+                std::cout << "[ads1256] gate inputs active on BCM16/BCM19/BCM20" << '\n';
+            }
         }
 
         thread_ = std::thread([this]() { run(); });
@@ -626,7 +636,10 @@ struct WaveshareAds1256Monitor::Impl
                 }
 
                 const double voltage = raw_to_voltage(raw);
-                std::cout << format_voltage_line("mux", mux_channel, voltage, raw) << '\n' << std::flush;
+                if (verbose_)
+                {
+                    std::cout << format_voltage_line("mux", mux_channel, voltage, raw) << '\n' << std::flush;
+                }
             }
 
             return true;
@@ -639,7 +652,10 @@ struct WaveshareAds1256Monitor::Impl
         }
 
         const double voltage = raw_to_voltage(raw);
-        std::cout << format_voltage_line("", channel_, voltage, raw) << '\n' << std::flush;
+        if (verbose_)
+        {
+            std::cout << format_voltage_line("", channel_, voltage, raw) << '\n' << std::flush;
+        }
         return true;
     }
 
@@ -656,7 +672,7 @@ struct WaveshareAds1256Monitor::Impl
             return;
         }
 
-        if (!have_last_gate_values_ || values != last_gate_values_)
+        if (verbose_ && (!have_last_gate_values_ || values != last_gate_values_))
         {
             last_gate_values_ = values;
             have_last_gate_values_ = true;
@@ -751,6 +767,7 @@ struct WaveshareAds1256Monitor::Impl
     std::chrono::milliseconds sample_period_{1000};
     bool mux_enabled_{false};
     bool have_last_gate_values_{false};
+    bool verbose_{false};
     std::atomic<bool> stop_requested_{false};
     std::thread thread_;
 };

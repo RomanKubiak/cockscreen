@@ -140,19 +140,30 @@ bool print_startup_preflight()
         return false;
     }
 
+    const bool verbose = []() {
+        const char *value = std::getenv("COCKSCREEN_VERBOSE");
+        return value != nullptr && *value != '\0' && std::string_view{value} != "0";
+    }();
+
     if (std::getenv("DISPLAY") != nullptr || std::getenv("WAYLAND_DISPLAY") != nullptr)
     {
-        std::cerr << "Qt startup note: DISPLAY/WAYLAND_DISPLAY are set, but the Pi build uses eglfs"
-                  << " and ignores any compositor session.\n";
+        if (verbose)
+        {
+            std::cerr << "Qt startup note: DISPLAY/WAYLAND_DISPLAY are set, but the Pi build uses eglfs"
+                      << " and ignores any compositor session.\n";
+        }
     }
 
-    if (const auto touchscreen = find_usb_touchscreen(); touchscreen.has_value())
+    if (verbose)
     {
-        std::cerr << "Qt startup note: USB touch input detected: " << *touchscreen << "\n";
-    }
-    else
-    {
-        std::cerr << "Qt startup note: no USB touchscreen-like input device was detected under /sys/class/input.\n";
+        if (const auto touchscreen = find_usb_touchscreen(); touchscreen.has_value())
+        {
+            std::cerr << "Qt startup note: USB touch input detected: " << *touchscreen << "\n";
+        }
+        else
+        {
+            std::cerr << "Qt startup note: no USB touchscreen-like input device was detected under /sys/class/input.\n";
+        }
     }
 
     return true;
