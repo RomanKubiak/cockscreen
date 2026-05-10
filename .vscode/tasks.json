@@ -103,7 +103,7 @@
 		{
 			"label": "Remote Pi: Run Cross Debug",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -114,7 +114,7 @@
 		{
 			"label": "Remote Pi: Run Cross Release",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-release/cockscreen\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -125,7 +125,7 @@
 		{
 			"label": "Remote Pi: Run Debug",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -146,7 +146,7 @@
 		{
 			"label": "Remote Pi: Run Release",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-release/cockscreen\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},

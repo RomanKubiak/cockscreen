@@ -8,6 +8,17 @@
         "height": 600
     },
     "inputs": {
+        "video": {
+            "enabled": true,
+            "device": "/dev/video0",
+            "format": "qvga",
+            "scale": 0.3,
+            "on_top": false,
+            "position": {
+                "x": 0.5,
+                "y": 0.6
+            }
+        },
         "background_color": {
             "r": 0.0,
             "g": 0.0,
@@ -18,8 +29,11 @@
     "show_status_overlay": false,
     /* Enabled layer + ordered shader chain per compositing stage. */
     "video": {
-        "enabled": false,
-        "shaders": []
+        "enabled": true,
+        "shaders": [
+            //"edge_distortion.glsl",
+            "rat_distortion.glsl"
+        ]
     },
     "playback": {
         "enabled": false,
@@ -28,11 +42,12 @@
     "screen": {
         "enabled": true,
         "shaders": [
-            "defender_autoplay.glsl"
+            ""
         ]
     },
     /* Compositing order from back to front. */
     "layer_order": [
-        "screen"
+        "screen",
+        "video"
     ]
 }

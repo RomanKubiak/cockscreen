@@ -9,6 +9,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 binary="$repo_root/out/build/local-x86_64-debug/cockscreen"
 log_file="$repo_root/tmp/debug-run.log"
 duration="${1:-45}"
+web_server_bind_url="${COCKSCREEN_WEB_SERVER_BIND_URL:-http://127.0.0.1:8080}"
 
 if [[ ! -x "$binary" ]]; then
 	echo "[run-test] Binary not found: $binary"
@@ -45,7 +46,7 @@ echo "[run-test] $(date '+%F %T')" >"$log_file"
 # Run under sudo with a timeout; tee output so it's visible in the VS Code terminal
 # as well as captured to the log file.  'timeout' sends SIGTERM after N seconds.
 # The '|| true' prevents set -e from aborting when timeout terminates the process.
-sudo timeout "$duration" stdbuf -oL -eL "$binary" -d 2>&1 | tee -a "$log_file" || true
+sudo timeout "$duration" stdbuf -oL -eL "$binary" -d --enable-web-server "$web_server_bind_url" 2>&1 | tee -a "$log_file" || true
 
 echo ""
 echo "================================================================"

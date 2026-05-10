@@ -47,7 +47,7 @@ Example:
     --enable-web-server http://0.0.0.0:8080
 ```
 
-Supported bind hosts are `localhost`, `0.0.0.0`, or a numeric IP address. The server stays disabled unless `--enable-web-server` is provided.
+Supported bind hosts are `localhost`, `0.0.0.0`, or a numeric IP address. The app only starts the server when `--enable-web-server` is provided; the Pi run scripts and tasks pass `http://0.0.0.0:8080` by default for convenience.
 
 Available endpoints:
 
@@ -763,4 +763,3 @@ cmake/           toolchain files
 scripts/         bootstrap scripts
 ```
 scripts/         bootstrap scripts
-

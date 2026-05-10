@@ -672,6 +672,27 @@ int Application::run(int argc, char *argv[])
     if (is_pi_target())
     {
         QApplication::setOverrideCursor(Qt::BlankCursor);
+        if (application.screens().isEmpty())
+        {
+            QStringList lines;
+            lines.push_back(QStringLiteral("Qt startup failed: the selected platform plugin exposed no screens."));
+            lines.push_back(QStringLiteral("Qt platform: %1").arg(application.platformName()));
+            lines.push_back(QStringLiteral("QT_QPA_PLATFORM=%1")
+                                .arg(qEnvironmentVariable("QT_QPA_PLATFORM", QStringLiteral("<unset>"))));
+            lines.push_back(QStringLiteral("DISPLAY=%1").arg(qEnvironmentVariable("DISPLAY", QStringLiteral("<unset>"))));
+            lines.push_back(
+                QStringLiteral("WAYLAND_DISPLAY=%1").arg(qEnvironmentVariable("WAYLAND_DISPLAY", QStringLiteral("<unset>"))));
+            lines.push_back(
+                QStringLiteral("XDG_RUNTIME_DIR=%1").arg(qEnvironmentVariable("XDG_RUNTIME_DIR", QStringLiteral("<unset>"))));
+            lines.push_back(QStringLiteral("DRM connectors:"));
+            for (const auto &line : drm_connector_status_lines())
+            {
+                lines.push_back(QStringLiteral("  %1").arg(QString::fromStdString(line)));
+            }
+            lines.push_back(QStringLiteral(
+                "This Pi build defaults to eglfs and needs a connected DRM/KMS output on the local console."));
+            return exit_with_fatal_error(lines.join('\n'));
+        }
     }
 
     QString audio_label;

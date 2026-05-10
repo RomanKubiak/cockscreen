@@ -8,6 +8,7 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <vector>
 #include <string_view>
 #include <system_error>
 #include <thread>
@@ -24,6 +25,8 @@
 namespace cockscreen::runtime
 {
 
+std::optional<std::string> read_text_file(const std::filesystem::path &path);
+
 namespace
 {
 
@@ -37,6 +40,67 @@ bool is_pi_target_impl()
 bool has_direct_drm_access_impl()
 {
     return std::filesystem::exists("/dev/dri/card0") || std::filesystem::exists("/dev/dri/renderD128");
+}
+
+std::vector<std::string> drm_connector_status_lines_impl()
+{
+    std::vector<std::pair<std::string, std::string>> connectors;
+    const std::filesystem::path drm_root{"/sys/class/drm"};
+    std::error_code root_error;
+    if (!std::filesystem::exists(drm_root, root_error))
+    {
+        return {"<no /sys/class/drm directory found>"};
+    }
+
+    std::error_code iter_error;
+    for (const auto &entry : std::filesystem::directory_iterator{drm_root, iter_error})
+    {
+        if (iter_error)
+        {
+            break;
+        }
+        if (!entry.is_directory())
+        {
+            continue;
+        }
+
+        const auto name = entry.path().filename().string();
+        const auto status_path = entry.path() / "status";
+        if (name.rfind("card", 0) != 0 || !std::filesystem::exists(status_path))
+        {
+            continue;
+        }
+
+        const auto status = read_text_file(status_path);
+        if (!status.has_value())
+        {
+            connectors.emplace_back(name, "<status unreadable>");
+            continue;
+        }
+
+        std::string cleaned = *status;
+        while (!cleaned.empty() && (cleaned.back() == '\n' || cleaned.back() == '\r'))
+        {
+            cleaned.pop_back();
+        }
+        connectors.emplace_back(name, std::move(cleaned));
+    }
+
+    std::sort(connectors.begin(), connectors.end(),
+              [](const auto &lhs, const auto &rhs) { return lhs.first < rhs.first; });
+
+    if (connectors.empty())
+    {
+        return {"<no DRM connector status files found under /sys/class/drm>"};
+    }
+
+    std::vector<std::string> lines;
+    lines.reserve(connectors.size());
+    for (const auto &connector : connectors)
+    {
+        lines.push_back(connector.first + ": " + connector.second);
+    }
+    return lines;
 }
 
 double timeval_to_seconds(const timeval &tv)
@@ -60,6 +124,11 @@ bool is_pi_target()
 bool has_direct_drm_access()
 {
     return has_direct_drm_access_impl();
+}
+
+std::vector<std::string> drm_connector_status_lines()
+{
+    return drm_connector_status_lines_impl();
 }
 
 std::optional<std::string> read_text_file(const std::filesystem::path &path)
@@ -137,6 +206,10 @@ bool print_startup_preflight()
                   << " or /dev/dri/renderD128.\n";
         std::cerr << "If you are starting from SSH, make sure the Pi is on a local VT with DRM access"
                   << " and that the device nodes are present and readable.\n";
+        for (const auto &line : drm_connector_status_lines())
+        {
+            std::cerr << "DRM: " << line << "\n";
+        }
         return false;
     }
 

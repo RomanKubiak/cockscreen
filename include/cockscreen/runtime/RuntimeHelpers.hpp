@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <optional>
+#include <vector>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -19,6 +20,7 @@ namespace cockscreen::runtime
 
 bool is_pi_target();
 bool has_direct_drm_access();
+std::vector<std::string> drm_connector_status_lines();
 std::optional<std::string> read_text_file(const std::filesystem::path &path);
 bool looks_like_touch_input(const std::string &name);
 std::optional<std::string> find_usb_touchscreen();
