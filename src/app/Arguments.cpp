@@ -79,7 +79,7 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         {
             result.settings.web_server_bind_url = std::string(next_value(index, argc, argv));
         }
-        else if (argument == "-d" || argument == "--debug")
+        else if (argument == "-v" || argument == "--verbose" || argument == "-d" || argument == "--debug")
         {
             result.settings.verbose_debug = true;
         }
@@ -99,7 +99,8 @@ void print_help()
               << "  --list-devices\n"
               << "  --scene-file FILE\n"
               << "  --enable-web-server URL\n"
-              << "  -d, --debug     Enable verbose debug output (sets GST_DEBUG=2, Qt debug logging)\n"
+              << "  -v, --verbose   Enable verbose debug output (sets GST_DEBUG=2, Qt debug logging)\n"
+              << "  -d, --debug     Alias for --verbose\n"
               << "  --help\n";
 }
 
