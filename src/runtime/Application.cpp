@@ -345,7 +345,11 @@ QString playback_static_overlay_line(const SceneDefinition &scene)
 std::optional<QString> validate_playback_source(const SceneDefinition &scene)
 {
     const auto &playback = scene.playback_input;
-    if (!playback.enabled)
+    const bool playback_layer_active = scene.playback_layer.enabled &&
+                                       (scene.layer_order.empty() ||
+                                        std::find(scene.layer_order.begin(), scene.layer_order.end(),
+                                                  std::string{"playback"}) != scene.layer_order.end());
+    if (!playback.enabled || !playback_layer_active)
     {
         return std::nullopt;
     }
