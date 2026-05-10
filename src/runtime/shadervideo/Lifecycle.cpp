@@ -6,9 +6,13 @@
 
 #include <QAudioBuffer>
 #include <QAudioFormat>
+#include <QApplication>
 #include <QColor>
+#include <QCursor>
+#include <QEvent>
 #include <QOpenGLShader>
 #include <QResizeEvent>
+#include <QTouchEvent>
 #include <QUrl>
 
 #include <algorithm>
@@ -82,8 +86,13 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     setMinimumSize(900, 540);
     setAutoFillBackground(false);
     setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+    setMouseTracking(true);
     setAttribute(Qt::WA_AcceptTouchEvents, true);
+#if defined(__linux__) && defined(__aarch64__)
     setCursor(Qt::BlankCursor);
+#else
+    unsetCursor();
+#endif
 
     if (show_status_overlay_)
     {
@@ -132,6 +141,11 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                                                     ? QStringLiteral("Qt playback error %1").arg(static_cast<int>(error))
                                                     : error_string.trimmed();
                      });
+        render_tick_timer_.setTimerType(Qt::PreciseTimer);
+        QObject::connect(&render_tick_timer_, &QTimer::timeout, this, [this]() {
+            update();
+        });
+        render_tick_timer_.start(16);
 
     if (!video_device.isNull())
     {
@@ -569,6 +583,155 @@ void ShaderVideoWindow::apply_scene_update(SceneDefinition scene)
     }
 
     update();
+}
+
+void ShaderVideoWindow::update_pointer_state(const QPointF &position, bool pressed, bool new_press)
+{
+    const float clamped_x = std::clamp(static_cast<float>(position.x()), 0.0F,
+                                       static_cast<float>(std::max(width() - 1, 0)));
+    const float clamped_y = std::clamp(static_cast<float>(position.y()), 0.0F,
+                                       static_cast<float>(std::max(height() - 1, 0)));
+
+    pointer_position_ = QVector2D{clamped_x, clamped_y};
+    if (new_press)
+    {
+        pointer_press_origin_ = pointer_position_;
+    }
+
+    pointer_has_position_ = true;
+    pointer_pressed_ = pressed;
+    update();
+}
+
+QVector4D ShaderVideoWindow::shadertoy_mouse_uniform()
+{
+    sync_pointer_state_from_cursor();
+
+    if (!pointer_has_position_)
+    {
+        return QVector4D{};
+    }
+
+    const float current_x = pointer_position_.x();
+    const float current_y = static_cast<float>(height()) - pointer_position_.y();
+    if (!pointer_pressed_)
+    {
+        return QVector4D{current_x, current_y, 0.0F, 0.0F};
+    }
+
+    return QVector4D{current_x, current_y,
+                     pointer_press_origin_.x(), static_cast<float>(height()) - pointer_press_origin_.y()};
+}
+
+void ShaderVideoWindow::sync_pointer_state_from_cursor()
+{
+    const QPoint local_pos = mapFromGlobal(QCursor::pos());
+    const bool inside_widget = rect().contains(local_pos);
+    const bool left_button_down = (QApplication::mouseButtons() & Qt::LeftButton) != 0;
+
+    if (!inside_widget && !left_button_down)
+    {
+        return;
+    }
+
+    const QVector2D previous_position = pointer_position_;
+    const bool was_pressed = pointer_pressed_;
+    update_pointer_state(local_pos, left_button_down, left_button_down && !was_pressed);
+
+    if (!left_button_down && inside_widget)
+    {
+        pointer_pressed_ = false;
+        if (pointer_position_ != previous_position || was_pressed)
+        {
+            update();
+        }
+    }
+}
+
+void ShaderVideoWindow::mousePressEvent(QMouseEvent *event)
+{
+    if (event != nullptr && event->button() == Qt::LeftButton)
+    {
+        update_pointer_state(event->position(), true, true);
+        event->accept();
+        return;
+    }
+
+    QOpenGLWidget::mousePressEvent(event);
+}
+
+void ShaderVideoWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    if (event != nullptr)
+    {
+        update_pointer_state(event->position(), pointer_pressed_, false);
+        event->accept();
+        return;
+    }
+
+    QOpenGLWidget::mouseMoveEvent(event);
+}
+
+void ShaderVideoWindow::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event != nullptr && event->button() == Qt::LeftButton)
+    {
+        update_pointer_state(event->position(), false, false);
+        event->accept();
+        return;
+    }
+
+    QOpenGLWidget::mouseReleaseEvent(event);
+}
+
+bool ShaderVideoWindow::event(QEvent *event)
+{
+    if (event == nullptr)
+    {
+        return QOpenGLWidget::event(event);
+    }
+
+    switch (event->type())
+    {
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        {
+            auto *touch_event = static_cast<QTouchEvent *>(event);
+            if (!touch_event->points().isEmpty())
+            {
+                const auto &point = touch_event->points().front();
+                update_pointer_state(point.position(), true, point.state() == QEventPoint::State::Pressed);
+                event->accept();
+                return true;
+            }
+            break;
+        }
+        case QEvent::TouchEnd:
+        {
+            auto *touch_event = static_cast<QTouchEvent *>(event);
+            if (!touch_event->points().isEmpty())
+            {
+                const auto &point = touch_event->points().front();
+                update_pointer_state(point.position(), false, false);
+            }
+            else
+            {
+                pointer_pressed_ = false;
+                update();
+            }
+            event->accept();
+            return true;
+        }
+        case QEvent::TouchCancel:
+            pointer_pressed_ = false;
+            update();
+            event->accept();
+            return true;
+        default:
+            break;
+    }
+
+    return QOpenGLWidget::event(event);
 }
 
 void ShaderVideoWindow::stop_playback_source()

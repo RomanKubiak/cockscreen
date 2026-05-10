@@ -211,6 +211,29 @@ SceneLayer parse_layer(const QJsonValue &value)
 
     const auto object = value.toObject();
     layer.enabled = json_bool(object, "enabled", true);
+        if (const auto background = object.value(QStringLiteral("background_color")); background.isObject())
+        {
+            layer.background_color = parse_color(background);
+        }
+        else if (const auto background = object.value(QStringLiteral("background")); background.isObject())
+        {
+            layer.background_color = parse_color(background);
+        }
+
+    if (const auto background_image = object.value(QStringLiteral("background_image")); background_image.isObject())
+    {
+        const auto background_object = background_image.toObject();
+        layer.background_image.file = json_string(background_object, "file");
+        if (const auto placement = background_object.value(QStringLiteral("placement")); placement.isString())
+        {
+            layer.background_image.placement = parse_background_image_placement(placement.toString().toStdString());
+        }
+    }
+    else if (background_image.isString())
+    {
+        layer.background_image.file = background_image.toString().toStdString();
+    }
+
     if (const auto shaders = object.value(QStringLiteral("shaders")); shaders.isArray())
     {
         for (const auto &shader_value : shaders.toArray())

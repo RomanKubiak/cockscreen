@@ -190,13 +190,13 @@
             /** @field loop_end_ms {integer} [0, ∞) Stream position that triggers a loop-back. 0 = full file (no early loop). */
             "loop_end_ms": 0,
             /** @field loop_repeat {integer} [0, ∞) Number of extra loop passes. 0 = infinite looping. */
-            "loop_repeat": 1,
+            "loop_repeat": 0,
             /** @field playback_rate {number} [0.01, ∞) Playback speed outside the loop segment. */
-            "playback_rate": 2.0,
+            "playback_rate": 1.0,
             /** @field playback_rate_looping {number} [0.01, ∞) Playback speed inside the active loop segment. */
-            "playback_rate_looping": 0.5,
+            "playback_rate_looping": 1.0,
             /** @field volume {number} [0, 1] Peak playback volume applied once fully faded in. */
-            "volume": 0.01,
+            "volume": 0.0,
             /** @field volume_initial {number} [0, 1] Volume level at t=0 before the intro fade begins. */
             "volume_initial": 0.05,
             /** @field volume_fade_in_ms {integer} [0, ∞) Milliseconds to ramp from volume_initial to volume at startup. */
@@ -266,7 +266,7 @@
      */
     "playback": {
         /** @field enabled {boolean} Enables this layer in the composited output. */
-        "enabled": true,
+        "enabled": false,
         /** @field shaders {string[]} Ordered .glsl filenames. Empty array passes the source texture through unchanged. */
         "shaders": [
             "toy_synthwave.glsl"
@@ -281,7 +281,9 @@
         /** @field enabled {boolean} Enables this layer in the composited output. */
         "enabled": true,
         /** @field shaders {string[]} Ordered .glsl filenames. */
-        "shaders": []
+        "shaders": [
+            "chimeras_breath"
+        ]
     },
     /**
      * @field layer_order {string[]} Back-to-front compositing order for any enabled subset of "screen", "video", and "playback".

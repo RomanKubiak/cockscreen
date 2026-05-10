@@ -321,11 +321,19 @@ GLuint resolve_channel_texture(const ShaderVideoWindow::RenderStage &stage,
         case ShaderVideoWindow::RenderStage::ChannelSourceKind::BufferOutput:
         {
             const auto *buffer = find_shader_buffer(stage, source.buffer_name);
-            if (buffer == nullptr || buffer->fbo[buffer->ping] == nullptr)
+            if (buffer == nullptr)
             {
                 return blank_texture_id;
             }
-            return buffer->fbo[buffer->ping]->texture();
+
+            // After each buffer render we flip ping to the next write target, so the
+            // most recently rendered texture lives in the opposite slot.
+            const int last_rendered_index = 1 - buffer->ping;
+            if (last_rendered_index < 0 || last_rendered_index > 1 || buffer->fbo[last_rendered_index] == nullptr)
+            {
+                return blank_texture_id;
+            }
+            return buffer->fbo[last_rendered_index]->texture();
         }
         case ShaderVideoWindow::RenderStage::ChannelSourceKind::StaticTexture:
             if (source.static_texture_index < 0 ||
@@ -494,7 +502,8 @@ void ShaderVideoWindow::paintGL()
     const QRectF playback_rect = helper::video_display_rect(scene_.playback_input, QSize{width(), height()});
     const QRectF full_rect{0.0, 0.0, static_cast<qreal>(width()), static_cast<qreal>(height())};
 
-    auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity) {
+    auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity,
+                                  bool blend_with_source_alpha) {
         if (texture == 0 || !blit_program_.isLinked())
         {
             return;
@@ -523,8 +532,15 @@ void ShaderVideoWindow::paintGL()
         blit_program_.setAttributeBuffer("a_position", GL_FLOAT, 0, 2, 4 * sizeof(GLfloat));
         blit_program_.setAttributeBuffer("a_texcoord", GL_FLOAT, 2 * sizeof(GLfloat), 2, 4 * sizeof(GLfloat));
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        if (blend_with_source_alpha)
+        {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
+        else
+        {
+            glDisable(GL_BLEND);
+        }
 
         blit_program_.setUniformValue("u_opacity", opacity);
 
@@ -576,7 +592,7 @@ void ShaderVideoWindow::paintGL()
                 break;
         }
 
-        draw_textured_quad(background_image_texture_id_, background_rect, background_uv, 1.0F);
+        draw_textured_quad(background_image_texture_id_, background_rect, background_uv, 1.0F, true);
     }
 
     auto render_layer_chain = [&](const QString &layer_name, GLuint source_texture, bool source_valid) -> GLuint {
@@ -616,6 +632,28 @@ void ShaderVideoWindow::paintGL()
             ++render_stage_index_;
         }
         return current_valid ? current_texture : 0;
+    };
+
+    auto layer_background_stage = [&](const QString &layer_name) -> const RenderStage * {
+        for (const auto &stage : render_stages_)
+        {
+            if (stage.layer_name == layer_name && stage.background_image_texture_id != 0)
+            {
+                return &stage;
+            }
+        }
+        return nullptr;
+    };
+
+    auto layer_background_color = [&](const QString &layer_name) -> QColor {
+        for (const auto &stage : render_stages_)
+        {
+            if (stage.layer_name == layer_name)
+            {
+                return helper::scene_clear_color(stage.background_color);
+            }
+        }
+        return helper::scene_clear_color(scene_.background_color);
     };
 
     const auto layer_order = effective_layer_order(scene_);
@@ -663,19 +701,49 @@ void ShaderVideoWindow::paintGL()
     {
         if (layer_name == QStringLiteral("video"))
         {
-            draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity);
+            const QColor layer_clear_color = layer_background_color(layer_name);
+            glDisable(GL_BLEND);
+            glClearColor(layer_clear_color.redF(), layer_clear_color.greenF(), layer_clear_color.blueF(),
+                         layer_clear_color.alphaF());
+            glClear(GL_COLOR_BUFFER_BIT);
+            if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
+            {
+                draw_textured_quad(stage->background_image_texture_id, video_rect,
+                                   QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F, true);
+            }
+            draw_textured_quad(video_output, video_rect, QRectF{0.0, 0.0, 1.0, 1.0}, top_layer_opacity, true);
             continue;
         }
 
         if (layer_name == QStringLiteral("playback"))
         {
-            draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+            const QColor layer_clear_color = layer_background_color(layer_name);
+            glDisable(GL_BLEND);
+            glClearColor(layer_clear_color.redF(), layer_clear_color.greenF(), layer_clear_color.blueF(),
+                         layer_clear_color.alphaF());
+            glClear(GL_COLOR_BUFFER_BIT);
+            if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
+            {
+                draw_textured_quad(stage->background_image_texture_id, playback_rect,
+                                   QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F, true);
+            }
+            draw_textured_quad(playback_output, playback_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F, true);
             continue;
         }
 
         if (layer_name == QStringLiteral("screen"))
         {
-            draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F);
+            const QColor layer_clear_color = layer_background_color(layer_name);
+            glDisable(GL_BLEND);
+            glClearColor(layer_clear_color.redF(), layer_clear_color.greenF(), layer_clear_color.blueF(),
+                         layer_clear_color.alphaF());
+            glClear(GL_COLOR_BUFFER_BIT);
+            if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
+            {
+                draw_textured_quad(stage->background_image_texture_id, full_rect,
+                                   QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F, true);
+            }
+            draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, 1.0F, false);
         }
     }
 
@@ -861,7 +929,7 @@ void ShaderVideoWindow::apply_scene_osc_mappings(QOpenGLShaderProgram *program, 
 
 void ShaderVideoWindow::bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds,
                                                 float frame_delta_seconds, int frame_index,
-                                                const QVector2D &channel0_resolution) const
+                                                const QVector2D &channel0_resolution)
 {
     if (program == nullptr)
     {
@@ -888,7 +956,7 @@ void ShaderVideoWindow::bind_shadertoy_uniforms(QOpenGLShaderProgram *program, f
     program->setUniformValue("iSampleRate", 44100.0F);
     program->setUniformValue("iFrame", frame_index);
     program->setUniformValue("iResolution", QVector3D{static_cast<float>(width()), static_cast<float>(height()), 1.0F});
-    program->setUniformValue("iMouse", QVector4D{});
+    program->setUniformValue("iMouse", shadertoy_mouse_uniform());
     program->setUniformValue(
         "iDate", QVector4D{static_cast<float>(date.year()), static_cast<float>(date.month()),
                              static_cast<float>(date.day()), seconds_since_midnight});
@@ -1093,6 +1161,11 @@ void ShaderVideoWindow::build_render_stages()
                 buf.fbo[i] = nullptr;
             }
         }
+        if (stage.background_image_texture_id != 0)
+        {
+            glDeleteTextures(1, &stage.background_image_texture_id);
+            stage.background_image_texture_id = 0;
+        }
     }
     render_stages_.clear();
     video_shader_label_.clear();
@@ -1116,6 +1189,7 @@ void ShaderVideoWindow::build_render_stages()
             stage.layer_name = layer_name;
             stage.shader_path = shader_path;
             stage.channel_sources = default_main_channel_sources();
+            stage.background_image = layer.background_image;
             stage.label = QString::fromStdString(std::filesystem::path{shader_path}.filename().string());
             if (stage.label.isEmpty())
             {
@@ -1177,6 +1251,77 @@ void ShaderVideoWindow::build_render_stages()
                     }
                 }
             }
+
+            if (!stage.background_image.file.empty())
+            {
+                const auto background_path = helper::resolve_scene_resource_path(scene_.resources_directory,
+                                                                                stage.background_image.file);
+                if (background_path.has_value())
+                {
+                    QImage image(QString::fromStdString(background_path->string()));
+                    if (!image.isNull())
+                    {
+                        const QImage source = image.convertToFormat(QImage::Format_RGBA8888);
+                        QImage composed{std::max(width(), 1), std::max(height(), 1), QImage::Format_RGBA8888};
+                        composed.fill(helper::scene_clear_color(scene_.background_color));
+
+                        QPainter painter{&composed};
+                        painter.setRenderHint(QPainter::Antialiasing, false);
+                        painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+
+                        const QRect target_rect{0, 0, composed.width(), composed.height()};
+                        switch (stage.background_image.placement)
+                        {
+                            case BackgroundImagePlacement::Center:
+                                painter.drawImage(QPoint{(composed.width() - source.width()) / 2,
+                                                         (composed.height() - source.height()) / 2},
+                                                  source);
+                                break;
+                            case BackgroundImagePlacement::Stretched:
+                                painter.drawImage(target_rect, source);
+                                break;
+                            case BackgroundImagePlacement::ProportionalStretch:
+                            {
+                                const float scale_x = static_cast<float>(composed.width()) / std::max(source.width(), 1);
+                                const float scale_y = static_cast<float>(composed.height()) / std::max(source.height(), 1);
+                                const float scale = std::min(scale_x, scale_y);
+                                const int scaled_width = std::max(1, static_cast<int>(std::round(static_cast<float>(source.width()) * scale)));
+                                const int scaled_height = std::max(1, static_cast<int>(std::round(static_cast<float>(source.height()) * scale)));
+                                const QRect scaled_rect{(composed.width() - scaled_width) / 2,
+                                                        (composed.height() - scaled_height) / 2,
+                                                        scaled_width, scaled_height};
+                                painter.drawImage(scaled_rect, source);
+                                break;
+                            }
+                            case BackgroundImagePlacement::Tiled:
+                                for (int y = 0; y < composed.height(); y += source.height())
+                                {
+                                    for (int x = 0; x < composed.width(); x += source.width())
+                                    {
+                                        painter.drawImage(QPoint{x, y}, source);
+                                    }
+                                }
+                                break;
+                        }
+                        painter.end();
+
+                        const QImage flipped = helper::vertically_flipped_image(composed);
+                        glGenTextures(1, &stage.background_image_texture_id);
+                        glBindTexture(GL_TEXTURE_2D, stage.background_image_texture_id);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+                        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, flipped.width(), flipped.height(), 0, GL_RGBA,
+                                     GL_UNSIGNED_BYTE, flipped.constBits());
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        stage.background_image_texture_width = flipped.width();
+                        stage.background_image_texture_height = flipped.height();
+                    }
+                }
+            }
+
             // Scan for multi-pass buffer shaders (bufferA.glsl … bufferD.glsl).
             // These are compiled into ShaderBuffer entries whose FBO outputs feed
             // iChannel1–iChannel3+extra of the main shader each frame.
@@ -1321,6 +1466,9 @@ void ShaderVideoWindow::ensure_shader_buffer_fbos(RenderStage &stage)
     }
     QOpenGLFramebufferObjectFormat fmt;
     fmt.setAttachment(QOpenGLFramebufferObject::NoAttachment);
+    // ShaderToy fluid buffers need signed/extended-range values for velocity,
+    // density, and curl. The default RGBA8 format clamps them and breaks the sim.
+    fmt.setInternalTextureFormat(GL_RGBA16F);
     for (auto &buf : stage.shader_buffers)
     {
         for (int i = 0; i < 2; ++i)

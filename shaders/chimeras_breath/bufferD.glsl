@@ -64,6 +64,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     col = clamp(col, 0., 5.);
     col = max(col - (0.0001 + col * 0.004) * .5, 0.); // decay
 
+    float glow = max(max(col.r, col.g), col.b);
+    col.rgb *= smoothstep(0.01, 0.06, glow);
+
     if (fragCoord.y < 1. && fragCoord.x < 1.)
         col = iMouse;
 
