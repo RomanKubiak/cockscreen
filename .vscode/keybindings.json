@@ -1,0 +1,7 @@
+[
+	{
+		"key": "f5",
+		"command": "workbench.action.tasks.runTask",
+		"args": "Remote Pi: Start Debug No Sync"
+	}
+]

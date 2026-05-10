@@ -103,6 +103,17 @@
 		{
 			"label": "Remote Pi: Run Cross Debug",
 			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Upload Cross Debug",
+			"group": "test",
+			"isBackground": true
+		},
+		{
+			"label": "Remote Pi: Smoke Cross Debug",
+			"type": "shell",
 			"command": "bash ${workspaceFolder}/scripts/run-pi-qt-shader-smoke.sh ./out/build/cross-pi-zero2w-debug/cockscreen scenes/pizero-linux.scene.jsonc 4 18",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -119,6 +130,17 @@
 		{
 			"label": "Remote Pi: Run Cross Release",
 			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Upload Cross Release",
+			"group": "test",
+			"isBackground": true
+		},
+		{
+			"label": "Remote Pi: Smoke Cross Release",
+			"type": "shell",
 			"command": "bash ${workspaceFolder}/scripts/run-pi-qt-shader-smoke.sh ./out/build/cross-pi-zero2w-release/cockscreen scenes/pizero-linux.scene.jsonc 4 18",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -134,6 +156,26 @@
 		},
 		{
 			"label": "Remote Pi: Run Debug",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Build Debug",
+			"group": "test",
+			"isBackground": true
+		},
+		{
+			"label": "Remote Pi: Start Debug No Sync",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "test"
+		},
+		{
+			"label": "Remote Pi: Smoke Debug",
 			"type": "shell",
 			"command": "bash ${workspaceFolder}/scripts/run-pi-qt-shader-smoke.sh ./out/build/pi-zero2w-debug/cockscreen scenes/pizero-linux.scene.jsonc 4 18",
 			"options": {
@@ -160,6 +202,17 @@
 		},
 		{
 			"label": "Remote Pi: Run Release",
+			"type": "shell",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": "Remote Pi: Build Release",
+			"group": "test",
+			"isBackground": true
+		},
+		{
+			"label": "Remote Pi: Smoke Release",
 			"type": "shell",
 			"command": "bash ${workspaceFolder}/scripts/run-pi-qt-shader-smoke.sh ./out/build/pi-zero2w-release/cockscreen scenes/pizero-linux.scene.jsonc 4 18",
 			"options": {
