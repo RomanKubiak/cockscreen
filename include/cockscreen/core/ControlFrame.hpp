@@ -19,6 +19,8 @@ struct ControlFrame
     float audio_level{0.0F};
     float audio_rms{0.0F};
     float audio_peak{0.0F};
+    float audio_beat{0.0F};
+    float audio_bpm{0.0F};
     std::array<float, kAudioFftBandCount> audio_fft_bands{};
     std::array<float, kAudioWaveformSampleCount> audio_waveform{};
     float bass{0.0F};

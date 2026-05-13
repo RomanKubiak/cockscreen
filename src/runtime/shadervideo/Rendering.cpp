@@ -795,6 +795,7 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
         playback_frame.audio_rms = audio_playback_analysis_rms_;
         playback_frame.audio_peak = audio_playback_analysis_peak_;
         playback_frame.audio_level = audio_playback_analysis_rms_;
+        playback_frame.audio_beat = std::clamp(audio_playback_analysis_peak_ - audio_playback_analysis_rms_, 0.0F, 1.0F);
         playback_frame.audio_fft_bands = audio_playback_fft_bands_;
         playback_frame.audio_waveform = audio_playback_waveform_;
         helper::set_audio_uniforms(program, playback_frame);
@@ -807,6 +808,8 @@ void ShaderVideoWindow::bind_stage_common_uniforms(QOpenGLShaderProgram *program
         silent_frame.audio_rms = 0.0F;
         silent_frame.audio_peak = 0.0F;
         silent_frame.audio_level = 0.0F;
+        silent_frame.audio_beat = 0.0F;
+        silent_frame.audio_bpm = 0.0F;
         helper::set_audio_uniforms(program, silent_frame);
     }
     else

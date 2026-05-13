@@ -283,6 +283,8 @@ void set_audio_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame 
     program->setUniformValue("u_audio_level", frame.audio_level);
     program->setUniformValue("u_audio_rms", frame.audio_rms);
     program->setUniformValue("u_audio_peak", frame.audio_peak);
+    program->setUniformValue("u_audio_beat", frame.audio_beat);
+    program->setUniformValue("u_audio_bpm", frame.audio_bpm);
     program->setUniformValueArray("u_audio_fft", frame.audio_fft_bands.data(),
                                   static_cast<int>(frame.audio_fft_bands.size()), 1);
     program->setUniformValueArray("u_audio_waveform", frame.audio_waveform.data(),

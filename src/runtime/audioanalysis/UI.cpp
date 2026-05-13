@@ -64,6 +64,16 @@ float AudioAnalysisWindow::peak_level() const
     return peak_level_;
 }
 
+float AudioAnalysisWindow::beat_level() const
+{
+    return beat_level_;
+}
+
+float AudioAnalysisWindow::bpm_level() const
+{
+    return bpm_confidence_ > 0.05F ? detected_bpm_ : 0.0F;
+}
+
 int AudioAnalysisWindow::opened_channel_count() const
 {
     return std::max(audio_format_.channelCount(), 0);

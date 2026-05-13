@@ -33,6 +33,8 @@ class AudioAnalysisWindow final : public QWidget
     [[nodiscard]] float overall_level_db() const;
     [[nodiscard]] float rms_level() const;
     [[nodiscard]] float peak_level() const;
+    [[nodiscard]] float beat_level() const;
+    [[nodiscard]] float bpm_level() const;
     [[nodiscard]] int opened_channel_count() const;
     [[nodiscard]] float channel_peak_level(int channel_index) const;
     [[nodiscard]] const std::array<float, core::kAudioFftBandCount> &fft_bands() const;
@@ -55,6 +57,7 @@ class AudioAnalysisWindow final : public QWidget
     void process_audio_chunk();
     void process_audio_buffer(const QByteArray &data);
     void update_levels(const QByteArray &data);
+    void update_beat_detection(float combined_rms, float chunk_peak);
     void update_fft_analysis(float mono_sample);
     void refresh_waveform_samples();
     void set_status_message(QString message);
@@ -79,6 +82,11 @@ class AudioAnalysisWindow final : public QWidget
     float overall_level_db_{kSilenceDb};
     float rms_level_{0.0F};
     float peak_level_{0.0F};
+    float beat_level_{0.0F};
+    float detected_bpm_{0.0F};
+    float bpm_confidence_{0.0F};
+    float beat_energy_baseline_{0.02F};
+    float beat_cooldown_seconds_{0.0F};
     std::array<float, core::kAudioFftBandCount> fft_band_levels_{};
     std::array<float, core::kAudioWaveformSampleCount> waveform_samples_{};
     std::array<float, kFftSize> fft_sample_buffer_{};
@@ -87,6 +95,8 @@ class AudioAnalysisWindow final : public QWidget
     pffft::Fft<float> fft_{kFftSize};
     pffft::AlignedVector<float> fft_input_{fft_.valueVector()};
     pffft::AlignedVector<std::complex<float>> fft_spectrum_{fft_.spectrumVector()};
+    std::chrono::steady_clock::time_point last_beat_update_{};
+    std::chrono::steady_clock::time_point last_detected_beat_{};
     std::chrono::steady_clock::time_point last_profile_report_{};
 };
 

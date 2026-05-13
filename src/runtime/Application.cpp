@@ -700,6 +700,8 @@ int Application::run(int argc, char *argv[])
         frame->audio_level = audio_analysis.overall_level_db();
         frame->audio_rms = audio_analysis.rms_level();
         frame->audio_peak = audio_analysis.peak_level();
+        frame->audio_beat = audio_analysis.beat_level();
+        frame->audio_bpm = audio_analysis.bpm_level();
         frame->audio_fft_bands = audio_analysis.fft_bands();
         frame->audio_waveform = audio_analysis.waveform_samples();
         midi_input.advance(frame_step_seconds);

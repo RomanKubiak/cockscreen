@@ -359,7 +359,75 @@ void AudioAnalysisWindow::update_levels(const QByteArray &data)
     const float combined_rms = static_cast<float>(std::clamp(std::max(left_rms, right_rms), 0.0, 1.0));
     rms_level_ = rms_level_ * 0.85F + combined_rms * 0.15F;
     peak_level_ = std::max(chunk_peak, peak_level_ * 0.92F);
+    update_beat_detection(combined_rms, chunk_peak);
     refresh_waveform_samples();
+}
+
+void AudioAnalysisWindow::update_beat_detection(float combined_rms, float chunk_peak)
+{
+    const auto now = std::chrono::steady_clock::now();
+    float delta_seconds = 1.0F / 30.0F;
+    if (last_beat_update_ != std::chrono::steady_clock::time_point{})
+    {
+        delta_seconds = std::chrono::duration<float>(now - last_beat_update_).count();
+        delta_seconds = std::clamp(delta_seconds, 0.001F, 0.2F);
+    }
+    last_beat_update_ = now;
+
+    const float bass_energy =
+        fft_band_levels_[0] * 0.50F + fft_band_levels_[1] * 0.30F + fft_band_levels_[2] * 0.20F;
+    const float energy = std::clamp(std::max(combined_rms * 1.45F, bass_energy * 0.90F) + chunk_peak * 0.12F,
+                                    0.0F, 1.0F);
+    const float baseline_rate = energy > beat_energy_baseline_ ? 0.65F : 2.40F;
+    const float baseline_mix = 1.0F - std::exp(-baseline_rate * delta_seconds);
+    beat_energy_baseline_ += (energy - beat_energy_baseline_) * baseline_mix;
+    beat_energy_baseline_ = std::clamp(beat_energy_baseline_, 0.005F, 1.0F);
+
+    beat_cooldown_seconds_ = std::max(0.0F, beat_cooldown_seconds_ - delta_seconds);
+    const float onset = energy - beat_energy_baseline_;
+    const float threshold = std::max(0.025F, beat_energy_baseline_ * 0.60F);
+    if (beat_cooldown_seconds_ <= 0.0F && onset > threshold && chunk_peak > 0.045F)
+    {
+        const float strength = std::clamp((onset - threshold) / std::max(threshold, 0.001F), 0.0F, 1.0F);
+        beat_level_ = std::max(beat_level_, 0.65F + strength * 0.35F);
+        beat_cooldown_seconds_ = 0.16F;
+
+        if (last_detected_beat_ != std::chrono::steady_clock::time_point{})
+        {
+            float interval_seconds = std::chrono::duration<float>(now - last_detected_beat_).count();
+            if (interval_seconds >= 0.24F && interval_seconds <= 1.50F)
+            {
+                float candidate_bpm = 60.0F / interval_seconds;
+                while (candidate_bpm < 70.0F)
+                {
+                    candidate_bpm *= 2.0F;
+                }
+                while (candidate_bpm > 180.0F)
+                {
+                    candidate_bpm *= 0.5F;
+                }
+
+                if (candidate_bpm >= 55.0F && candidate_bpm <= 220.0F)
+                {
+                    const float blend = detected_bpm_ > 0.0F ? 0.18F : 1.0F;
+                    detected_bpm_ += (candidate_bpm - detected_bpm_) * blend;
+                    bpm_confidence_ = std::min(1.0F, bpm_confidence_ + 0.20F + strength * 0.20F);
+                }
+            }
+        }
+        last_detected_beat_ = now;
+    }
+    else
+    {
+        beat_level_ *= std::exp(-8.0F * delta_seconds);
+    }
+
+    bpm_confidence_ *= std::exp(-0.18F * delta_seconds);
+    if (last_detected_beat_ != std::chrono::steady_clock::time_point{} &&
+        std::chrono::duration<float>(now - last_detected_beat_).count() > 4.0F)
+    {
+        bpm_confidence_ *= std::exp(-1.8F * delta_seconds);
+    }
 }
 
 void AudioAnalysisWindow::update_fft_analysis(float mono_sample)
