@@ -31,10 +31,12 @@ namespace
 {
 
 constexpr std::string_view kPiZero2W{"raspberry-pi-zero-2w"};
+constexpr std::string_view kPi3BPlus{"raspberry-pi-3b-plus"};
 
 bool is_pi_target_impl()
 {
-    return std::string_view{COCKSCREEN_TARGET_PLATFORM} == kPiZero2W;
+    const std::string_view target{COCKSCREEN_TARGET_PLATFORM};
+    return target == kPiZero2W || target == kPi3BPlus;
 }
 
 bool has_direct_drm_access_impl()

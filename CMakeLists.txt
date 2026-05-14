@@ -5,11 +5,11 @@ project(cockscreen VERSION 0.1.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(FetchContent)
 
-set(COCKSCREEN_PI_SYNC_HOST "atom@192.168.41.181" CACHE STRING "SSH destination for automatic Pi binary sync")
+set(COCKSCREEN_PI_SYNC_HOST "atom@cockscreen" CACHE STRING "SSH destination for automatic Pi binary sync")
 set(COCKSCREEN_PI_SYNC_ROOT "/home/atom/cockscreen" CACHE STRING "Remote Pi workspace root for automatic binary sync")
 
 option(COCKSCREEN_ENABLE_STRICT_WARNINGS "Enable extra warning flags" ON)
-set(COCKSCREEN_TARGET_PLATFORM "raspberry-pi-zero-2w" CACHE STRING "Target platform label")
+set(COCKSCREEN_TARGET_PLATFORM "raspberry-pi-3b-plus" CACHE STRING "Target platform label")
 
 set(PFFFT_USE_TYPE_DOUBLE OFF CACHE BOOL "" FORCE)
 set(PFFFT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -93,6 +93,7 @@ if(NOT WIN32)
             src/runtime/v4l2/Capture.cpp
             src/runtime/v4l2/Formats.cpp
             src/runtime/pi/DisplaySwitch.cpp
+            src/runtime/pi/FramebufferMirror.cpp
     )
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -164,11 +165,17 @@ target_link_libraries(cockscreen PRIVATE cockscreen::core)
 
 target_compile_features(cockscreen PRIVATE cxx_std_20)
 
+if(COCKSCREEN_TARGET_PLATFORM STREQUAL "raspberry-pi-3b-plus" AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64")
+    set(_cockscreen_pi3bplus_cpu_flags -mcpu=cortex-a53 -mtune=cortex-a53)
+    target_compile_options(cockscreen_core PRIVATE ${_cockscreen_pi3bplus_cpu_flags})
+    target_compile_options(cockscreen PRIVATE ${_cockscreen_pi3bplus_cpu_flags})
+endif()
+
 if(COCKSCREEN_ENABLE_STRICT_WARNINGS)
     target_compile_options(cockscreen PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-if(CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET_PLATFORM STREQUAL "raspberry-pi-zero-2w")
+if(CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET_PLATFORM MATCHES "^raspberry-pi-(zero-2w|3b-plus)$")
     add_custom_target(cockscreen_pi_sync ALL
         DEPENDS cockscreen
         COMMAND

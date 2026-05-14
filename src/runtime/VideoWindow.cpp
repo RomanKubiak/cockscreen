@@ -97,6 +97,11 @@ double VideoWindow::processing_fps() const
     return processing_fps_;
 }
 
+QImage VideoWindow::latest_video_frame_image() const
+{
+    return latest_frame_.copy();
+}
+
 void VideoWindow::set_status_overlay_text(QString text)
 {
     status_overlay_text_ = std::move(text);

@@ -6,10 +6,11 @@
 #include <QOpenGLContext>
 #include <QOpenGLShaderProgram>
 #include <QPainter>
-#include <QRegularExpression>
 #include <QRawFont>
+#include <QRegularExpression>
 
 #include <algorithm>
+#include <cmath>
 
 namespace cockscreen::runtime::shader_window
 {
@@ -61,6 +62,12 @@ bool shader_uses_shadertoy_entrypoint(const QString &source)
 bool source_contains_pattern(const QString &source, const char *pattern)
 {
     return source.contains(QRegularExpression{QString::fromUtf8(pattern)});
+}
+
+float animation_wave(const TransformAnimation &animation, float elapsed_seconds)
+{
+    static constexpr float kTau{6.28318530717958647692F};
+    return std::sin((elapsed_seconds * animation.speed + animation.phase) * kTau);
 }
 
 int shadertoy_insert_line_index(const QStringList &lines)
@@ -265,7 +272,8 @@ void set_midi_uniforms(QOpenGLShaderProgram *program, const core::ControlFrame &
 
     program->setUniformValue("u_midi_primary", frame.midi_primary);
     program->setUniformValue("u_midi_secondary", frame.midi_secondary);
-    program->setUniformValueArray("u_midi_notes", frame.midi_notes.data(), static_cast<int>(frame.midi_notes.size()), 1);
+    program->setUniformValueArray("u_midi_notes", frame.midi_notes.data(), static_cast<int>(frame.midi_notes.size()),
+                                  1);
     program->setUniformValueArray("u_midi_velocities", frame.midi_velocities.data(),
                                   static_cast<int>(frame.midi_velocities.size()), 1);
     program->setUniformValueArray("u_midi_ages", frame.midi_ages.data(), static_cast<int>(frame.midi_ages.size()), 1);
@@ -344,14 +352,129 @@ std::pair<int, int> requested_video_dimensions(const SceneDefinition &scene, con
     return {settings.width, settings.height};
 }
 
+QSize render_target_size(const SceneDefinition &scene, const QSize &viewport_size)
+{
+    if (!scene.render_target.enabled)
+    {
+        return QSize{std::max(viewport_size.width(), 1), std::max(viewport_size.height(), 1)};
+    }
+
+    return QSize{std::max(scene.render_target.width, 1), std::max(scene.render_target.height, 1)};
+}
+
+QRectF render_target_present_rect(const SceneRenderTarget &render_target, const QSize &source_size,
+                                  const QSize &viewport_size)
+{
+    const qreal viewport_width = std::max(static_cast<qreal>(viewport_size.width()), 1.0);
+    const qreal viewport_height = std::max(static_cast<qreal>(viewport_size.height()), 1.0);
+    const qreal source_width = std::max(static_cast<qreal>(source_size.width()), 1.0);
+    const qreal source_height = std::max(static_cast<qreal>(source_size.height()), 1.0);
+    const QRectF viewport_rect{0.0, 0.0, viewport_width, viewport_height};
+
+    if (!render_target.enabled || render_target.presentation == RenderTargetPresentation::Stretch)
+    {
+        return viewport_rect;
+    }
+
+    if (render_target.presentation == RenderTargetPresentation::Center)
+    {
+        return QRectF{(viewport_width - source_width) * 0.5, (viewport_height - source_height) * 0.5, source_width,
+                      source_height};
+    }
+
+    qreal scale = std::min(viewport_width / source_width, viewport_height / source_height);
+    if (render_target.presentation == RenderTargetPresentation::Fill)
+    {
+        scale = std::max(viewport_width / source_width, viewport_height / source_height);
+    }
+    else if (render_target.presentation == RenderTargetPresentation::IntegerScale)
+    {
+        scale = std::max<qreal>(1.0, std::floor(scale));
+    }
+
+    const qreal width = source_width * scale;
+    const qreal height = source_height * scale;
+    return QRectF{(viewport_width - width) * 0.5, (viewport_height - height) * 0.5, width, height};
+}
+
+GLenum render_target_texture_filter(const SceneRenderTarget &render_target)
+{
+    return render_target.filter == RenderTargetFilter::Nearest ? GL_NEAREST : GL_LINEAR;
+}
+
 QRectF video_display_rect(const SceneInput &video_input, const QSize &viewport_size)
 {
     const float scale = std::max(video_input.scale, 0.01F);
     const float width = static_cast<float>(viewport_size.width()) * scale;
     const float height = static_cast<float>(viewport_size.height()) * scale;
-    const float x = std::clamp(video_input.position_x, 0.0F, 1.0F) * (static_cast<float>(viewport_size.width()) - width);
-    const float y = std::clamp(video_input.position_y, 0.0F, 1.0F) * (static_cast<float>(viewport_size.height()) - height);
+    const float x =
+        std::clamp(video_input.position_x, 0.0F, 1.0F) * (static_cast<float>(viewport_size.width()) - width);
+    const float y =
+        std::clamp(video_input.position_y, 0.0F, 1.0F) * (static_cast<float>(viewport_size.height()) - height);
     return QRectF{x, y, width, height};
+}
+
+VideoTransform evaluate_video_transform(const SceneInput &video_input, const QSize &viewport_size,
+                                        float elapsed_seconds)
+{
+    float scale = std::max(video_input.scale, 0.01F);
+    float position_x = video_input.position_x;
+    float position_y = video_input.position_y;
+    float rotation = video_input.rotation;
+
+    const auto &animation = video_input.animation;
+    if (animation.enabled && animation.preset != TransformAnimationPreset::None)
+    {
+        const float wave = animation_wave(animation, elapsed_seconds);
+        switch (animation.preset)
+        {
+        case TransformAnimationPreset::Rotate:
+            rotation += (elapsed_seconds * animation.speed + animation.phase) * 360.0F;
+            break;
+        case TransformAnimationPreset::Resize:
+            scale *= std::max(0.01F, 1.0F + animation.amount * wave);
+            break;
+        case TransformAnimationPreset::MoveX:
+            position_x += animation.amount * wave;
+            break;
+        case TransformAnimationPreset::MoveY:
+            position_y += animation.amount * wave;
+            break;
+        case TransformAnimationPreset::Orbit: {
+            static constexpr float kTau{6.28318530717958647692F};
+            const float angle = (elapsed_seconds * animation.speed + animation.phase) * kTau;
+            position_x += animation.amount * std::cos(angle);
+            position_y += animation.amount * std::sin(angle);
+            break;
+        }
+        case TransformAnimationPreset::Wobble:
+            position_x += animation.amount * 0.35F * wave;
+            position_y +=
+                animation.amount * 0.25F *
+                std::sin((elapsed_seconds * animation.speed + animation.phase + 0.25F) * 6.28318530717958647692F);
+            scale *= std::max(0.01F, 1.0F + animation.amount * 0.15F * wave);
+            rotation += animation.amount * 30.0F * wave;
+            break;
+        case TransformAnimationPreset::Bounce: {
+            const float cycles = elapsed_seconds * animation.speed + animation.phase;
+            const float folded = 1.0F - std::fabs(std::fmod(cycles, 2.0F) - 1.0F);
+            position_x = folded;
+            break;
+        }
+        case TransformAnimationPreset::None:
+            break;
+        }
+    }
+
+    scale = std::max(scale, 0.01F);
+    const float width = static_cast<float>(viewport_size.width()) * scale;
+    const float height = static_cast<float>(viewport_size.height()) * scale;
+    const bool static_compatible = !animation.enabled || animation.preset == TransformAnimationPreset::None;
+    const float normalized_x = static_compatible ? std::clamp(position_x, 0.0F, 1.0F) : position_x;
+    const float normalized_y = static_compatible ? std::clamp(position_y, 0.0F, 1.0F) : position_y;
+    const float x = normalized_x * (static_cast<float>(viewport_size.width()) - width);
+    const float y = normalized_y * (static_cast<float>(viewport_size.height()) - height);
+    return VideoTransform{QRectF{x, y, width, height}, rotation};
 }
 
 std::optional<std::filesystem::path> resolve_scene_resource_path(const std::filesystem::path &resources_directory,

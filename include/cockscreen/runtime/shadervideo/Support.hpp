@@ -14,6 +14,7 @@
 #include <QRectF>
 #include <QSize>
 #include <QString>
+#include <qopengl.h>
 
 class QOpenGLShaderProgram;
 
@@ -41,7 +42,20 @@ QString read_text_file_qstring(const std::filesystem::path &path);
 std::optional<std::filesystem::path> resolve_relative_path(const std::filesystem::path &relative_path);
 QColor scene_clear_color(const SceneColor &color);
 std::pair<int, int> requested_video_dimensions(const SceneDefinition &scene, const ApplicationSettings &settings);
+QSize render_target_size(const SceneDefinition &scene, const QSize &viewport_size);
+QRectF render_target_present_rect(const SceneRenderTarget &render_target, const QSize &source_size,
+                                  const QSize &viewport_size);
+GLenum render_target_texture_filter(const SceneRenderTarget &render_target);
+
+struct VideoTransform
+{
+    QRectF rect;
+    float rotation_degrees{0.0F};
+};
+
 QRectF video_display_rect(const SceneInput &video_input, const QSize &viewport_size);
+VideoTransform evaluate_video_transform(const SceneInput &video_input, const QSize &viewport_size,
+                                        float elapsed_seconds);
 std::optional<std::filesystem::path> resolve_scene_resource_path(const std::filesystem::path &resources_directory,
                                                                  const std::string &resource_file);
 QString note_font_family_for_scene(const SceneDefinition &scene);

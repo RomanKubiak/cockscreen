@@ -18,14 +18,14 @@ struct ArtifactParams
 {
     bool enabled{false};
 
-    bool scanline_drop{false};  // randomly blank / freeze scan lines
-    bool block_corrupt{false};  // randomise aligned pixel blocks
-    bool bit_flip{false};       // burst XOR bit-flips at random offsets
-    bool smear{false};          // horizontal byte smear within rows
+    bool scanline_drop{false}; // randomly blank / freeze scan lines
+    bool block_corrupt{false}; // randomise aligned pixel blocks
+    bool bit_flip{false};      // burst XOR bit-flips at random offsets
+    bool smear{false};         // horizontal byte smear within rows
 
-    float strength{0.3F};       // 0.0–1.0 overall intensity
-    int block_size{16};         // pixel-block edge length for block_corrupt
-    std::uint32_t seed{42};     // reproducibility seed
+    float strength{0.3F};   // 0.0–1.0 overall intensity
+    int block_size{16};     // pixel-block edge length for block_corrupt
+    std::uint32_t seed{42}; // reproducibility seed
 };
 
 // ---------------------------------------------------------------------------
@@ -37,17 +37,39 @@ struct LoopbackParams
 {
     bool enabled{false};
 
-    float loss_percent{0.0F};     // UDP packet loss  (0–100)
-    float corrupt_percent{0.0F};  // UDP packet corruption (0–100)
-    int delay_ms{0};              // additional one-way delay in ms
-    float reorder_percent{0.0F};  // packet reorder probability (0–100)
+    float loss_percent{0.0F};    // UDP packet loss  (0–100)
+    float corrupt_percent{0.0F}; // UDP packet corruption (0–100)
+    int delay_ms{0};             // additional one-way delay in ms
+    float reorder_percent{0.0F}; // packet reorder probability (0–100)
 
-    int udp_port{5004};           // loopback UDP port used for RTP stream
-    std::string loopback_device;  // output v4l2loopback device, e.g. /dev/video10
+    int udp_port{5004};          // loopback UDP port used for RTP stream
+    std::string loopback_device; // output v4l2loopback device, e.g. /dev/video10
 
     // When true: run sender-only (no receiver/v4l2loopback); the app reads
     // decoded frames directly from GStreamer via appsink → QVideoSink.
     bool use_appsink{false};
+};
+
+enum class TransformAnimationPreset
+{
+    None,
+    Rotate,
+    Resize,
+    MoveX,
+    MoveY,
+    Orbit,
+    Wobble,
+    Bounce,
+};
+
+struct TransformAnimation
+{
+    bool enabled{false};
+    TransformAnimationPreset preset{TransformAnimationPreset::None};
+    float speed{1.0F};
+    float amount{0.0F};
+    float phase{0.0F};
+    std::string axis;
 };
 
 struct SceneInput
@@ -59,7 +81,8 @@ struct SceneInput
     float scale{1.0F};
     float position_x{0.0F};
     float position_y{0.0F};
-    std::optional<bool> on_top;
+    float rotation{0.0F};
+    TransformAnimation animation;
     std::int64_t start_ms{0};
     std::int64_t loop_start_ms{0};
     std::optional<std::int64_t> loop_end_ms;
@@ -67,16 +90,16 @@ struct SceneInput
     float playback_rate{1.0F};
     float playback_rate_looping{1.0F};
     // Audio volume controls (used by audio_playback_input).
-    float volume{1.0F};          // peak playback volume [0, 1]
-    float volume_initial{0.0F};  // volume at t=0 (before intro fade-in)
+    float volume{1.0F};                      // peak playback volume [0, 1]
+    float volume_initial{0.0F};              // volume at t=0 (before intro fade-in)
     std::int64_t volume_fade_in_ms{0};       // intro: ms to ramp volume_initial → volume
     std::int64_t volume_loop_fade_in_ms{0};  // per-loop: ms at loop start to ramp up to volume
     std::int64_t volume_loop_fade_out_ms{0}; // per-loop: ms before loop end to ramp down
     std::int64_t volume_fade_out_ms{0};      // outro: ms to ramp to 0 after final loop / EOM
     // FFT analysis routing (audio_playback_input only).
-    bool fft_analysis_from_playback{false};  // feed audio_playback into the FFT/level uniforms
+    bool fft_analysis_from_playback{false}; // feed audio_playback into the FFT/level uniforms
     // FFT analysis routing (audio_input only).
-    bool fft_analysis_enabled{true};         // when false, device audio does NOT drive FFT uniforms
+    bool fft_analysis_enabled{true}; // when false, device audio does NOT drive FFT uniforms
 
     ArtifactParams artifact;
     LoopbackParams loopback;
@@ -110,9 +133,34 @@ struct SceneGeometry
     int height{600};
 };
 
+enum class RenderTargetPresentation
+{
+    Stretch,
+    Fit,
+    Fill,
+    Center,
+    IntegerScale,
+};
+
+enum class RenderTargetFilter
+{
+    Linear,
+    Nearest,
+};
+
+struct SceneRenderTarget
+{
+    bool enabled{false};
+    int width{1024};
+    int height{600};
+    RenderTargetPresentation presentation{RenderTargetPresentation::Fit};
+    RenderTargetFilter filter{RenderTargetFilter::Linear};
+};
+
 struct SceneLayer
 {
     bool enabled{true};
+    float opacity{1.0F};
     std::vector<std::string> shaders;
     SceneColor background_color;
     SceneBackgroundImage background_image;
@@ -160,12 +208,21 @@ struct OscMapping
     float exponent{1.0F};
 };
 
+struct SceneShaderUniform
+{
+    std::string layer;
+    std::string shader;
+    std::string uniform;
+    float value{0.0F};
+};
+
 struct SceneDefinition
 {
     std::filesystem::path source_path;
     SceneColor background_color;
     SceneBackgroundImage background_image;
     SceneGeometry geometry;
+    SceneRenderTarget render_target;
     bool show_status_overlay{true};
     bool timecode{false};
     std::string render_path{"qt-shader"};
@@ -185,8 +242,10 @@ struct SceneDefinition
     std::vector<MidiCcMapping> midi_cc_mappings;
     std::vector<MidiNoteMapping> midi_note_mappings;
     std::vector<OscMapping> osc_mappings;
+    std::vector<SceneShaderUniform> shader_uniforms;
 };
 
-std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path, std::string *error_message = nullptr);
+std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path,
+                                                     std::string *error_message = nullptr);
 
 } // namespace cockscreen::runtime

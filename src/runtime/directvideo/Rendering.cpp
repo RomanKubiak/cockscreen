@@ -2,14 +2,19 @@
 
 #include "cockscreen/runtime/StatusOverlay.hpp"
 #include "cockscreen/runtime/directvideo/Support.hpp"
+#include "cockscreen/runtime/shadervideo/Support.hpp"
 
 #include <QElapsedTimer>
+#include <QRectF>
+#include <QSize>
+#include <QVector2D>
 
 #include <chrono>
-#include <iostream>
 
 namespace cockscreen::runtime
 {
+
+namespace helper = shader_window;
 
 void DirectVideoWindow::paintGL()
 {
@@ -19,6 +24,9 @@ void DirectVideoWindow::paintGL()
     glClear(GL_COLOR_BUFFER_BIT);
 
     upload_latest_frame();
+
+    const auto now = std::chrono::steady_clock::now();
+    const float elapsed_seconds = std::chrono::duration<float>(now - start_time_).count();
 
     if (texture_id_ != 0)
     {
@@ -39,10 +47,20 @@ void DirectVideoWindow::paintGL()
 
         if (program->isLinked())
         {
+            const auto transform = helper::evaluate_video_transform(video_input_, QSize{width(), height()}, elapsed_seconds);
+            const QRectF draw_rect = transform.rect;
+
             program->bind();
             program->setUniformValue("u_viewport_size", QVector2D{static_cast<float>(width()), static_cast<float>(height())});
             program->setUniformValue("u_video_size", QVector2D{static_cast<float>(video_width_), static_cast<float>(video_height_)});
-            program->setUniformValue("u_status_bar_height", static_cast<float>(kStatusBarHeight));
+            program->setUniformValue("u_draw_origin",
+                                     QVector2D{static_cast<float>(draw_rect.left()),
+                                               static_cast<float>(draw_rect.top())});
+            program->setUniformValue("u_draw_size",
+                                     QVector2D{static_cast<float>(draw_rect.width()),
+                                               static_cast<float>(draw_rect.height())});
+            program->setUniformValue("u_rotation_radians",
+                                     transform.rotation_degrees * 3.14159265358979323846F / 180.0F);
             program->setUniformValue("u_layout", texture_layout_);
             program->setUniformValue("u_texture", 0);
 
@@ -66,7 +84,6 @@ void DirectVideoWindow::paintGL()
         status_overlay_->set_status_overlay_text(status_overlay_text_);
         status_overlay_->raise();
     }
-    const auto now = std::chrono::steady_clock::now();
     if (last_render_time_ != std::chrono::steady_clock::time_point{})
     {
         const double delta_seconds = std::chrono::duration<double>(now - last_render_time_).count();

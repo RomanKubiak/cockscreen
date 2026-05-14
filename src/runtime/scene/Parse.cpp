@@ -51,7 +51,8 @@ PinkKeySettings parse_pink_key_settings(const QJsonValue &value)
 
     const auto object = value.toObject();
     settings.audio_algorithm = std::clamp(json_float(object, "audio_algorithm", settings.audio_algorithm), 0.0F, 5.0F);
-    settings.audio_reactivity = std::clamp(json_float(object, "audio_reactivity", settings.audio_reactivity), 0.0F, 1.5F);
+    settings.audio_reactivity =
+        std::clamp(json_float(object, "audio_reactivity", settings.audio_reactivity), 0.0F, 1.5F);
     settings.midi_reactivity = std::clamp(json_float(object, "midi_reactivity", settings.midi_reactivity), 0.0F, 1.5F);
     return settings;
 }
@@ -106,6 +107,60 @@ BackgroundImagePlacement parse_background_image_placement(const std::string &pla
     return BackgroundImagePlacement::Center;
 }
 
+RenderTargetPresentation parse_render_target_presentation(const std::string &presentation)
+{
+    const QString normalized = QString::fromStdString(presentation).trimmed().toLower();
+    if (normalized == QStringLiteral("stretch"))
+    {
+        return RenderTargetPresentation::Stretch;
+    }
+    if (normalized == QStringLiteral("fill") || normalized == QStringLiteral("crop"))
+    {
+        return RenderTargetPresentation::Fill;
+    }
+    if (normalized == QStringLiteral("center") || normalized == QStringLiteral("centered"))
+    {
+        return RenderTargetPresentation::Center;
+    }
+    if (normalized == QStringLiteral("integer-scale") || normalized == QStringLiteral("integer_scale") ||
+        normalized == QStringLiteral("integer"))
+    {
+        return RenderTargetPresentation::IntegerScale;
+    }
+
+    return RenderTargetPresentation::Fit;
+}
+
+RenderTargetFilter parse_render_target_filter(const std::string &filter)
+{
+    const QString normalized = QString::fromStdString(filter).trimmed().toLower();
+    if (normalized == QStringLiteral("nearest") || normalized == QStringLiteral("pixelated"))
+    {
+        return RenderTargetFilter::Nearest;
+    }
+
+    return RenderTargetFilter::Linear;
+}
+
+SceneRenderTarget parse_render_target(const QJsonValue &value, const SceneGeometry &geometry)
+{
+    SceneRenderTarget target;
+    target.width = geometry.width;
+    target.height = geometry.height;
+    if (!value.isObject())
+    {
+        return target;
+    }
+
+    const auto object = value.toObject();
+    target.enabled = json_bool(object, "enabled", false);
+    target.width = std::max(1, json_int(object, "width", target.width));
+    target.height = std::max(1, json_int(object, "height", target.height));
+    target.presentation = parse_render_target_presentation(json_string(object, "presentation", "fit"));
+    target.filter = parse_render_target_filter(json_string(object, "filter", "linear"));
+    return target;
+}
+
 ArtifactParams parse_artifact(const QJsonValue &value)
 {
     ArtifactParams params;
@@ -146,6 +201,65 @@ LoopbackParams parse_loopback(const QJsonValue &value)
     return params;
 }
 
+TransformAnimationPreset parse_transform_animation_preset(const std::string &preset)
+{
+    const QString normalized = QString::fromStdString(preset).trimmed().toLower();
+    if (normalized == QStringLiteral("rotate"))
+    {
+        return TransformAnimationPreset::Rotate;
+    }
+    if (normalized == QStringLiteral("resize"))
+    {
+        return TransformAnimationPreset::Resize;
+    }
+    if (normalized == QStringLiteral("move-x") || normalized == QStringLiteral("movex") ||
+        normalized == QStringLiteral("move_x"))
+    {
+        return TransformAnimationPreset::MoveX;
+    }
+    if (normalized == QStringLiteral("move-y") || normalized == QStringLiteral("movey") ||
+        normalized == QStringLiteral("move_y"))
+    {
+        return TransformAnimationPreset::MoveY;
+    }
+    if (normalized == QStringLiteral("orbit"))
+    {
+        return TransformAnimationPreset::Orbit;
+    }
+    if (normalized == QStringLiteral("wobble"))
+    {
+        return TransformAnimationPreset::Wobble;
+    }
+    if (normalized == QStringLiteral("bounce"))
+    {
+        return TransformAnimationPreset::Bounce;
+    }
+
+    return TransformAnimationPreset::None;
+}
+
+TransformAnimation parse_transform_animation(const QJsonValue &value)
+{
+    TransformAnimation animation;
+    if (!value.isObject())
+    {
+        return animation;
+    }
+
+    const auto object = value.toObject();
+    animation.enabled = json_bool(object, "enabled", false);
+    animation.preset = parse_transform_animation_preset(json_string(object, "preset"));
+    animation.speed = std::max(0.0F, json_float(object, "speed", animation.speed));
+    animation.amount = json_float(object, "amount", animation.amount);
+    animation.phase = json_float(object, "phase", animation.phase);
+    animation.axis = json_string(object, "axis");
+    if (animation.preset == TransformAnimationPreset::None)
+    {
+        animation.enabled = false;
+    }
+    return animation;
+}
+
 SceneInput parse_input(const QJsonObject &object)
 {
     SceneInput input;
@@ -154,11 +268,7 @@ SceneInput parse_input(const QJsonObject &object)
     input.file = json_string(object, "file");
     input.format = json_string(object, "format");
     input.scale = std::max(0.01F, json_float(object, "scale", 1.0F));
-
-    if (const auto on_top = object.value(QStringLiteral("on_top")); on_top.isBool())
-    {
-        input.on_top = on_top.toBool();
-    }
+    input.rotation = json_float(object, "rotation", 0.0F);
 
     if (const auto position = object.value(QStringLiteral("position")); position.isObject())
     {
@@ -192,6 +302,14 @@ SceneInput parse_input(const QJsonObject &object)
 
     input.artifact = parse_artifact(object.value(QStringLiteral("artifact")));
     input.loopback = parse_loopback(object.value(QStringLiteral("loopback")));
+    input.animation = parse_transform_animation(object.value(QStringLiteral("animation")));
+    if (!input.animation.enabled)
+    {
+        if (const auto transform = object.value(QStringLiteral("transform")); transform.isObject())
+        {
+            input.animation = parse_transform_animation(transform.toObject().value(QStringLiteral("animation")));
+        }
+    }
 
     if (!input.enabled)
     {
@@ -211,14 +329,15 @@ SceneLayer parse_layer(const QJsonValue &value)
 
     const auto object = value.toObject();
     layer.enabled = json_bool(object, "enabled", true);
-        if (const auto background = object.value(QStringLiteral("background_color")); background.isObject())
-        {
-            layer.background_color = parse_color(background);
-        }
-        else if (const auto background = object.value(QStringLiteral("background")); background.isObject())
-        {
-            layer.background_color = parse_color(background);
-        }
+    layer.opacity = std::clamp(json_float(object, "opacity", layer.opacity), 0.0F, 1.0F);
+    if (const auto background = object.value(QStringLiteral("background_color")); background.isObject())
+    {
+        layer.background_color = parse_color(background);
+    }
+    else if (const auto background = object.value(QStringLiteral("background")); background.isObject())
+    {
+        layer.background_color = parse_color(background);
+    }
 
     if (const auto background_image = object.value(QStringLiteral("background_image")); background_image.isObject())
     {
@@ -329,7 +448,8 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         {
             scene.audio_input = parse_input(audio.toObject());
         }
-        if (const auto audio_playback = inputs_object.value(QStringLiteral("audio_playback")); audio_playback.isObject())
+        if (const auto audio_playback = inputs_object.value(QStringLiteral("audio_playback"));
+            audio_playback.isObject())
         {
             scene.audio_playback_input = parse_input(audio_playback.toObject());
         }
@@ -339,7 +459,8 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         }
     }
 
-    if (scene.background_color.red == 0.0F && scene.background_color.green == 0.0F && scene.background_color.blue == 0.0F)
+    if (scene.background_color.red == 0.0F && scene.background_color.green == 0.0F &&
+        scene.background_color.blue == 0.0F)
     {
         if (const auto background = root.value(QStringLiteral("background_color")); background.isObject())
         {
@@ -361,7 +482,10 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         scene.geometry.height = std::max(1, json_int(root, "height", scene.geometry.height));
     }
 
-    if (const auto show_status_overlay = root.value(QStringLiteral("show_status_overlay")); show_status_overlay.isBool())
+    scene.render_target = parse_render_target(root.value(QStringLiteral("render_target")), scene.geometry);
+
+    if (const auto show_status_overlay = root.value(QStringLiteral("show_status_overlay"));
+        show_status_overlay.isBool())
     {
         scene.show_status_overlay = show_status_overlay.toBool();
     }
@@ -381,7 +505,8 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         scene.shader_directory = resolve_shader_path(base_dir, shader_directory.toString().toStdString()).string();
     }
 
-    if (const auto resources_directory = root.value(QStringLiteral("resources_directory")); resources_directory.isString())
+    if (const auto resources_directory = root.value(QStringLiteral("resources_directory"));
+        resources_directory.isString())
     {
         scene.resources_directory = resolve_shader_path(base_dir, resources_directory.toString().toStdString());
     }
@@ -506,6 +631,29 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
             if (!mapping.address.empty() && !mapping.layer.empty() && !mapping.uniform.empty())
             {
                 scene.osc_mappings.push_back(std::move(mapping));
+            }
+        }
+    }
+
+    if (const auto uniforms = root.value(QStringLiteral("shader_uniforms")); uniforms.isArray())
+    {
+        for (const auto &uniform_value : uniforms.toArray())
+        {
+            if (!uniform_value.isObject())
+            {
+                continue;
+            }
+
+            const auto uniform_object = uniform_value.toObject();
+            SceneShaderUniform uniform;
+            uniform.layer = json_string(uniform_object, "layer");
+            uniform.shader = json_string(uniform_object, "shader");
+            uniform.uniform = json_string(uniform_object, "uniform");
+            uniform.value = json_float(uniform_object, "value", 0.0F);
+
+            if (!uniform.layer.empty() && !uniform.uniform.empty())
+            {
+                scene.shader_uniforms.push_back(std::move(uniform));
             }
         }
     }

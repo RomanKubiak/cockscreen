@@ -34,7 +34,7 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 {
   public:
     explicit DirectVideoWindow(const ApplicationSettings &settings, QString shader_label, bool show_status_overlay,
-                               ArtifactParams artifact_params = {},
+                               SceneInput video_input, ArtifactParams artifact_params = {},
                                QWidget *parent = nullptr);
     ~DirectVideoWindow() override;
 
@@ -61,8 +61,6 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
         dmabuf_egl,
     };
 
-    static constexpr int kStatusBarHeight{64};
-
     struct ImportedTexture
     {
         GLuint texture{0};
@@ -83,6 +81,7 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 
     ApplicationSettings settings_;
     QString shader_label_;
+    SceneInput video_input_;
     core::ControlFrame frame_;
     V4l2Capture capture_;
     QOpenGLShaderProgram cpu_program_;
@@ -112,6 +111,7 @@ class DirectVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString status_overlay_text_;
     std::vector<std::uint8_t> staging_;
     std::unordered_map<int, ImportedTexture> imported_textures_;
+    std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};
     std::chrono::steady_clock::time_point last_capture_time_{};
     std::chrono::steady_clock::time_point last_render_time_{};
     std::chrono::steady_clock::time_point last_profile_report_{};

@@ -4,6 +4,7 @@
 #ifndef _WIN32
 #include "../../include/cockscreen/runtime/AppsinkCapture.hpp"
 #include "../../include/cockscreen/runtime/LoopbackPipeline.hpp"
+#include "../../include/cockscreen/runtime/pi/FramebufferMirror.hpp"
 #endif
 #include "../../include/cockscreen/runtime/MidiInputMonitor.hpp"
 #include "../../include/cockscreen/runtime/OscInputMonitor.hpp"
@@ -206,11 +207,15 @@ QString raw_video_device_path_for(const std::optional<QCameraDevice> &video_devi
 
 QString build_audio_overlay_text(const AudioAnalysisWindow &audio_analysis, const QString &audio_label)
 {
-    QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4")
+    const QString bpm_text = audio_analysis.bpm_level() > 0.0F ? QStringLiteral("%1").arg(audio_analysis.bpm_level(), 0, 'f', 1)
+                                                               : QStringLiteral("n/a");
+
+    QString audio_line = QStringLiteral("Audio %1 | level %2 dB | rms %3 | peak %4 | bpm %5")
                              .arg(audio_analysis.status_message().isEmpty() ? audio_label : audio_analysis.status_message())
                              .arg(audio_analysis.overall_level_db(), 0, 'f', 1)
                              .arg(audio_analysis.rms_level(), 0, 'f', 3)
-                             .arg(audio_analysis.peak_level(), 0, 'f', 3);
+                             .arg(audio_analysis.peak_level(), 0, 'f', 3)
+                             .arg(bpm_text);
 
     const QString peak_line = build_audio_peak_overlay_line(audio_analysis);
     if (!peak_line.isEmpty())
@@ -498,14 +503,14 @@ std::optional<WebServerBindConfig> parse_web_server_bind_url(const std::string &
     return WebServerBindConfig{address, static_cast<quint16>(url.port()), url.toString()};
 }
 
-QString effective_top_layer_name(const SceneDefinition &scene, bool video_on_top)
+QString effective_top_layer_name(const SceneDefinition &scene)
 {
     if (!scene.layer_order.empty())
     {
         return QString::fromStdString(scene.layer_order.back());
     }
 
-    return video_on_top ? QStringLiteral("video") : QStringLiteral("screen");
+    return QStringLiteral("<none>");
 }
 
 } // namespace
@@ -770,7 +775,7 @@ int Application::run(int argc, char *argv[])
         ApplicationSettings effective_settings = settings_;
         effective_settings.video_device = effective_video_device;
 
-        DirectVideoWindow window{effective_settings, shader_label, scene.show_status_overlay,
+        DirectVideoWindow window{effective_settings, shader_label, scene.show_status_overlay, scene.video_input,
                                  scene.video_input.artifact};
         if (has_screens && is_pi_target())
         {
@@ -961,12 +966,11 @@ int Application::run(int argc, char *argv[])
                                          : std::nullopt;
         const QString camera_format_text = selected_format.has_value() ? camera_format_label(*selected_format)
                                                                       : QStringLiteral("unknown");
-        const bool video_on_top = scene.video_input.on_top.value_or(settings_.top_layer == "video");
-        const QString top_layer_name = effective_top_layer_name(scene, video_on_top);
+        const QString top_layer_name = effective_top_layer_name(scene);
         const bool show_status_overlay = scene.show_status_overlay;
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), video_device_path,
-                                 selected_video_label, camera_format_text, video_on_top, show_status_overlay};
+                                 selected_video_label, camera_format_text, show_status_overlay};
         if (!window.fatal_render_error().isEmpty())
         {
             std::cerr << window.fatal_render_error().toStdString() << '\n';
@@ -984,6 +988,27 @@ int Application::run(int argc, char *argv[])
                 return 2;
             }
             std::cout << "[appsink] " << appsink_capture.status_message().toStdString() << '\n';
+        }
+
+        std::unique_ptr<pi::FramebufferMirror> secondary_fb_mirror;
+        if (is_pi_target())
+        {
+            secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>("/dev/fb1");
+            if (secondary_fb_mirror->ready())
+            {
+                std::cout << "Framebuffer mirror: " << secondary_fb_mirror->device_path()
+                          << " " << secondary_fb_mirror->width() << "x" << secondary_fb_mirror->height()
+                          << " @" << secondary_fb_mirror->bits_per_pixel() << "bpp\n";
+            }
+            else if (secondary_fb_mirror->device_present())
+            {
+                std::cerr << "Framebuffer mirror disabled for " << secondary_fb_mirror->device_path()
+                          << ": " << secondary_fb_mirror->status_message() << '\n';
+            }
+            else
+            {
+                secondary_fb_mirror.reset();
+            }
         }
 #endif
         SceneControlDeviceInfo web_device_info;
@@ -1038,15 +1063,20 @@ int Application::run(int argc, char *argv[])
             refresh_frame(&frame);
             modulation_bus_.update(frame);
             window.set_frame(frame);
+#ifndef _WIN32
+            if (secondary_fb_mirror != nullptr)
+            {
+                secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
+            }
+#endif
             const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(frame.gain, 0, 'f', 2);
-            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3 | opacity %4")
+            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3")
                                             .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
                                             .arg(camera_format_text)
-                                            .arg(top_layer_name)
-                                            .arg(settings_.top_layer_opacity, 0, 'f', 2);
+                                            .arg(top_layer_name);
             const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
@@ -1069,16 +1099,21 @@ int Application::run(int argc, char *argv[])
         refresh_frame(&live_frame);
         modulation_bus_.update(live_frame);
         window.set_frame(live_frame);
+#ifndef _WIN32
+        if (secondary_fb_mirror != nullptr)
+        {
+            secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
+        }
+#endif
         {
             const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(live_frame.gain, 0, 'f', 2);
-            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3 | opacity %4")
+            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3")
                                             .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
                                             .arg(camera_format_text)
-                                            .arg(top_layer_name)
-                                            .arg(settings_.top_layer_opacity, 0, 'f', 2);
+                                            .arg(top_layer_name);
             const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
@@ -1108,7 +1143,6 @@ int Application::run(int argc, char *argv[])
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
         std::cout << "Scene file: " << (settings_.scene_file.empty() ? "<none>" : settings_.scene_file) << '\n';
         std::cout << "Top layer: " << top_layer_name.toStdString() << '\n';
-        std::cout << "Top layer opacity: " << settings_.top_layer_opacity << '\n';
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "Window mode: Qt6 windowed" << '\n';
         std::cout << "Qt platform: " << qt_platform_name << '\n';
@@ -1130,7 +1164,6 @@ int Application::run(int argc, char *argv[])
                                            ? shader_label_for(settings_)
                                            : shader_label_for(settings_, settings_.shader_file);
     const QString screen_shader_label = shader_label_for(settings_, settings_.screen_shader_file);
-    const bool video_on_top = settings_.top_layer == "video";
     const bool show_status_overlay = scene.show_status_overlay;
 
     VideoWindow window{settings_, video_device.value_or(QCameraDevice{}), selected_video_label, camera_format_text,
@@ -1144,11 +1177,40 @@ int Application::run(int argc, char *argv[])
         window.show();
     }
 
+#ifndef _WIN32
+    std::unique_ptr<pi::FramebufferMirror> secondary_fb_mirror;
+    if (is_pi_target())
+    {
+        secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>("/dev/fb1");
+        if (secondary_fb_mirror->ready())
+        {
+            std::cout << "Framebuffer mirror: " << secondary_fb_mirror->device_path()
+                      << " " << secondary_fb_mirror->width() << "x" << secondary_fb_mirror->height()
+                      << " @" << secondary_fb_mirror->bits_per_pixel() << "bpp\n";
+        }
+        else if (secondary_fb_mirror->device_present())
+        {
+            std::cerr << "Framebuffer mirror disabled for " << secondary_fb_mirror->device_path()
+                      << ": " << secondary_fb_mirror->status_message() << '\n';
+        }
+        else
+        {
+            secondary_fb_mirror.reset();
+        }
+    }
+#endif
+
     QObject::connect(&timer, &QTimer::timeout, [&]() {
         auto initial_frame = modulation_bus_.snapshot();
         refresh_frame(&initial_frame);
         modulation_bus_.update(initial_frame);
         window.set_frame(initial_frame);
+#ifndef _WIN32
+        if (secondary_fb_mirror != nullptr)
+        {
+            secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
+        }
+#endif
         const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                      .arg(window.processing_fps(), 0, 'f', 1)
                                      .arg(window.processing_fps(), 0, 'f', 1)
@@ -1180,6 +1242,12 @@ int Application::run(int argc, char *argv[])
     refresh_frame(&live_frame);
     modulation_bus_.update(live_frame);
     window.set_frame(live_frame);
+#ifndef _WIN32
+    if (secondary_fb_mirror != nullptr)
+    {
+        secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
+    }
+#endif
     {
         const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                      .arg(window.processing_fps(), 0, 'f', 1)
@@ -1220,7 +1288,7 @@ int Application::run(int argc, char *argv[])
     std::cout << playback_config_summary(scene).toStdString() << '\n';
     std::cout << "Video shader loaded: " << video_shader_label.toStdString() << '\n';
     std::cout << "Screen shader loaded: " << screen_shader_label.toStdString() << '\n';
-    std::cout << "Top layer: " << effective_top_layer_name(scene, video_on_top).toStdString() << '\n';
+    std::cout << "Top layer: " << effective_top_layer_name(scene).toStdString() << '\n';
     std::cout << "Render path: " << settings_.render_path << '\n';
     std::cout << "Window mode: Qt6 windowed" << '\n';
     std::cout << "Qt platform: " << qt_platform_name << '\n';

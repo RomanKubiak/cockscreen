@@ -357,6 +357,165 @@ QJsonObject playback_input_to_json(const SceneInput &input)
                        {QStringLiteral("playbackRateLooping"), input.playback_rate_looping}};
 }
 
+QString transform_animation_preset_to_string(TransformAnimationPreset preset)
+{
+    switch (preset)
+    {
+        case TransformAnimationPreset::None:
+            return QStringLiteral("none");
+        case TransformAnimationPreset::Rotate:
+            return QStringLiteral("rotate");
+        case TransformAnimationPreset::Resize:
+            return QStringLiteral("resize");
+        case TransformAnimationPreset::MoveX:
+            return QStringLiteral("move-x");
+        case TransformAnimationPreset::MoveY:
+            return QStringLiteral("move-y");
+        case TransformAnimationPreset::Orbit:
+            return QStringLiteral("orbit");
+        case TransformAnimationPreset::Wobble:
+            return QStringLiteral("wobble");
+        case TransformAnimationPreset::Bounce:
+            return QStringLiteral("bounce");
+    }
+
+    return QStringLiteral("none");
+}
+
+TransformAnimationPreset transform_animation_preset_from_string(QString value)
+{
+    value = value.trimmed().toLower();
+    if (value == QStringLiteral("rotate"))
+    {
+        return TransformAnimationPreset::Rotate;
+    }
+    if (value == QStringLiteral("resize"))
+    {
+        return TransformAnimationPreset::Resize;
+    }
+    if (value == QStringLiteral("move-x") || value == QStringLiteral("movex") || value == QStringLiteral("move_x"))
+    {
+        return TransformAnimationPreset::MoveX;
+    }
+    if (value == QStringLiteral("move-y") || value == QStringLiteral("movey") || value == QStringLiteral("move_y"))
+    {
+        return TransformAnimationPreset::MoveY;
+    }
+    if (value == QStringLiteral("orbit"))
+    {
+        return TransformAnimationPreset::Orbit;
+    }
+    if (value == QStringLiteral("wobble"))
+    {
+        return TransformAnimationPreset::Wobble;
+    }
+    if (value == QStringLiteral("bounce"))
+    {
+        return TransformAnimationPreset::Bounce;
+    }
+
+    return TransformAnimationPreset::None;
+}
+
+QJsonObject transform_animation_to_json(const TransformAnimation &animation)
+{
+    return QJsonObject{{QStringLiteral("enabled"), animation.enabled},
+                       {QStringLiteral("preset"), transform_animation_preset_to_string(animation.preset)},
+                       {QStringLiteral("speed"), animation.speed},
+                       {QStringLiteral("amount"), animation.amount},
+                       {QStringLiteral("phase"), animation.phase},
+                       {QStringLiteral("axis"), QString::fromStdString(animation.axis)}};
+}
+
+QJsonObject scene_input_to_json(const SceneInput &input)
+{
+    return QJsonObject{{QStringLiteral("enabled"), input.enabled},
+                       {QStringLiteral("device"), QString::fromStdString(input.device)},
+                       {QStringLiteral("file"), QString::fromStdString(input.file)},
+                       {QStringLiteral("format"), QString::fromStdString(input.format)},
+                       {QStringLiteral("scale"), input.scale},
+                       {QStringLiteral("position"),
+                        QJsonObject{{QStringLiteral("x"), input.position_x}, {QStringLiteral("y"), input.position_y}}},
+                       {QStringLiteral("rotation"), input.rotation},
+                       {QStringLiteral("animation"), transform_animation_to_json(input.animation)}};
+}
+
+QString render_target_presentation_to_string(RenderTargetPresentation presentation)
+{
+    switch (presentation)
+    {
+        case RenderTargetPresentation::Stretch:
+            return QStringLiteral("stretch");
+        case RenderTargetPresentation::Fit:
+            return QStringLiteral("fit");
+        case RenderTargetPresentation::Fill:
+            return QStringLiteral("fill");
+        case RenderTargetPresentation::Center:
+            return QStringLiteral("center");
+        case RenderTargetPresentation::IntegerScale:
+            return QStringLiteral("integer-scale");
+    }
+
+    return QStringLiteral("fit");
+}
+
+RenderTargetPresentation render_target_presentation_from_string(QString value)
+{
+    value = value.trimmed().toLower();
+    if (value == QStringLiteral("stretch"))
+    {
+        return RenderTargetPresentation::Stretch;
+    }
+    if (value == QStringLiteral("fill") || value == QStringLiteral("crop"))
+    {
+        return RenderTargetPresentation::Fill;
+    }
+    if (value == QStringLiteral("center") || value == QStringLiteral("centered"))
+    {
+        return RenderTargetPresentation::Center;
+    }
+    if (value == QStringLiteral("integer-scale") || value == QStringLiteral("integer_scale") ||
+        value == QStringLiteral("integer"))
+    {
+        return RenderTargetPresentation::IntegerScale;
+    }
+
+    return RenderTargetPresentation::Fit;
+}
+
+QString render_target_filter_to_string(RenderTargetFilter filter)
+{
+    switch (filter)
+    {
+        case RenderTargetFilter::Linear:
+            return QStringLiteral("linear");
+        case RenderTargetFilter::Nearest:
+            return QStringLiteral("nearest");
+    }
+
+    return QStringLiteral("linear");
+}
+
+RenderTargetFilter render_target_filter_from_string(QString value)
+{
+    value = value.trimmed().toLower();
+    if (value == QStringLiteral("nearest") || value == QStringLiteral("pixelated"))
+    {
+        return RenderTargetFilter::Nearest;
+    }
+
+    return RenderTargetFilter::Linear;
+}
+
+QJsonObject render_target_to_json(const SceneRenderTarget &render_target)
+{
+    return QJsonObject{{QStringLiteral("enabled"), render_target.enabled},
+                       {QStringLiteral("width"), render_target.width},
+                       {QStringLiteral("height"), render_target.height},
+                       {QStringLiteral("presentation"), render_target_presentation_to_string(render_target.presentation)},
+                       {QStringLiteral("filter"), render_target_filter_to_string(render_target.filter)}};
+}
+
 QJsonObject pink_key_to_json(const PinkKeySettings &settings)
 {
     return QJsonObject{{QStringLiteral("audioAlgorithm"), settings.audio_algorithm},
@@ -393,7 +552,9 @@ QJsonObject layer_to_json(const SceneLayer &layer)
         shaders.push_back(QString::fromStdString(shader));
     }
 
-    return QJsonObject{{QStringLiteral("enabled"), layer.enabled}, {QStringLiteral("shaders"), shaders}};
+    return QJsonObject{{QStringLiteral("enabled"), layer.enabled},
+                       {QStringLiteral("opacity"), layer.opacity},
+                       {QStringLiteral("shaders"), shaders}};
 }
 
 struct ShaderParameterSpec
@@ -407,6 +568,14 @@ struct ShaderParameterSpec
     double default_value;
 };
 
+struct ShaderParameterCatalog
+{
+    const char *shader;
+    const char *title;
+    const ShaderParameterSpec *specs;
+    std::size_t spec_count;
+};
+
 constexpr ShaderParameterSpec kRatDistortionParameterSpecs[] = {
     {"u_rat_tooth_count", "Tooth density", "integer", 3.0, 24.0, 1.0, 8.0},
     {"u_rat_tooth_height_min", "Tooth min height (px)", "integer", 1.0, 60.0, 1.0, 24.0},
@@ -418,6 +587,17 @@ constexpr ShaderParameterSpec kRatDistortionParameterSpecs[] = {
     {"u_rat_tooth_fade_out_seconds", "Tooth fade-out seconds", "float", 0.01, 3.0, 0.01, 0.32},
     {"u_rat_tooth_fade_start_opacity", "Tooth fade start opacity", "float", 0.0, 1.0, 0.01, 0.0},
     {"u_rat_tooth_fade_end_opacity", "Tooth fade end opacity", "float", 0.0, 1.0, 0.01, 1.0},
+};
+
+constexpr ShaderParameterSpec kWireframePlaneParameterSpecs[] = {
+    {"u_plane_base_speed", "Cruise speed", "float", 0.0, 0.5, 0.001, 0.15},
+};
+
+constexpr ShaderParameterCatalog kShaderParameterCatalogs[] = {
+    {"rat_distortion.glsl", "Rat distortion saw teeth", kRatDistortionParameterSpecs,
+     std::size(kRatDistortionParameterSpecs)},
+    {"wireframe_plane.glsl", "Wireframe plane", kWireframePlaneParameterSpecs,
+     std::size(kWireframePlaneParameterSpecs)},
 };
 
 double shader_parameter_viewport_height(const SceneDefinition *scene)
@@ -466,20 +646,36 @@ double shader_parameter_default_value(const ShaderParameterSpec &spec, const Sce
     return spec.default_value;
 }
 
+const ShaderParameterCatalog *find_shader_parameter_catalog(std::string_view shader_name)
+{
+    const auto shader_filename = std::filesystem::path{shader_name}.filename().string();
+    for (const auto &catalog : kShaderParameterCatalogs)
+    {
+        if (shader_filename == catalog.shader)
+        {
+            return &catalog;
+        }
+    }
+
+    return nullptr;
+}
+
 bool shader_parameter_shader_supported(std::string_view shader_name)
 {
-    return std::filesystem::path{shader_name}.filename() == "rat_distortion.glsl";
+    return find_shader_parameter_catalog(shader_name) != nullptr;
 }
 
 const ShaderParameterSpec *find_shader_parameter_spec(std::string_view shader_name, std::string_view uniform_name)
 {
-    if (!shader_parameter_shader_supported(shader_name))
+    const auto *catalog = find_shader_parameter_catalog(shader_name);
+    if (catalog == nullptr)
     {
         return nullptr;
     }
 
-    for (const auto &spec : kRatDistortionParameterSpecs)
+    for (std::size_t index = 0; index < catalog->spec_count; ++index)
     {
+        const auto &spec = catalog->specs[index];
         if (uniform_name == spec.uniform)
         {
             return &spec;
@@ -487,6 +683,51 @@ const ShaderParameterSpec *find_shader_parameter_spec(std::string_view shader_na
     }
 
     return nullptr;
+}
+
+std::optional<double> scene_shader_uniform_value(const SceneDefinition *scene, std::string_view shader_name,
+                                                 std::string_view uniform_name)
+{
+    if (scene == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const auto shader_filename = std::filesystem::path{shader_name}.filename().string();
+    for (const auto &uniform : scene->shader_uniforms)
+    {
+        if (std::filesystem::path{uniform.shader}.filename() == shader_filename && uniform.uniform == uniform_name)
+        {
+            return static_cast<double>(uniform.value);
+        }
+    }
+
+    return std::nullopt;
+}
+
+double shader_parameter_current_value(const ShaderParameterCatalog &catalog, const ShaderParameterSpec &spec,
+                                      const SceneDefinition *scene, const ShaderVideoWindow *window)
+{
+    const double minimum = shader_parameter_minimum_value(spec, scene);
+    const double maximum = shader_parameter_maximum_value(spec, scene);
+    const double default_value = shader_parameter_default_value(spec, scene);
+
+    if (window != nullptr)
+    {
+        const auto overrides = window->shader_uniform_overrides(catalog.shader);
+        const auto it = overrides.find(spec.uniform);
+        if (it != overrides.end())
+        {
+            return std::clamp(static_cast<double>(it->second), minimum, maximum);
+        }
+    }
+
+    if (const auto scene_value = scene_shader_uniform_value(scene, catalog.shader, spec.uniform); scene_value.has_value())
+    {
+        return std::clamp(*scene_value, minimum, maximum);
+    }
+
+    return default_value;
 }
 
 QJsonObject shader_parameters_to_json(const SceneDefinition *scene, const ShaderVideoWindow *window)
@@ -497,49 +738,49 @@ QJsonObject shader_parameters_to_json(const SceneDefinition *scene, const Shader
         return result;
     }
 
-    const auto overrides = window->shader_uniform_overrides("rat_distortion.glsl");
-    QJsonArray parameters;
-    for (const auto &spec : kRatDistortionParameterSpecs)
+    for (const auto &catalog : kShaderParameterCatalogs)
     {
-        const auto it = overrides.find(spec.uniform);
-        const double minimum = shader_parameter_minimum_value(spec, scene);
-        const double maximum = shader_parameter_maximum_value(spec, scene);
-        const double default_value = shader_parameter_default_value(spec, scene);
-        const double value = it != overrides.end() ? std::clamp(static_cast<double>(it->second), minimum, maximum)
-                                                   : default_value;
-        parameters.push_back(QJsonObject{{QStringLiteral("uniform"), QString::fromUtf8(spec.uniform)},
-                                         {QStringLiteral("label"), QString::fromUtf8(spec.label)},
-                                         {QStringLiteral("type"), QString::fromUtf8(spec.type)},
-                                         {QStringLiteral("min"), minimum},
-                                         {QStringLiteral("max"), maximum},
-                                         {QStringLiteral("step"), spec.step},
-                                         {QStringLiteral("defaultValue"), default_value},
-                                         {QStringLiteral("value"), value}});
+        QJsonArray parameters;
+        for (std::size_t index = 0; index < catalog.spec_count; ++index)
+        {
+            const auto &spec = catalog.specs[index];
+            const double minimum = shader_parameter_minimum_value(spec, scene);
+            const double maximum = shader_parameter_maximum_value(spec, scene);
+            const double default_value = shader_parameter_default_value(spec, scene);
+            const double value = shader_parameter_current_value(catalog, spec, scene, window);
+            parameters.push_back(QJsonObject{{QStringLiteral("uniform"), QString::fromUtf8(spec.uniform)},
+                                             {QStringLiteral("label"), QString::fromUtf8(spec.label)},
+                                             {QStringLiteral("type"), QString::fromUtf8(spec.type)},
+                                             {QStringLiteral("min"), minimum},
+                                             {QStringLiteral("max"), maximum},
+                                             {QStringLiteral("step"), spec.step},
+                                             {QStringLiteral("defaultValue"), default_value},
+                                             {QStringLiteral("value"), value}});
+        }
+
+        result.insert(QString::fromUtf8(catalog.shader),
+                      QJsonObject{{QStringLiteral("title"), QString::fromUtf8(catalog.title)},
+                                  {QStringLiteral("parameters"), parameters}});
     }
 
-    result.insert(QStringLiteral("rat_distortion.glsl"),
-                  QJsonObject{{QStringLiteral("title"), QStringLiteral("Rat distortion saw teeth")},
-                              {QStringLiteral("parameters"), parameters}});
     return result;
 }
 
-QJsonObject shader_parameter_values_to_json(const SceneDefinition *scene, const ShaderVideoWindow *window)
+QJsonObject shader_parameter_values_to_json(const QString &shader_name, const SceneDefinition *scene,
+                                            const ShaderVideoWindow *window)
 {
     QJsonObject values;
-    if (window == nullptr)
+    const auto shader_key = shader_name.trimmed().toStdString();
+    const auto *catalog = find_shader_parameter_catalog(shader_key);
+    if (catalog == nullptr)
     {
         return values;
     }
 
-    const auto overrides = window->shader_uniform_overrides("rat_distortion.glsl");
-    for (const auto &spec : kRatDistortionParameterSpecs)
+    for (std::size_t index = 0; index < catalog->spec_count; ++index)
     {
-        const auto it = overrides.find(spec.uniform);
-        const double minimum = shader_parameter_minimum_value(spec, scene);
-        const double maximum = shader_parameter_maximum_value(spec, scene);
-        const double default_value = shader_parameter_default_value(spec, scene);
-        const double value = it != overrides.end() ? std::clamp(static_cast<double>(it->second), minimum, maximum)
-                                                   : default_value;
+        const auto &spec = catalog->specs[index];
+        const double value = shader_parameter_current_value(*catalog, spec, scene, window);
         values.insert(QString::fromUtf8(spec.uniform), value);
     }
 
@@ -554,28 +795,31 @@ QJsonObject shader_preset_state_to_json(const std::filesystem::path &shader_dire
         return result;
     }
 
-    const auto preset_path = shader_preset_file_path(shader_directory, "rat_distortion.glsl");
-    QJsonObject store;
-    if (!read_json_object_file(preset_path, &store, nullptr))
+    for (const auto &catalog : kShaderParameterCatalogs)
     {
-        return result;
-    }
-
-    QJsonArray presets;
-    for (auto it = store.begin(); it != store.end(); ++it)
-    {
-        if (!it.value().isObject())
+        const auto preset_path = shader_preset_file_path(shader_directory, catalog.shader);
+        QJsonObject store;
+        if (!read_json_object_file(preset_path, &store, nullptr))
         {
             continue;
         }
 
-        presets.push_back(QJsonObject{{QStringLiteral("name"), it.key()},
-                                      {QStringLiteral("values"), it.value().toObject()}});
-    }
+        QJsonArray presets;
+        for (auto it = store.begin(); it != store.end(); ++it)
+        {
+            if (!it.value().isObject())
+            {
+                continue;
+            }
 
-    result.insert(QStringLiteral("rat_distortion.glsl"),
-                  QJsonObject{{QStringLiteral("file"), QString::fromStdString(preset_path.generic_string())},
-                              {QStringLiteral("presets"), presets}});
+            presets.push_back(QJsonObject{{QStringLiteral("name"), it.key()},
+                                          {QStringLiteral("values"), it.value().toObject()}});
+        }
+
+        result.insert(QString::fromUtf8(catalog.shader),
+                      QJsonObject{{QStringLiteral("file"), QString::fromStdString(preset_path.generic_string())},
+                                  {QStringLiteral("presets"), presets}});
+    }
     return result;
 }
 
@@ -671,7 +915,7 @@ bool save_shader_preset_values(const QString &shader_name, const QString &preset
         return false;
     }
 
-    store.insert(preset_key, shader_parameter_values_to_json(scene, window));
+    store.insert(preset_key, shader_parameter_values_to_json(shader_name, scene, window));
     if (!write_json_object_file(preset_path, store, error_message))
     {
         return false;
@@ -1218,6 +1462,9 @@ QByteArray SceneControlServer::build_index_html() const
   <script>
         let currentState = null;
         let currentShaderPopup = null;
+        let liveApplyTimer = null;
+        let liveApplyInFlight = false;
+        let liveApplyPending = false;
         const shaderParameterSubmitTimers = new Map();
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
@@ -1265,6 +1512,36 @@ QByteArray SceneControlServer::build_index_html() const
         function orderedValues(id) {
             return Array.from(document.getElementById(id).options).map(option => option.value);
         }
+        function buildAnimationPresetOptions(selected) {
+            return buildLabeledOptions([
+                { value: 'none', label: 'None' },
+                { value: 'rotate', label: 'Rotate' },
+                { value: 'resize', label: 'Resize' },
+                { value: 'move-x', label: 'Move X' },
+                { value: 'move-y', label: 'Move Y' },
+                { value: 'orbit', label: 'Orbit' },
+                { value: 'wobble', label: 'Wobble' },
+                { value: 'bounce', label: 'Bounce' }
+            ], selected);
+        }
+        function buildLayerOrderEditor(layerOrder) {
+            const order = Array.isArray(layerOrder) && layerOrder.length > 0 ? layerOrder : ['video', 'playback', 'screen'];
+            return `
+                <div class="shader-block">
+                    <h3>Composite order</h3>
+                    <div class="shader-editor">
+                        <div class="shader-editor-panel">
+                            <label for="layerOrder">Draw order (bottom → top)</label>
+                            <select id="layerOrder" multiple>${buildOptions(order, [])}</select>
+                            <p class="muted">The last layer in the list is rendered on top.</p>
+                        </div>
+                        <div class="shader-editor-controls">
+                            <button type="button" data-layer-order-action="up">↑ Up</button>
+                            <button type="button" data-layer-order-action="down">↓ Down</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
         function buildShaderEditor(prefix, layer, availableShaders) {
             const selected = Array.isArray(layer.shaders) ? layer.shaders : [];
             const selectedSet = new Set(selected);
@@ -1273,7 +1550,17 @@ QByteArray SceneControlServer::build_index_html() const
             return `
                 <div class="shader-block">
                     <h3>${escapeHtml(title)} layer</h3>
-                    <label class="layer-toggle"><input id="${prefix}Enabled" type="checkbox" ${layer.enabled ? 'checked' : ''}> <span>Enabled</span></label>
+                    <label class="layer-toggle"><input id="${prefix}Enabled" data-live-apply type="checkbox" ${layer.enabled ? 'checked' : ''}> <span>Enabled</span></label>
+                    <div class="grid">
+                        <div>
+                            <label for="${prefix}Opacity">Opacity</label>
+                            <input id="${prefix}Opacity" data-live-apply type="range" min="0" max="1" step="0.01" value="${escapeHtml(layer.opacity ?? 1)}">
+                        </div>
+                        <div>
+                            <label for="${prefix}OpacityNumber">Opacity value</label>
+                            <input id="${prefix}OpacityNumber" data-live-apply type="number" min="0" max="1" step="0.01" value="${escapeHtml(layer.opacity ?? 1)}">
+                        </div>
+                    </div>
                     <div class="shader-editor">
                         <div class="shader-editor-panel">
                             <label for="${prefix}ShaderPool">Available shaders</label>
@@ -1656,8 +1943,135 @@ QByteArray SceneControlServer::build_index_html() const
                     } else if (action === 'down') {
                         moveSelectedDown(`${layer}Shaders`);
                     }
+                    scheduleLiveApply(120);
                 };
             }
+        }
+        function wireLayerOrderButtons() {
+            for (const button of document.querySelectorAll('[data-layer-order-action]')) {
+                button.onclick = () => {
+                    const action = button.dataset.layerOrderAction;
+                    if (action === 'up') {
+                        moveSelectedUp('layerOrder');
+                    } else if (action === 'down') {
+                        moveSelectedDown('layerOrder');
+                    }
+                    scheduleLiveApply(120);
+                };
+            }
+        }
+        function wireLinkedInputs(primaryId, secondaryId) {
+            const primary = document.getElementById(primaryId);
+            const secondary = document.getElementById(secondaryId);
+            if (!primary || !secondary) {
+                return;
+            }
+
+            const sync = (source, target) => {
+                target.value = source.value;
+            };
+            primary.addEventListener('input', () => sync(primary, secondary));
+            secondary.addEventListener('input', () => sync(secondary, primary));
+        }
+        function setMessage(text) {
+            const message = document.getElementById('message');
+            if (message) {
+                message.textContent = text;
+            }
+        }
+        function scheduleLiveApply(delayMs = 180) {
+            if (liveApplyTimer) {
+                clearTimeout(liveApplyTimer);
+            }
+            liveApplyTimer = setTimeout(() => {
+                liveApplyTimer = null;
+                applyChanges({ source: 'auto' });
+            }, delayMs);
+        }
+        function wireLiveSceneControls() {
+            for (const element of document.querySelectorAll('[data-live-apply]')) {
+                const eventName = element.tagName === 'SELECT' || element.type === 'checkbox' ? 'change' : 'input';
+                element.addEventListener(eventName, () => scheduleLiveApply());
+                if (eventName !== 'change') {
+                    element.addEventListener('change', () => scheduleLiveApply(0));
+                }
+            }
+
+            wireLinkedInputs('videoOpacity', 'videoOpacityNumber');
+            wireLinkedInputs('playbackOpacity', 'playbackOpacityNumber');
+            wireLinkedInputs('screenOpacity', 'screenOpacityNumber');
+        }
+        function collectScenePayload() {
+            const color = document.getElementById('bgColor').value;
+            return {
+                backgroundColor: {
+                    r: parseInt(color.slice(1, 3), 16) / 255.0,
+                    g: parseInt(color.slice(3, 5), 16) / 255.0,
+                    b: parseInt(color.slice(5, 7), 16) / 255.0,
+                    a: Math.max(0, Math.min(1, numericValue('bgAlpha', 1.0)))
+                },
+                backgroundImage: {
+                    file: document.getElementById('bgImageCustom').value || document.getElementById('bgImage').value,
+                    placement: document.getElementById('bgPlacement').value
+                },
+                showStatusOverlay: document.getElementById('showStatusOverlay').checked,
+                timecode: document.getElementById('timecodeEnabled').checked,
+                renderTarget: {
+                    enabled: document.getElementById('renderTargetEnabled').checked,
+                    width: Math.max(1, Math.floor(numericValue('renderTargetWidth', 1))),
+                    height: Math.max(1, Math.floor(numericValue('renderTargetHeight', 1))),
+                    presentation: document.getElementById('renderTargetPresentation').value,
+                    filter: document.getElementById('renderTargetFilter').value
+                },
+                videoInput: {
+                    scale: Math.max(0.01, numericValue('videoScale', 1.0)),
+                    position: {
+                        x: numericValue('videoPositionX', 0.0),
+                        y: numericValue('videoPositionY', 0.0)
+                    },
+                    rotation: numericValue('videoRotation', 0.0),
+                    animation: {
+                        enabled: document.getElementById('videoAnimationEnabled').checked,
+                        preset: document.getElementById('videoAnimationPreset').value,
+                        speed: Math.max(0, numericValue('videoAnimationSpeed', 1.0)),
+                        amount: numericValue('videoAnimationAmount', 0.0),
+                        phase: numericValue('videoAnimationPhase', 0.0),
+                        axis: document.getElementById('videoAnimationAxis').value.trim()
+                    }
+                },
+                pinkKey: {
+                    audioAlgorithm: Math.max(0, Math.min(5, Math.floor(numericValue('pinkKeyAudioAlgorithm', 0)))),
+                    audioReactivity: Math.max(0, Math.min(1.5, numericValue('pinkKeyAudioReactivity', 0.45))),
+                    midiReactivity: Math.max(0, Math.min(1.5, numericValue('pinkKeyMidiReactivity', 0.35)))
+                },
+                playbackInput: {
+                    enabled: document.getElementById('playbackInputEnabled').checked,
+                    startMs: Math.max(0, Math.floor(numericValue('playbackStartMs', 0))),
+                    loopStartMs: Math.max(0, Math.floor(numericValue('playbackLoopStartMs', 0))),
+                    loopEndMs: nullableNumericValue('playbackLoopEndMs'),
+                    loopRepeat: Math.max(0, Math.floor(numericValue('playbackLoopRepeat', 0))),
+                    playbackRate: Math.max(0.01, numericValue('playbackRate', 1.0)),
+                    playbackRateLooping: Math.max(0.01, numericValue('playbackRateLooping', 1.0))
+                },
+                layers: {
+                    video: {
+                        enabled: document.getElementById('videoEnabled').checked,
+                        opacity: Math.max(0, Math.min(1, numericValue('videoOpacityNumber', 1.0))),
+                        shaders: orderedValues('videoShaders')
+                    },
+                    playback: {
+                        enabled: document.getElementById('playbackEnabled').checked,
+                        opacity: Math.max(0, Math.min(1, numericValue('playbackOpacityNumber', 1.0))),
+                        shaders: orderedValues('playbackShaders')
+                    },
+                    screen: {
+                        enabled: document.getElementById('screenEnabled').checked,
+                        opacity: Math.max(0, Math.min(1, numericValue('screenOpacityNumber', 1.0))),
+                        shaders: orderedValues('screenShaders')
+                    }
+                },
+                layerOrder: orderedValues('layerOrder')
+            };
         }
         function wireShaderParameterPopups() {
             for (const layer of ['video', 'playback', 'screen']) {
@@ -1767,6 +2181,7 @@ QByteArray SceneControlServer::build_index_html() const
           <pre id="winStatus">${escapeHtml(state.status.windowStatus || '\u2014')}</pre>
           <label>Fatal render error</label>
           <pre id="fatalError">${escapeHtml(state.status.fatalRenderError || '\u2014')}</pre>
+          <label class="layer-toggle"><input id="showStatusOverlay" data-live-apply type="checkbox" ${state.showStatusOverlay ? 'checked' : ''}> <span>Status overlay</span></label>
         </section>
         <section>
           <h2>Display Output</h2>
@@ -1800,30 +2215,77 @@ QByteArray SceneControlServer::build_index_html() const
           <div class="grid">
             <div>
               <label for="bgColor">Color</label>
-              <input id="bgColor" type="color" value="${escapeHtml(state.backgroundColor.hex)}">
+              <input id="bgColor" data-live-apply type="color" value="${escapeHtml(state.backgroundColor.hex)}">
             </div>
             <div>
               <label for="bgAlpha">Alpha</label>
-              <input id="bgAlpha" type="number" min="0" max="1" step="0.01" value="${escapeHtml(state.backgroundColor.a)}">
+              <input id="bgAlpha" data-live-apply type="number" min="0" max="1" step="0.01" value="${escapeHtml(state.backgroundColor.a)}">
             </div>
             <div>
               <label for="bgPlacement">Image placement</label>
-              <select id="bgPlacement">
+              <select id="bgPlacement" data-live-apply>
                 ${buildOptions(['center', 'stretched', 'proportional-stretch', 'tiled'], [state.backgroundImage.placement])}
               </select>
             </div>
           </div>
           <label for="bgImage">Background image</label>
-          <select id="bgImage">
+          <select id="bgImage" data-live-apply>
             <option value="">&lt;none&gt;</option>
             ${buildOptions(state.availableBackgroundFiles, [state.backgroundImage.file])}
           </select>
           <label for="bgImageCustom">Custom background path override</label>
-          <input id="bgImageCustom" type="text" value="${escapeHtml(state.backgroundImage.file)}">
-                    <label class="layer-toggle"><input id="timecodeEnabled" type="checkbox" ${state.timecode ? 'checked' : ''}> <span>Film timecode overlay</span></label>
+          <input id="bgImageCustom" data-live-apply type="text" value="${escapeHtml(state.backgroundImage.file)}">
+                    <label class="layer-toggle"><input id="timecodeEnabled" data-live-apply type="checkbox" ${state.timecode ? 'checked' : ''}> <span>Film timecode overlay</span></label>
         </section>
         <section>
+                    <h2>Video Input</h2>
+                    <div class="grid">
+                        <div>
+                            <label for="videoScale">Scale</label>
+                            <input id="videoScale" data-live-apply type="number" min="0.01" step="0.01" value="${escapeHtml(state.videoInput.scale ?? 1)}">
+                        </div>
+                        <div>
+                            <label for="videoPositionX">Position X</label>
+                            <input id="videoPositionX" data-live-apply type="number" step="0.01" value="${escapeHtml(state.videoInput.position?.x ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="videoPositionY">Position Y</label>
+                            <input id="videoPositionY" data-live-apply type="number" step="0.01" value="${escapeHtml(state.videoInput.position?.y ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="videoRotation">Rotation</label>
+                            <input id="videoRotation" data-live-apply type="number" step="0.1" value="${escapeHtml(state.videoInput.rotation ?? 0)}">
+                        </div>
+                    </div>
+                    <div class="grid">
+                        <div>
+                            <label class="layer-toggle"><input id="videoAnimationEnabled" data-live-apply type="checkbox" ${state.videoInput.animation?.enabled ? 'checked' : ''}> <span>Animation enabled</span></label>
+                        </div>
+                        <div>
+                            <label for="videoAnimationPreset">Animation preset</label>
+                            <select id="videoAnimationPreset" data-live-apply>${buildAnimationPresetOptions(state.videoInput.animation?.preset ?? 'none')}</select>
+                        </div>
+                        <div>
+                            <label for="videoAnimationSpeed">Animation speed</label>
+                            <input id="videoAnimationSpeed" data-live-apply type="number" min="0" step="0.01" value="${escapeHtml(state.videoInput.animation?.speed ?? 1)}">
+                        </div>
+                        <div>
+                            <label for="videoAnimationAmount">Animation amount</label>
+                            <input id="videoAnimationAmount" data-live-apply type="number" step="0.01" value="${escapeHtml(state.videoInput.animation?.amount ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="videoAnimationPhase">Animation phase</label>
+                            <input id="videoAnimationPhase" data-live-apply type="number" step="0.01" value="${escapeHtml(state.videoInput.animation?.phase ?? 0)}">
+                        </div>
+                        <div>
+                            <label for="videoAnimationAxis">Animation axis</label>
+                            <input id="videoAnimationAxis" data-live-apply type="text" value="${escapeHtml(state.videoInput.animation?.axis ?? '')}">
+                        </div>
+                    </div>
+                </section>
+        <section>
                     <h2>Playback</h2>
+                    <label class="layer-toggle"><input id="playbackInputEnabled" data-live-apply type="checkbox" ${state.playbackInput.enabled ? 'checked' : ''}> <span>Playback input enabled</span></label>
                     <div class="grid">
                         <div>
                             <label>Playback file</label>
@@ -1831,47 +2293,82 @@ QByteArray SceneControlServer::build_index_html() const
                         </div>
                         <div>
                             <label for="playbackStartMs">Start ms</label>
-                            <input id="playbackStartMs" type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.startMs ?? 0)}">
+                            <input id="playbackStartMs" data-live-apply type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.startMs ?? 0)}">
                         </div>
                         <div>
                             <label for="playbackLoopStartMs">Loop start ms</label>
-                            <input id="playbackLoopStartMs" type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.loopStartMs ?? 0)}">
+                            <input id="playbackLoopStartMs" data-live-apply type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.loopStartMs ?? 0)}">
                         </div>
                         <div>
                             <label for="playbackLoopEndMs">Loop end ms</label>
-                            <input id="playbackLoopEndMs" type="number" min="0" step="1" value="${state.playbackInput.loopEndMs == null ? '' : escapeHtml(state.playbackInput.loopEndMs)}">
+                            <input id="playbackLoopEndMs" data-live-apply type="number" min="0" step="1" value="${state.playbackInput.loopEndMs == null ? '' : escapeHtml(state.playbackInput.loopEndMs)}">
                         </div>
                         <div>
                             <label for="playbackLoopRepeat">Loop repeat</label>
-                            <input id="playbackLoopRepeat" type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.loopRepeat ?? 0)}">
+                            <input id="playbackLoopRepeat" data-live-apply type="number" min="0" step="1" value="${escapeHtml(state.playbackInput.loopRepeat ?? 0)}">
                         </div>
                         <div>
                             <label for="playbackRate">Playback rate</label>
-                            <input id="playbackRate" type="number" min="0.01" step="0.01" value="${escapeHtml(state.playbackInput.playbackRate ?? 1)}">
+                            <input id="playbackRate" data-live-apply type="number" min="0.01" step="0.01" value="${escapeHtml(state.playbackInput.playbackRate ?? 1)}">
                         </div>
                         <div>
                             <label for="playbackRateLooping">Playback rate looping</label>
-                            <input id="playbackRateLooping" type="number" min="0.01" step="0.01" value="${escapeHtml(state.playbackInput.playbackRateLooping ?? 1)}">
+                            <input id="playbackRateLooping" data-live-apply type="number" min="0.01" step="0.01" value="${escapeHtml(state.playbackInput.playbackRateLooping ?? 1)}">
                         </div>
                     </div>
                     <p class="muted">Leave loop end empty to disable custom looping. Loop repeat 0 means infinite loops.</p>
+                </section>
+                <section>
+                    <h2>Render Target</h2>
+                    <label class="layer-toggle"><input id="renderTargetEnabled" data-live-apply type="checkbox" ${state.renderTarget.enabled ? 'checked' : ''}> <span>Enable offscreen render target</span></label>
+                    <div class="grid">
+                        <div>
+                            <label for="renderTargetWidth">Width</label>
+                            <input id="renderTargetWidth" data-live-apply type="number" min="1" step="1" value="${escapeHtml(state.renderTarget.width ?? 1)}">
+                        </div>
+                        <div>
+                            <label for="renderTargetHeight">Height</label>
+                            <input id="renderTargetHeight" data-live-apply type="number" min="1" step="1" value="${escapeHtml(state.renderTarget.height ?? 1)}">
+                        </div>
+                        <div>
+                            <label for="renderTargetPresentation">Presentation</label>
+                            <select id="renderTargetPresentation" data-live-apply>
+                                ${buildLabeledOptions([
+                                    { value: 'fit', label: 'Fit' },
+                                    { value: 'stretch', label: 'Stretch' },
+                                    { value: 'fill', label: 'Fill' },
+                                    { value: 'center', label: 'Center' },
+                                    { value: 'integer-scale', label: 'Integer scale' }
+                                ], state.renderTarget.presentation ?? 'fit')}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="renderTargetFilter">Filter</label>
+                            <select id="renderTargetFilter" data-live-apply>
+                                ${buildLabeledOptions([
+                                    { value: 'linear', label: 'Linear' },
+                                    { value: 'nearest', label: 'Nearest' }
+                                ], state.renderTarget.filter ?? 'linear')}
+                            </select>
+                        </div>
+                    </div>
                 </section>
                 <section>
                     <h2>Pink Key</h2>
                     <div class="grid">
                         <div>
                             <label for="pinkKeyAudioAlgorithm">Audio detector</label>
-                            <select id="pinkKeyAudioAlgorithm">
+                            <select id="pinkKeyAudioAlgorithm" data-live-apply>
                                 ${buildLabeledOptions(pinkKeyAudioAlgorithms, Math.max(0, Math.min(5, Math.round(state.pinkKey.audioAlgorithm ?? 0))))}
                             </select>
                         </div>
                         <div>
                             <label for="pinkKeyAudioReactivity">Audio reactivity</label>
-                            <input id="pinkKeyAudioReactivity" type="number" min="0" max="1.5" step="0.01" value="${Number(state.pinkKey.audioReactivity ?? 0.45).toFixed(3)}">
+                            <input id="pinkKeyAudioReactivity" data-live-apply type="number" min="0" max="1.5" step="0.01" value="${Number(state.pinkKey.audioReactivity ?? 0.45).toFixed(3)}">
                         </div>
                         <div>
                             <label for="pinkKeyMidiReactivity">MIDI reactivity</label>
-                            <input id="pinkKeyMidiReactivity" type="number" min="0" max="1.5" step="0.01" value="${Number(state.pinkKey.midiReactivity ?? 0.35).toFixed(3)}">
+                            <input id="pinkKeyMidiReactivity" data-live-apply type="number" min="0" max="1.5" step="0.01" value="${Number(state.pinkKey.midiReactivity ?? 0.35).toFixed(3)}">
                         </div>
                     </div>
                     <p class="muted">Detector modes: 0 bass, 1 low-mid, 2 high-mid, 3 high, 4 centroid, 5 full-spectrum average.</p>
@@ -1879,6 +2376,7 @@ QByteArray SceneControlServer::build_index_html() const
                 <section>
           <h2>Shaders</h2>
           <div class="shader-section">
+                        ${buildLayerOrderEditor(state.layerOrder)}
                         ${buildShaderEditor('video', state.layers.video, state.availableShaders)}
                         ${buildShaderEditor('playback', state.layers.playback, state.availableShaders)}
                         ${buildShaderEditor('screen', state.layers.screen, state.availableShaders)}
@@ -1904,6 +2402,8 @@ QByteArray SceneControlServer::build_index_html() const
       document.getElementById('refreshButton').onclick = refreshState;
                         document.getElementById('loadPresetButton').onclick = loadPreset;
             wireShaderEditorButtons();
+            wireLayerOrderButtons();
+            wireLiveSceneControls();
         wireShaderParameterPopups();
             wireDisplayOutputButtons((state.displayOutput || {}).current || '');
     }
@@ -1920,46 +2420,39 @@ QByteArray SceneControlServer::build_index_html() const
                 body: JSON.stringify({ presetPath })
             });
             const result = await response.json();
-            document.getElementById('message').textContent = result.ok ? 'Preset loaded.' : `Preset load failed: ${result.error}`;
+            setMessage(result.ok ? 'Preset loaded.' : `Preset load failed: ${result.error}`);
             await refreshState();
         }
-    async function applyChanges() {
-      const color = document.getElementById('bgColor').value;
-      const payload = {
-        backgroundColor: {
-          r: parseInt(color.slice(1, 3), 16) / 255.0,
-          g: parseInt(color.slice(3, 5), 16) / 255.0,
-          b: parseInt(color.slice(5, 7), 16) / 255.0,
-          a: parseFloat(document.getElementById('bgAlpha').value || '1')
-        },
-        backgroundImage: {
-          file: document.getElementById('bgImageCustom').value || document.getElementById('bgImage').value,
-          placement: document.getElementById('bgPlacement').value
-        },
-                timecode: document.getElementById('timecodeEnabled').checked,
-                pinkKey: {
-                    audioAlgorithm: Math.max(0, Math.min(5, Math.floor(numericValue('pinkKeyAudioAlgorithm', 0)))),
-                    audioReactivity: Math.max(0, Math.min(1.5, numericValue('pinkKeyAudioReactivity', 0.45))),
-                    midiReactivity: Math.max(0, Math.min(1.5, numericValue('pinkKeyMidiReactivity', 0.35)))
-                },
-                playbackInput: {
-                    startMs: Math.max(0, Math.floor(numericValue('playbackStartMs', 0))),
-                    loopStartMs: Math.max(0, Math.floor(numericValue('playbackLoopStartMs', 0))),
-                    loopEndMs: nullableNumericValue('playbackLoopEndMs'),
-                    loopRepeat: Math.max(0, Math.floor(numericValue('playbackLoopRepeat', 0))),
-                    playbackRate: Math.max(0.01, numericValue('playbackRate', 1.0)),
-                    playbackRateLooping: Math.max(0.01, numericValue('playbackRateLooping', 1.0))
-                },
-        layers: {
-                    video: { enabled: document.getElementById('videoEnabled').checked, shaders: orderedValues('videoShaders') },
-                    playback: { enabled: document.getElementById('playbackEnabled').checked, shaders: orderedValues('playbackShaders') },
-                    screen: { enabled: document.getElementById('screenEnabled').checked, shaders: orderedValues('screenShaders') }
+    async function applyChanges(options = {}) {
+      if (liveApplyInFlight) {
+        liveApplyPending = true;
+        return;
+      }
+
+      liveApplyInFlight = true;
+      const payload = collectScenePayload();
+      try {
+        const response = await fetch('/api/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (result.ok) {
+          currentState = result.state || currentState;
+          setMessage(options.source === 'auto' ? 'Live update applied.' : 'Applied.');
+        } else {
+          setMessage(`Apply failed: ${result.error}`);
         }
-      };
-      const response = await fetch('/api/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const result = await response.json();
-      document.getElementById('message').textContent = result.ok ? 'Applied.' : `Apply failed: ${result.error}`;
-      await refreshState();
+      } catch (error) {
+        setMessage(`Apply failed: ${error}`);
+      } finally {
+        liveApplyInFlight = false;
+        if (liveApplyPending) {
+          liveApplyPending = false;
+          scheduleLiveApply(60);
+        }
+      }
     }
     refreshState();
   </script>
@@ -1999,14 +2492,17 @@ QJsonObject SceneControlServer::build_state_object() const
     object.insert(QStringLiteral("backgroundImage"),
                   QJsonObject{{QStringLiteral("file"), QString::fromStdString(scene_->background_image.file)},
                               {QStringLiteral("placement"), placement_to_string(scene_->background_image.placement)}});
+    object.insert(QStringLiteral("showStatusOverlay"), scene_->show_status_overlay);
     object.insert(QStringLiteral("timecode"), scene_->timecode);
     object.insert(QStringLiteral("pinkKey"), pink_key_to_json(scene_->pink_key));
+    object.insert(QStringLiteral("videoInput"), scene_input_to_json(scene_->video_input));
     object.insert(QStringLiteral("layers"),
                   QJsonObject{{QStringLiteral("video"), layer_to_json(scene_->video_layer)},
                               {QStringLiteral("playback"), layer_to_json(scene_->playback_layer)},
                               {QStringLiteral("screen"), layer_to_json(scene_->screen_layer)}});
     object.insert(QStringLiteral("layerOrder"), layer_order_to_json(scene_->layer_order));
     object.insert(QStringLiteral("playbackInput"), playback_input_to_json(scene_->playback_input));
+    object.insert(QStringLiteral("renderTarget"), render_target_to_json(scene_->render_target));
     object.insert(QStringLiteral("openedDevices"),
                   QJsonObject{{QStringLiteral("video"), device_info_.opened_video},
                               {QStringLiteral("audio"), device_info_.opened_audio},
@@ -2182,6 +2678,89 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
         updated.timecode = timecode.toBool(updated.timecode);
     }
 
+    if (const auto show_status_overlay = payload.value(QStringLiteral("showStatusOverlay")); show_status_overlay.isBool())
+    {
+        updated.show_status_overlay = show_status_overlay.toBool(updated.show_status_overlay);
+    }
+
+    if (const auto render_target = payload.value(QStringLiteral("renderTarget")); render_target.isObject())
+    {
+        const auto object = render_target.toObject();
+        updated.render_target.enabled = object.value(QStringLiteral("enabled")).toBool(updated.render_target.enabled);
+        if (const auto width = object.value(QStringLiteral("width")); width.isDouble())
+        {
+            updated.render_target.width = std::max(1, width.toInt(updated.render_target.width));
+        }
+        if (const auto height = object.value(QStringLiteral("height")); height.isDouble())
+        {
+            updated.render_target.height = std::max(1, height.toInt(updated.render_target.height));
+        }
+        updated.render_target.presentation = render_target_presentation_from_string(
+            object.value(QStringLiteral("presentation"))
+                .toString(render_target_presentation_to_string(updated.render_target.presentation)));
+        updated.render_target.filter =
+            render_target_filter_from_string(object.value(QStringLiteral("filter"))
+                                                 .toString(render_target_filter_to_string(updated.render_target.filter)));
+    }
+
+    if (const auto video_input = payload.value(QStringLiteral("videoInput")); video_input.isObject())
+    {
+        const auto object = video_input.toObject();
+        if (const auto scale = object.value(QStringLiteral("scale")); scale.isDouble())
+        {
+            updated.video_input.scale = std::max(0.01F, static_cast<float>(scale.toDouble(updated.video_input.scale)));
+        }
+        if (const auto rotation = object.value(QStringLiteral("rotation")); rotation.isDouble())
+        {
+            updated.video_input.rotation = static_cast<float>(rotation.toDouble(updated.video_input.rotation));
+        }
+        if (const auto position = object.value(QStringLiteral("position")); position.isObject())
+        {
+            const auto position_object = position.toObject();
+            if (const auto x = position_object.value(QStringLiteral("x")); x.isDouble())
+            {
+                updated.video_input.position_x = static_cast<float>(x.toDouble(updated.video_input.position_x));
+            }
+            if (const auto y = position_object.value(QStringLiteral("y")); y.isDouble())
+            {
+                updated.video_input.position_y = static_cast<float>(y.toDouble(updated.video_input.position_y));
+            }
+        }
+
+        if (const auto animation = object.value(QStringLiteral("animation")); animation.isObject())
+        {
+            const auto animation_object = animation.toObject();
+            updated.video_input.animation.enabled =
+                animation_object.value(QStringLiteral("enabled")).toBool(updated.video_input.animation.enabled);
+            updated.video_input.animation.preset = transform_animation_preset_from_string(
+                animation_object.value(QStringLiteral("preset"))
+                    .toString(transform_animation_preset_to_string(updated.video_input.animation.preset)));
+            if (const auto speed = animation_object.value(QStringLiteral("speed")); speed.isDouble())
+            {
+                updated.video_input.animation.speed =
+                    std::max(0.0F, static_cast<float>(speed.toDouble(updated.video_input.animation.speed)));
+            }
+            if (const auto amount = animation_object.value(QStringLiteral("amount")); amount.isDouble())
+            {
+                updated.video_input.animation.amount =
+                    static_cast<float>(amount.toDouble(updated.video_input.animation.amount));
+            }
+            if (const auto phase = animation_object.value(QStringLiteral("phase")); phase.isDouble())
+            {
+                updated.video_input.animation.phase =
+                    static_cast<float>(phase.toDouble(updated.video_input.animation.phase));
+            }
+            updated.video_input.animation.axis =
+                animation_object.value(QStringLiteral("axis"))
+                    .toString(QString::fromStdString(updated.video_input.animation.axis))
+                    .toStdString();
+            if (updated.video_input.animation.preset == TransformAnimationPreset::None)
+            {
+                updated.video_input.animation.enabled = false;
+            }
+        }
+    }
+
     if (const auto pink_key = payload.value(QStringLiteral("pinkKey")); pink_key.isObject())
     {
         const auto object = pink_key.toObject();
@@ -2202,6 +2781,7 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
     if (const auto playback_input = payload.value(QStringLiteral("playbackInput")); playback_input.isObject())
     {
         const auto object = playback_input.toObject();
+        updated.playback_input.enabled = object.value(QStringLiteral("enabled")).toBool(updated.playback_input.enabled);
         if (const auto start_ms = object.value(QStringLiteral("startMs")); start_ms.isDouble())
         {
             updated.playback_input.start_ms = std::max<std::int64_t>(0, static_cast<std::int64_t>(start_ms.toDouble()));
@@ -2262,6 +2842,10 @@ bool SceneControlServer::apply_update_from_json(const QJsonObject &payload, QStr
 
             const auto object = value.toObject();
             layer->enabled = object.value(QStringLiteral("enabled")).toBool(layer->enabled);
+            if (const auto opacity = object.value(QStringLiteral("opacity")); opacity.isDouble())
+            {
+                layer->opacity = std::clamp(static_cast<float>(opacity.toDouble(layer->opacity)), 0.0F, 1.0F);
+            }
             const auto requested_shaders = json_array_to_string_list(object.value(QStringLiteral("shaders")));
             std::vector<std::string> shaders;
             for (const auto &shader : requested_shaders)

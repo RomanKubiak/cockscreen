@@ -71,7 +71,26 @@ float AudioAnalysisWindow::beat_level() const
 
 float AudioAnalysisWindow::bpm_level() const
 {
-    return bpm_confidence_ > 0.05F ? detected_bpm_ : 0.0F;
+    if (detected_bpm_ <= 0.0F)
+    {
+        return 0.0F;
+    }
+
+    if (bpm_confidence_ > 0.01F)
+    {
+        return detected_bpm_;
+    }
+
+    if (last_detected_beat_ != std::chrono::steady_clock::time_point{})
+    {
+        const float seconds_since_beat = std::chrono::duration<float>(std::chrono::steady_clock::now() - last_detected_beat_).count();
+        if (seconds_since_beat <= 20.0F)
+        {
+            return detected_bpm_;
+        }
+    }
+
+    return 0.0F;
 }
 
 int AudioAnalysisWindow::opened_channel_count() const

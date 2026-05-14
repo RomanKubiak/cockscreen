@@ -26,6 +26,7 @@ class VideoWindow final : public QWidget
 
     [[nodiscard]] QString status_message() const;
     [[nodiscard]] double processing_fps() const;
+    [[nodiscard]] QImage latest_video_frame_image() const;
 
     void set_status_overlay_text(QString text);
 

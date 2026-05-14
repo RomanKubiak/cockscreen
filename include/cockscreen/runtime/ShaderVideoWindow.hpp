@@ -1,31 +1,30 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
-#include <array>
 #include <filesystem>
-#include <memory>
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include <QtMultimedia/QCamera>
 #include <QAudioBuffer>
 #include <QAudioBufferOutput>
 #include <QAudioOutput>
 #include <QImage>
 #include <QMediaCaptureSession>
 #include <QMediaPlayer>
-#include <QOpenGLFramebufferObject>
+#include <QMouseEvent>
 #include <QOpenGLBuffer>
+#include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLWidget>
-#include <QMouseEvent>
-#include <QStringList>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QStringList>
 #include <QTimer>
 #include <QTouchEvent>
 #include <QVector2D>
@@ -33,6 +32,7 @@
 #include <QVideoFrame>
 #include <QVideoSink>
 #include <QWidget>
+#include <QtMultimedia/QCamera>
 
 #include <array>
 #include <complex>
@@ -49,8 +49,8 @@
 #include "LoopbackPipeline.hpp"
 #include "V4l2Capture.hpp"
 #endif
-#include "Scene.hpp"
 #include "RuntimeHelpers.hpp"
+#include "Scene.hpp"
 
 namespace cockscreen::runtime
 {
@@ -61,9 +61,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 {
   public:
     explicit ShaderVideoWindow(const ApplicationSettings &settings, SceneDefinition scene, QCameraDevice video_device,
-                               QString video_device_path, QString video_label, QString format_label, bool video_on_top,
-                               bool show_status_overlay,
-                               QWidget *parent = nullptr);
+                               QString video_device_path, QString video_label, QString format_label,
+                               bool show_status_overlay, QWidget *parent = nullptr);
     ~ShaderVideoWindow() override;
 
     [[nodiscard]] double processing_fps() const;
@@ -81,7 +80,10 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 
     // Returns a pointer to the internal QVideoSink so external capture sources
     // (e.g. AppsinkCapture) can push frames directly without going through QCamera.
-    [[nodiscard]] QVideoSink *video_sink_ptr() { return &video_sink_; }
+    [[nodiscard]] QVideoSink *video_sink_ptr()
+    {
+        return &video_sink_;
+    }
 
     void apply_scene_update(SceneDefinition scene);
     void set_status_overlay_text(QString text);
@@ -150,7 +152,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     };
 
   private:
-
     void handle_frame(const QVideoFrame &frame);
     void handle_playback_frame(const QVideoFrame &frame);
     void handle_playback_position_changed(std::int64_t position_ms);
@@ -189,15 +190,16 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void process_audio_playback_buffer(const QAudioBuffer &buffer);
     void update_pointer_state(const QPointF &position, bool pressed, bool new_press);
     void sync_pointer_state_from_cursor();
-    [[nodiscard]] QVector4D shadertoy_mouse_uniform();
+    [[nodiscard]] QVector4D shadertoy_mouse_uniform(const QSize &render_size);
     void bind_stage_common_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage, float elapsed_seconds);
     void bind_shadertoy_uniforms(QOpenGLShaderProgram *program, float elapsed_seconds, float frame_delta_seconds,
-                   int frame_index, const QVector2D &channel0_resolution);
+                                 int frame_index, const QVector2D &channel0_resolution);
+    void apply_scene_shader_uniforms(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     void apply_scene_midi_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     void apply_scene_osc_mappings(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     void apply_shader_uniform_overrides(QOpenGLShaderProgram *program, const RenderStage &stage) const;
     GLuint render_stage(RenderStage *stage, GLuint input_texture, bool input_valid, bool output_to_screen,
-              float elapsed_seconds, float frame_delta_seconds, int frame_index);
+                        float elapsed_seconds, float frame_delta_seconds, int frame_index);
 
     ApplicationSettings settings_;
     SceneDefinition scene_;
@@ -205,7 +207,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QString video_shader_label_;
     QString playback_shader_label_;
     QString screen_shader_label_;
-    bool video_on_top_{false};
     bool show_status_overlay_{true};
     core::ControlFrame frame_;
     QCamera *camera_{nullptr};
@@ -229,14 +230,14 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     bool camera_signal_locked_{false};
     bool camera_placeholder_shown_{false};
     std::chrono::steady_clock::time_point camera_capture_start_time_{std::chrono::steady_clock::now()};
-  #ifndef _WIN32
+#ifndef _WIN32
     V4l2Capture raw_video_capture_;
     bool raw_video_capture_active_{false};
     bool raw_video_frame_received_{false};
     bool raw_video_placeholder_shown_{false};
     int raw_video_blank_frame_count_{0};
     std::chrono::steady_clock::time_point raw_video_capture_start_time_{std::chrono::steady_clock::now()};
-  #endif
+#endif
     QOpenGLShaderProgram video_program_;
     QOpenGLShaderProgram screen_program_;
     QOpenGLShaderProgram blit_program_;
@@ -262,6 +263,7 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     QOpenGLFramebufferObject *playback_scene_fbo_alt_{nullptr};
     QOpenGLFramebufferObject *screen_scene_fbo_{nullptr};
     QOpenGLFramebufferObject *screen_scene_fbo_alt_{nullptr};
+    QOpenGLFramebufferObject *composite_scene_fbo_{nullptr};
     int scene_fbo_width_{0};
     int scene_fbo_height_{0};
     bool scene_fbo_dirty_{true};

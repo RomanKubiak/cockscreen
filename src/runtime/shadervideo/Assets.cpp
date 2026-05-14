@@ -8,11 +8,11 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QImage>
-#include <QVideoFrameFormat>
 #include <QOpenGLFramebufferObjectFormat>
 #include <QPainter>
 #include <QPoint>
 #include <QRect>
+#include <QVideoFrameFormat>
 
 #include <algorithm>
 #include <cmath>
@@ -57,7 +57,8 @@ bool image_looks_blank(const QImage &image)
         return true;
     }
 
-    const QImage rgba = image.format() == QImage::Format_RGBA8888 ? image : image.convertToFormat(QImage::Format_RGBA8888);
+    const QImage rgba =
+        image.format() == QImage::Format_RGBA8888 ? image : image.convertToFormat(QImage::Format_RGBA8888);
     if (rgba.isNull())
     {
         return true;
@@ -288,13 +289,8 @@ QImage ShaderVideoWindow::build_no_signal_frame(int width, int height)
     const int bar_height = std::max(height * 2 / 3, 1);
     const int bar_width = std::max(width / 7, 1);
     const QColor bars[] = {
-        QColor{235, 235, 235},
-        QColor{235, 235, 0},
-        QColor{0, 235, 235},
-        QColor{0, 235, 0},
-        QColor{235, 0, 235},
-        QColor{235, 0, 0},
-        QColor{0, 0, 235},
+        QColor{235, 235, 235}, QColor{235, 235, 0}, QColor{0, 235, 235}, QColor{0, 235, 0},
+        QColor{235, 0, 235},   QColor{235, 0, 0},   QColor{0, 0, 235},
     };
 
     for (int index = 0; index < 7; ++index)
@@ -304,8 +300,7 @@ QImage ShaderVideoWindow::build_no_signal_frame(int width, int height)
     }
 
     painter.fillRect(0, bar_height, width, std::max(height / 12, 1), QColor{32, 32, 32});
-    painter.fillRect(0, bar_height + std::max(height / 12, 1), width, height - bar_height,
-                     QColor{8, 8, 8});
+    painter.fillRect(0, bar_height + std::max(height / 12, 1), width, height - bar_height, QColor{8, 8, 8});
 
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     font.setBold(true);
@@ -333,9 +328,9 @@ void ShaderVideoWindow::handle_frame(const QVideoFrame &frame)
     }
 
     const bool blank_image = image_looks_blank(image);
-    const bool within_lock_grace = !camera_signal_locked_ &&
-                                   std::chrono::steady_clock::now() - camera_capture_start_time_ <
-                                       kVideoSignalLockGracePeriod;
+    const bool within_lock_grace =
+        !camera_signal_locked_ &&
+        std::chrono::steady_clock::now() - camera_capture_start_time_ < kVideoSignalLockGracePeriod;
 
     if (blank_image && within_lock_grace)
     {
@@ -439,7 +434,8 @@ void ShaderVideoWindow::ensure_note_label_atlas_texture()
     QString font_family = helper::note_font_family_for_scene(scene_);
     QImage atlas = helper::build_note_label_atlas_image(font_family);
     const float atlas_coverage = helper::image_opaque_coverage(atlas);
-    if ((!helper::image_has_opaque_pixels(atlas) || atlas_coverage > 0.35F) && font_family != QStringLiteral("Sans Serif"))
+    if ((!helper::image_has_opaque_pixels(atlas) || atlas_coverage > 0.35F) &&
+        font_family != QStringLiteral("Sans Serif"))
     {
         atlas = helper::build_note_label_atlas_image(QStringLiteral("Sans Serif"));
     }
@@ -461,8 +457,8 @@ void ShaderVideoWindow::ensure_icon_atlas_texture()
         return;
     }
 
-    const auto font_path = helper::resolve_scene_resource_path(scene_.resources_directory,
-                                                               "fonts/Font Awesome 7 Free-Solid-900.otf");
+    const auto font_path =
+        helper::resolve_scene_resource_path(scene_.resources_directory, "fonts/Font Awesome 7 Free-Solid-900.otf");
     if (!font_path.has_value())
     {
         icon_atlas_texture_dirty_ = false;
@@ -566,7 +562,8 @@ void ShaderVideoWindow::ensure_background_image_texture()
         return;
     }
 
-    const auto background_path = helper::resolve_scene_resource_path(scene_.resources_directory, scene_.background_image.file);
+    const auto background_path =
+        helper::resolve_scene_resource_path(scene_.resources_directory, scene_.background_image.file);
     if (!background_path.has_value())
     {
         status_message_ = QStringLiteral("Background image not found");
@@ -587,7 +584,8 @@ void ShaderVideoWindow::ensure_background_image_texture()
     }
 
     const QImage source = image.convertToFormat(QImage::Format_RGBA8888);
-    QImage composed{std::max(width(), 1), std::max(height(), 1), QImage::Format_RGBA8888};
+    const QSize render_size = helper::render_target_size(scene_, QSize{width(), height()});
+    QImage composed{std::max(render_size.width(), 1), std::max(render_size.height(), 1), QImage::Format_RGBA8888};
     composed.fill(helper::scene_clear_color(scene_.background_color));
 
     QPainter painter{&composed};
@@ -597,33 +595,34 @@ void ShaderVideoWindow::ensure_background_image_texture()
     const QRect target_rect{0, 0, composed.width(), composed.height()};
     switch (scene_.background_image.placement)
     {
-        case BackgroundImagePlacement::Center:
-            painter.drawImage(QPoint{(composed.width() - source.width()) / 2, (composed.height() - source.height()) / 2}, source);
-            break;
-        case BackgroundImagePlacement::Stretched:
-            painter.drawImage(target_rect, source);
-            break;
-        case BackgroundImagePlacement::ProportionalStretch:
+    case BackgroundImagePlacement::Center:
+        painter.drawImage(QPoint{(composed.width() - source.width()) / 2, (composed.height() - source.height()) / 2},
+                          source);
+        break;
+    case BackgroundImagePlacement::Stretched:
+        painter.drawImage(target_rect, source);
+        break;
+    case BackgroundImagePlacement::ProportionalStretch: {
+        const float scale_x = static_cast<float>(composed.width()) / std::max(source.width(), 1);
+        const float scale_y = static_cast<float>(composed.height()) / std::max(source.height(), 1);
+        const float scale = std::min(scale_x, scale_y);
+        const int scaled_width = std::max(1, static_cast<int>(std::round(static_cast<float>(source.width()) * scale)));
+        const int scaled_height =
+            std::max(1, static_cast<int>(std::round(static_cast<float>(source.height()) * scale)));
+        const QRect scaled_rect{(composed.width() - scaled_width) / 2, (composed.height() - scaled_height) / 2,
+                                scaled_width, scaled_height};
+        painter.drawImage(scaled_rect, source);
+        break;
+    }
+    case BackgroundImagePlacement::Tiled:
+        for (int y = 0; y < composed.height(); y += source.height())
         {
-            const float scale_x = static_cast<float>(composed.width()) / std::max(source.width(), 1);
-            const float scale_y = static_cast<float>(composed.height()) / std::max(source.height(), 1);
-            const float scale = std::min(scale_x, scale_y);
-            const int scaled_width = std::max(1, static_cast<int>(std::round(static_cast<float>(source.width()) * scale)));
-            const int scaled_height = std::max(1, static_cast<int>(std::round(static_cast<float>(source.height()) * scale)));
-            const QRect scaled_rect{(composed.width() - scaled_width) / 2, (composed.height() - scaled_height) / 2,
-                                    scaled_width, scaled_height};
-            painter.drawImage(scaled_rect, source);
-            break;
-        }
-        case BackgroundImagePlacement::Tiled:
-            for (int y = 0; y < composed.height(); y += source.height())
+            for (int x = 0; x < composed.width(); x += source.width())
             {
-                for (int x = 0; x < composed.width(); x += source.width())
-                {
-                    painter.drawImage(QPoint{x, y}, source);
-                }
+                painter.drawImage(QPoint{x, y}, source);
             }
-            break;
+        }
+        break;
     }
     painter.end();
 
@@ -644,11 +643,13 @@ void ShaderVideoWindow::ensure_background_image_texture()
 
 void ShaderVideoWindow::ensure_scene_fbos()
 {
-    const int target_width = width();
-    const int target_height = height();
+    const QSize target_size = helper::render_target_size(scene_, QSize{width(), height()});
+    const int target_width = target_size.width();
+    const int target_height = target_size.height();
     if (!scene_fbo_dirty_ && video_scene_fbo_ != nullptr && video_scene_fbo_alt_ != nullptr &&
         playback_scene_fbo_ != nullptr && playback_scene_fbo_alt_ != nullptr && screen_scene_fbo_ != nullptr &&
-        screen_scene_fbo_alt_ != nullptr && scene_fbo_width_ == target_width && scene_fbo_height_ == target_height)
+        screen_scene_fbo_alt_ != nullptr && (!scene_.render_target.enabled || composite_scene_fbo_ != nullptr) &&
+        scene_fbo_width_ == target_width && scene_fbo_height_ == target_height)
     {
         return;
     }
@@ -665,6 +666,8 @@ void ShaderVideoWindow::ensure_scene_fbos()
     screen_scene_fbo_ = nullptr;
     delete screen_scene_fbo_alt_;
     screen_scene_fbo_alt_ = nullptr;
+    delete composite_scene_fbo_;
+    composite_scene_fbo_ = nullptr;
 
     if (target_width <= 0 || target_height <= 0)
     {
@@ -680,9 +683,14 @@ void ShaderVideoWindow::ensure_scene_fbos()
     playback_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
     screen_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
     screen_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
+    if (scene_.render_target.enabled)
+    {
+        composite_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
+    }
 
     if (!video_scene_fbo_->isValid() || !video_scene_fbo_alt_->isValid() || !playback_scene_fbo_->isValid() ||
-        !playback_scene_fbo_alt_->isValid() || !screen_scene_fbo_->isValid() || !screen_scene_fbo_alt_->isValid())
+        !playback_scene_fbo_alt_->isValid() || !screen_scene_fbo_->isValid() || !screen_scene_fbo_alt_->isValid() ||
+        (composite_scene_fbo_ != nullptr && !composite_scene_fbo_->isValid()))
     {
         record_fatal_render_error(QStringLiteral("Scene framebuffer initialization failed for viewport %1x%2")
                                       .arg(target_width)
@@ -712,10 +720,12 @@ void ShaderVideoWindow::upload_latest_frame()
                     ++raw_video_blank_frame_count_;
                     if (raw_video_blank_frame_count_ >= 12)
                     {
-                        latest_frame_ = build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
+                        latest_frame_ =
+                            build_no_signal_frame(std::max(settings_.width, 640), std::max(settings_.height, 360));
                         texture_dirty_ = true;
                         raw_video_placeholder_shown_ = true;
-                        if (status_message_.isEmpty() || status_message_ == QStringLiteral("Waiting for raw video frames") ||
+                        if (status_message_.isEmpty() ||
+                            status_message_ == QStringLiteral("Waiting for raw video frames") ||
                             status_message_ == QStringLiteral("No raw video frames yet"))
                         {
                             status_message_ = QStringLiteral("Analog input appears blank");
@@ -772,9 +782,8 @@ void ShaderVideoWindow::upload_latest_frame()
         // image is not shared, so detach first to guarantee exclusive ownership.
         latest_frame_.detach();
         const int width_bytes = latest_frame_.width() * 4;
-        apply_artifact(latest_frame_.bits(), width_bytes, latest_frame_.height(),
-                       latest_frame_.bytesPerLine(), scene_.video_input.artifact,
-                       video_artifact_frame_counter_++);
+        apply_artifact(latest_frame_.bits(), width_bytes, latest_frame_.height(), latest_frame_.bytesPerLine(),
+                       scene_.video_input.artifact, video_artifact_frame_counter_++);
     }
 
     glActiveTexture(GL_TEXTURE0);

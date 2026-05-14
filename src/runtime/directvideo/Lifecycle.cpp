@@ -33,9 +33,10 @@ void place_status_overlay(QWidget *widget, StatusOverlay *overlay)
 } // namespace
 
 DirectVideoWindow::DirectVideoWindow(const ApplicationSettings &settings, QString shader_label, bool show_status_overlay,
-                                     ArtifactParams artifact_params, QWidget *parent)
+                                     SceneInput video_input, ArtifactParams artifact_params, QWidget *parent)
     : QOpenGLWidget{parent}, settings_{settings}, shader_label_{std::move(shader_label)},
-      show_status_overlay_{show_status_overlay}, artifact_params_{std::move(artifact_params)}
+      video_input_{std::move(video_input)}, show_status_overlay_{show_status_overlay},
+      artifact_params_{std::move(artifact_params)}
 {
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);

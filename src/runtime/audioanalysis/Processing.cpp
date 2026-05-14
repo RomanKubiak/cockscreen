@@ -204,7 +204,6 @@ void AudioAnalysisWindow::start_monitor_capture()
     audio_format_.setChannelCount(monitor_channel_count);
     audio_format_.setSampleRate(monitor_sample_rate);
     audio_format_.setSampleFormat(QAudioFormat::Int16);
-
     const auto capture_command = build_external_monitor_capture_command(*monitor_source_name, monitor_channel_count,
                                                                         monitor_sample_rate);
     audio_process_.setProgram(capture_command.program);
@@ -454,7 +453,7 @@ void AudioAnalysisWindow::update_fft_analysis(float mono_sample)
 
     fft_.forward(fft_input_, fft_spectrum_);
 
-    constexpr float kBandCurve = 2.4F;
+    constexpr float kBandCurve = 1.8F;
     const int spectrum_bins = static_cast<int>(fft_spectrum_.size());
     const int positive_bins = std::max(spectrum_bins - 1, 1);
 
@@ -465,7 +464,7 @@ void AudioAnalysisWindow::update_fft_analysis(float mono_sample)
 
         int start_bin = static_cast<int>(std::pow(start_ratio, kBandCurve) * positive_bins);
         int end_bin = static_cast<int>(std::pow(end_ratio, kBandCurve) * positive_bins);
-        start_bin = std::clamp(start_bin, 0, spectrum_bins - 1);
+        start_bin = std::clamp(start_bin, 1, spectrum_bins - 1);
         end_bin = std::clamp(end_bin, start_bin + 1, spectrum_bins);
 
         float sum = 0.0F;

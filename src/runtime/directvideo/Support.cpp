@@ -25,12 +25,18 @@ const char *cpu_vertex_shader()
     varying vec2 v_texcoord;
     uniform vec2 u_viewport_size;
     uniform vec2 u_video_size;
-    uniform float u_status_bar_height;
+    uniform vec2 u_draw_origin;
+    uniform vec2 u_draw_size;
+    uniform float u_rotation_radians;
     void main()
     {
-        vec2 usable = vec2(u_viewport_size.x, max(u_viewport_size.y - u_status_bar_height, 1.0));
-        vec2 origin = floor((usable - u_video_size) * 0.5);
-        vec2 pixel = origin + a_position * u_video_size;
+        vec2 center = u_draw_origin + u_draw_size * 0.5;
+        vec2 pixel = u_draw_origin + a_position * u_draw_size;
+        vec2 offset = pixel - center;
+        float c = cos(u_rotation_radians);
+        float s = sin(u_rotation_radians);
+        pixel = floor(center + vec2(offset.x * c - offset.y * s,
+                                    offset.x * s + offset.y * c));
         vec2 ndc = vec2((pixel.x / u_viewport_size.x) * 2.0 - 1.0,
                         1.0 - (pixel.y / u_viewport_size.y) * 2.0);
         gl_Position = vec4(ndc, 0.0, 1.0);
