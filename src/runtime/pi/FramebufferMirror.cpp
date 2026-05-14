@@ -147,13 +147,22 @@ bool FramebufferMirror::present_video_frame(const QImage &source)
 
     if (!source.isNull())
     {
-        const QImage scaled =
-            source.convertToFormat(QImage::Format_RGB32)
-                .scaled(canvas.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        const QRect target_rect{(canvas.width() - scaled.width()) / 2, (canvas.height() - scaled.height()) / 2,
-                                scaled.width(), scaled.height()};
+        QImage rotated_source{std::max(height_, 1), std::max(width_, 1), QImage::Format_RGB32};
+        rotated_source.fill(QColor{0, 0, 0});
+
+        const QImage scaled = source.convertToFormat(QImage::Format_RGB32)
+                                  .scaled(rotated_source.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        const QRect source_rect{(rotated_source.width() - scaled.width()) / 2,
+                                (rotated_source.height() - scaled.height()) / 2, scaled.width(), scaled.height()};
+        {
+            QPainter painter{&rotated_source};
+            painter.drawImage(source_rect, scaled);
+        }
+
         QPainter painter{&canvas};
-        painter.drawImage(target_rect, scaled);
+        painter.translate(canvas.width(), 0);
+        painter.rotate(90.0);
+        painter.drawImage(QPoint{0, 0}, rotated_source);
     }
 
     auto *dst_bytes = static_cast<std::uint8_t *>(mapped_);
