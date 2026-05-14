@@ -4,6 +4,7 @@
 /tmp/*
 !/tmp/.gitignore
 /pi/
+/distro/build/
 /oe-logs
 /oe-workdir
 /resources/videos/
