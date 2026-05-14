@@ -7,6 +7,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -142,17 +143,19 @@ bool write_text_file(const std::filesystem::path &path, const std::string &text)
 
 } // namespace
 
-FramebufferMirror::FramebufferMirror(std::string device_path) : FramebufferMirror{std::move(device_path), SceneSecondaryDisplay{}}
+FramebufferMirror::FramebufferMirror(std::string device_path)
+    : FramebufferMirror{std::move(device_path), SceneSecondaryDisplay{}, false}
 {
 }
 
-FramebufferMirror::FramebufferMirror(SceneSecondaryDisplay display)
-    : FramebufferMirror{display.device, std::move(display)}
+FramebufferMirror::FramebufferMirror(SceneSecondaryDisplay display, bool verbose_debug)
+    : FramebufferMirror{display.device, std::move(display), verbose_debug}
 {
 }
 
-FramebufferMirror::FramebufferMirror(std::string device_path, SceneSecondaryDisplay display)
-    : device_path_{std::move(device_path)}, display_{std::move(display)}, current_page_{display_.default_page}
+FramebufferMirror::FramebufferMirror(std::string device_path, SceneSecondaryDisplay display, bool verbose_debug)
+    : device_path_{std::move(device_path)}, display_{std::move(display)}, current_page_{display_.default_page},
+      verbose_debug_{verbose_debug}
 {
     device_present_ = (::access(device_path_.c_str(), F_OK) == 0);
     if (!device_present_)
@@ -347,6 +350,13 @@ void FramebufferMirror::handle_control_press(const SecondaryDisplayControlMappin
     else
     {
         current_page_ = mapping.page;
+    }
+
+    if (verbose_debug_)
+    {
+        std::cerr << "[secondary-display] key=" << mapping.control << " gpio=" << mapping.gpio
+                  << " action=" << mapping.action << " page=" << page_label(mapping.page).toStdString()
+                  << " selected=" << page_label(current_page_).toStdString() << '\n';
     }
 }
 

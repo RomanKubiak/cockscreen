@@ -993,7 +993,7 @@ int Application::run(int argc, char *argv[])
         std::unique_ptr<pi::FramebufferMirror> secondary_fb_mirror;
         if (is_pi_target() && scene.secondary_display.enabled)
         {
-            secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>(scene.secondary_display);
+            secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>(scene.secondary_display, settings_.verbose_debug);
             if (secondary_fb_mirror->ready())
             {
                 std::cout << "Framebuffer mirror: " << secondary_fb_mirror->device_path()
@@ -1186,7 +1186,7 @@ int Application::run(int argc, char *argv[])
     std::unique_ptr<pi::FramebufferMirror> secondary_fb_mirror;
     if (is_pi_target() && scene.secondary_display.enabled)
     {
-        secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>(scene.secondary_display);
+        secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>(scene.secondary_display, settings_.verbose_debug);
         if (secondary_fb_mirror->ready())
         {
             std::cout << "Framebuffer mirror: " << secondary_fb_mirror->device_path()

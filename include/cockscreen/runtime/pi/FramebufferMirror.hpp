@@ -20,8 +20,8 @@ class FramebufferMirror
 {
   public:
     explicit FramebufferMirror(std::string device_path = "/dev/fb1");
-    explicit FramebufferMirror(SceneSecondaryDisplay display);
-    FramebufferMirror(std::string device_path, SceneSecondaryDisplay display);
+    explicit FramebufferMirror(SceneSecondaryDisplay display, bool verbose_debug = false);
+    FramebufferMirror(std::string device_path, SceneSecondaryDisplay display, bool verbose_debug = false);
     ~FramebufferMirror();
 
     FramebufferMirror(const FramebufferMirror &) = delete;
@@ -65,6 +65,7 @@ class FramebufferMirror
     SceneSecondaryDisplay display_;
     SecondaryDisplayPage current_page_{SecondaryDisplayPage::VideoInput};
     std::vector<GpioControl> controls_;
+    bool verbose_debug_{false};
     int fd_{-1};
     void *mapped_{nullptr};
     std::size_t mapped_size_{0};
