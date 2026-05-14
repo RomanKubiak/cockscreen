@@ -1,0 +1,48 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          spi-display
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+set -eu
+
+DEFAULTS=/etc/default/spi-display
+[ -r "$DEFAULTS" ] && . "$DEFAULTS"
+
+SPI_DISPLAY_BUS=${SPI_DISPLAY_BUS:-0}
+SPI_DISPLAY_CS=${SPI_DISPLAY_CS:-1}
+SPI_DISPLAY_SPEED=${SPI_DISPLAY_SPEED:-48000000}
+SPI_DISPLAY_ROTATE=${SPI_DISPLAY_ROTATE:-270}
+SPI_DISPLAY_BGR=${SPI_DISPLAY_BGR:-1}
+SPI_DISPLAY_DC=${SPI_DISPLAY_DC:-25}
+SPI_DISPLAY_RESET=${SPI_DISPLAY_RESET:-24}
+SPI_DISPLAY_LED=${SPI_DISPLAY_LED:-18}
+
+case "$1" in
+    start)
+        modprobe fb_ili9341 || true
+        modprobe fbtft_device \
+            name=ili9341 \
+            busnum="$SPI_DISPLAY_BUS" \
+            cs="$SPI_DISPLAY_CS" \
+            speed="$SPI_DISPLAY_SPEED" \
+            rotate="$SPI_DISPLAY_ROTATE" \
+            bgr="$SPI_DISPLAY_BGR" \
+            gpios=dc:"$SPI_DISPLAY_DC",reset:"$SPI_DISPLAY_RESET",led:"$SPI_DISPLAY_LED"
+        ;;
+    stop)
+        rmmod fbtft_device 2>/dev/null || true
+        rmmod fb_ili9341 2>/dev/null || true
+        ;;
+    restart)
+        "$0" stop
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}" >&2
+        exit 1
+        ;;
+esac

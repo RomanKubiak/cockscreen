@@ -1,0 +1,15 @@
+LCONF_VERSION = "7"
+
+BBPATH = "${TOPDIR}"
+BBFILES ?= ""
+
+BBLAYERS ?= " \
+  ${TOPDIR}/../oe-core/meta \
+  ${TOPDIR}/../meta-openembedded/meta-oe \
+  ${TOPDIR}/../meta-openembedded/meta-python \
+  ${TOPDIR}/../meta-openembedded/meta-networking \
+  ${TOPDIR}/../meta-openembedded/meta-multimedia \
+  ${TOPDIR}/../meta-raspberrypi \
+  ${TOPDIR}/../meta-qt6 \
+  ${TOPDIR}/../meta-cockscreen \
+"

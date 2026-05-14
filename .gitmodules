@@ -1,0 +1,21 @@
+[submodule "distro/bitbake"]
+	path = distro/bitbake
+	url = https://github.com/openembedded/bitbake.git
+[submodule "distro/oe-core"]
+	path = distro/oe-core
+	url = https://github.com/openembedded/openembedded-core.git
+[submodule "distro/meta-openembedded"]
+	path = distro/meta-openembedded
+	url = https://github.com/openembedded/meta-openembedded.git
+[submodule "distro/meta-raspberrypi"]
+	path = distro/meta-raspberrypi
+	url = https://github.com/agherzan/meta-raspberrypi.git
+[submodule "distro/meta-qt6"]
+	path = distro/meta-qt6
+	url = https://github.com/YoeDistro/meta-qt6.git
+[submodule "distro/sources/pffft"]
+	path = distro/sources/pffft
+	url = https://github.com/marton78/pffft.git
+[submodule "distro/sources/fbcp-ili9341"]
+	path = distro/sources/fbcp-ili9341
+	url = https://github.com/juj/fbcp-ili9341.git

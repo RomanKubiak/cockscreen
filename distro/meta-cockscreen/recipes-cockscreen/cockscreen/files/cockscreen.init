@@ -1,0 +1,47 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          cockscreen
+# Required-Start:    $local_fs $remote_fs fbcp-ili9341
+# Required-Stop:     $local_fs $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+set -eu
+
+DEFAULTS=/etc/default/cockscreen
+APP=/opt/cockscreen/cockscreen
+PIDFILE=/var/run/cockscreen.pid
+
+[ -r "$DEFAULTS" ] && . "$DEFAULTS"
+
+COCKSCREEN_SCENE_FILE=${COCKSCREEN_SCENE_FILE:-/opt/cockscreen/scenes/pizero-linux.scene.jsonc}
+COCKSCREEN_WEB_BIND=${COCKSCREEN_WEB_BIND:-}
+COCKSCREEN_EXTRA_ARGS=${COCKSCREEN_EXTRA_ARGS:-}
+
+case "$1" in
+    start)
+        [ -x "$APP" ] || exit 0
+        set -- --scene-file "$COCKSCREEN_SCENE_FILE"
+        if [ -n "$COCKSCREEN_WEB_BIND" ]; then
+            set -- "$@" --enable-web-server "$COCKSCREEN_WEB_BIND"
+        fi
+        if [ -n "$COCKSCREEN_EXTRA_ARGS" ]; then
+            # shellcheck disable=SC2086
+            set -- "$@" $COCKSCREEN_EXTRA_ARGS
+        fi
+        exec start-stop-daemon -S -b -m -p "$PIDFILE" --exec "$APP" -- "$@"
+        ;;
+    stop)
+        start-stop-daemon -K -p "$PIDFILE" --retry 5 || true
+        rm -f "$PIDFILE"
+        ;;
+    restart)
+        "$0" stop
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}" >&2
+        exit 1
+        ;;
+esac

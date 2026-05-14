@@ -1,0 +1,33 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          fbcp-ili9341
+# Required-Start:    $local_fs spi-display
+# Required-Stop:     $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+### END INIT INFO
+
+set -eu
+
+PIDFILE=/var/run/fbcp-ili9341.pid
+BIN=/usr/bin/fbcp-ili9341
+
+case "$1" in
+    start)
+        [ -x "$BIN" ] || exit 0
+        [ -e /dev/fb1 ] || exit 0
+        exec start-stop-daemon -S -b -m -p "$PIDFILE" --exec "$BIN"
+        ;;
+    stop)
+        start-stop-daemon -K -p "$PIDFILE" --retry 5 || true
+        rm -f "$PIDFILE"
+        ;;
+    restart)
+        "$0" stop
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}" >&2
+        exit 1
+        ;;
+esac
