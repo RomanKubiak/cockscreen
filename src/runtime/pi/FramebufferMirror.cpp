@@ -20,7 +20,6 @@
 #include <QFontMetrics>
 #include <QPainter>
 #include <QRect>
-#include <QRectF>
 #include <QSize>
 #include <QString>
 
@@ -29,6 +28,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <sys/statvfs.h>
 
 namespace cockscreen::runtime::pi
 {
@@ -53,6 +53,9 @@ QColor scene_color_to_qcolor(const SceneColor &color)
     return QColor::fromRgbF(color.red, color.green, color.blue, color.alpha);
 }
 
+std::optional<int> read_int_file(const std::filesystem::path &path);
+std::string read_string_file(const std::filesystem::path &path);
+
 QString page_label(SecondaryDisplayPage page)
 {
     switch (page)
@@ -65,6 +68,8 @@ QString page_label(SecondaryDisplayPage page)
         return QStringLiteral("system performance");
     case SecondaryDisplayPage::AppStatusModulation:
         return QStringLiteral("app status");
+    case SecondaryDisplayPage::LinuxOsStats:
+        return QStringLiteral("linux/os");
     }
     return QStringLiteral("video input");
 }
@@ -166,6 +171,81 @@ void draw_meter(QPainter &painter, const QRect &rect, const QString &label, floa
     painter.drawRoundedRect(fill, 3, 3);
 }
 
+std::optional<double> read_linux_temperature_c()
+{
+#if defined(__linux__)
+    const std::filesystem::path thermal_root{"/sys/class/thermal"};
+    std::error_code error;
+    if (!std::filesystem::exists(thermal_root, error))
+    {
+        return std::nullopt;
+    }
+
+    for (const auto &entry : std::filesystem::directory_iterator{thermal_root, error})
+    {
+        if (error || !entry.is_directory())
+        {
+            break;
+        }
+        const auto type = read_string_file(entry.path() / "type");
+        if (!type.empty() && type.find("cpu") == std::string::npos && type.find("soc") == std::string::npos &&
+            type.find("thermal") == std::string::npos)
+        {
+            continue;
+        }
+        const auto milli_c = read_int_file(entry.path() / "temp");
+        if (milli_c.has_value())
+        {
+            return static_cast<double>(*milli_c) / 1000.0;
+        }
+    }
+#endif
+    return std::nullopt;
+}
+
+struct StorageStats
+{
+    double used_percent{0.0};
+    double total_gb{0.0};
+    bool available{false};
+};
+
+StorageStats read_storage_stats(const char *path)
+{
+    StorageStats stats;
+#if defined(__linux__)
+    struct statvfs info
+    {
+    };
+    if (::statvfs(path, &info) != 0 || info.f_blocks == 0)
+    {
+        return stats;
+    }
+    const double total = static_cast<double>(info.f_blocks) * static_cast<double>(info.f_frsize);
+    const double free = static_cast<double>(info.f_bavail) * static_cast<double>(info.f_frsize);
+    const double used = std::max(total - free, 0.0);
+    stats.used_percent = std::clamp((used / total) * 100.0, 0.0, 100.0);
+    stats.total_gb = total / (1024.0 * 1024.0 * 1024.0);
+    stats.available = true;
+#else
+    (void)path;
+#endif
+    return stats;
+}
+
+std::optional<double> read_mmc_total_gb()
+{
+#if defined(__linux__)
+    const auto sectors = read_int_file("/sys/block/mmcblk0/size");
+    if (!sectors.has_value())
+    {
+        return std::nullopt;
+    }
+    return static_cast<double>(*sectors) * 512.0 / (1024.0 * 1024.0 * 1024.0);
+#endif
+    return std::nullopt;
+}
+
 void draw_header(QPainter &painter, const QRect &bounds, const QString &title)
 {
     QFont title_font = painter.font();
@@ -250,6 +330,58 @@ void draw_modulation_page(QPainter &painter, const QRect &bounds, const core::Co
     painter.drawText(QRect{8, 211, 111, 17}, Qt::AlignLeft | Qt::AlignVCenter, count_line);
     painter.drawText(QRect{122, 211, 110, 17}, Qt::AlignRight | Qt::AlignVCenter,
                      QFontMetrics{font}.elidedText(app_line, Qt::ElideLeft, 110));
+}
+
+void draw_linux_os_page(QPainter &painter, const QRect &bounds, const SystemMetricsSnapshot &metrics,
+                        const QStringList &system_lines)
+{
+    draw_header(painter, bounds, QStringLiteral("linux/os"));
+
+    const QString fps_line = system_lines.isEmpty() ? QString{} : system_lines.front();
+    QString process_fps = first_metric_value(fps_line, QStringLiteral("FPS process "));
+    if (process_fps == QStringLiteral("--"))
+    {
+        process_fps = first_metric_value(fps_line, QStringLiteral("FPS capture "));
+    }
+    const QString render_fps = first_metric_value(fps_line, QStringLiteral("render "));
+
+    const auto temp_c = read_linux_temperature_c();
+    const StorageStats root = read_storage_stats("/");
+    const auto mmc_total_gb = read_mmc_total_gb();
+
+    draw_tile(painter, QRect{8, 31, 70, 45}, QStringLiteral("cpu"), metrics.available ? QString::number(metrics.cpu_percent, 'f', 0) + QStringLiteral("%")
+                                                                                       : QStringLiteral("--"),
+              QColor{73, 196, 255});
+    draw_tile(painter, QRect{85, 31, 70, 45}, QStringLiteral("mem"), metrics.available ? QString::number(metrics.memory_percent, 'f', 0) + QStringLiteral("%")
+                                                                                       : QStringLiteral("--"),
+              QColor{92, 231, 165});
+    draw_tile(painter, QRect{162, 31, 70, 45}, QStringLiteral("temp"), temp_c.has_value() ? QString::number(*temp_c, 'f', 0) + QStringLiteral("C")
+                                                                                         : QStringLiteral("--"),
+              QColor{255, 116, 96});
+
+    draw_meter(painter, QRect{8, 86, 224, 24}, QStringLiteral("cpu"), metrics.available ? static_cast<float>(metrics.cpu_percent / 100.0) : 0.0F,
+               QColor{73, 196, 255});
+    draw_meter(painter, QRect{8, 113, 224, 24}, QStringLiteral("mem"), metrics.available ? static_cast<float>(metrics.memory_percent / 100.0) : 0.0F,
+               QColor{92, 231, 165});
+    draw_meter(painter, QRect{8, 140, 224, 24}, QStringLiteral("root"), root.available ? static_cast<float>(root.used_percent / 100.0) : 0.0F,
+               QColor{255, 198, 78});
+
+    draw_tile(painter, QRect{8, 174, 108, 42}, QStringLiteral("render"), render_fps, QColor{210, 130, 255});
+    draw_tile(painter, QRect{124, 174, 108, 42}, QStringLiteral("process"), process_fps, QColor{143, 221, 126});
+
+    QFont font = painter.font();
+    font.setPixelSize(10);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(QColor{151, 164, 176});
+    const QString mmc_text = mmc_total_gb.has_value()
+                                 ? QStringLiteral("mmc %1GB root %2%")
+                                       .arg(*mmc_total_gb, 0, 'f', 1)
+                                       .arg(root.used_percent, 0, 'f', 0)
+                                 : QStringLiteral("root %1GB %2%")
+                                       .arg(root.total_gb, 0, 'f', 1)
+                                       .arg(root.used_percent, 0, 'f', 0);
+    painter.drawText(QRect{8, 219, 224, 15}, Qt::AlignLeft | Qt::AlignVCenter, mmc_text);
 }
 
 std::filesystem::path gpio_path(int gpio, const char *entry)
@@ -597,7 +729,8 @@ SecondaryDisplayPage FramebufferMirror::adjacent_page(int delta) const
 {
     const std::vector<SecondaryDisplayPage> pages{SecondaryDisplayPage::Mode, SecondaryDisplayPage::VideoInput,
                                                   SecondaryDisplayPage::SystemPerformance,
-                                                  SecondaryDisplayPage::AppStatusModulation};
+                                                  SecondaryDisplayPage::AppStatusModulation,
+                                                  SecondaryDisplayPage::LinuxOsStats};
     auto it = std::find(pages.begin(), pages.end(), current_page_);
     const int current = it == pages.end() ? 0 : static_cast<int>(std::distance(pages.begin(), it));
     const int next = (current + delta + static_cast<int>(pages.size())) % static_cast<int>(pages.size());
@@ -645,6 +778,12 @@ QImage FramebufferMirror::render_page(const QImage &source, const core::ControlF
     if (current_page_ == SecondaryDisplayPage::AppStatusModulation)
     {
         draw_modulation_page(painter, bounds, frame, app_lines);
+        return page;
+    }
+
+    if (current_page_ == SecondaryDisplayPage::LinuxOsStats)
+    {
+        draw_linux_os_page(painter, bounds, system_metrics_.sample(), system_lines);
         return page;
     }
 

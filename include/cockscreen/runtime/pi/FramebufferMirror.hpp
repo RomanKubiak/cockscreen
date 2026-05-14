@@ -11,6 +11,7 @@
 #include <QImage>
 
 #include "cockscreen/core/ControlFrame.hpp"
+#include "cockscreen/runtime/RuntimeHelpers.hpp"
 #include "cockscreen/runtime/Scene.hpp"
 
 namespace cockscreen::runtime::pi
@@ -66,6 +67,7 @@ class FramebufferMirror
     SceneSecondaryDisplay display_;
     SecondaryDisplayPage current_page_{SecondaryDisplayPage::VideoInput};
     std::vector<GpioControl> controls_;
+    mutable SystemMetricsSampler system_metrics_;
     bool verbose_debug_{false};
     int fd_{-1};
     void *mapped_{nullptr};

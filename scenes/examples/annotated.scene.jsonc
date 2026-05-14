@@ -42,6 +42,7 @@
      * - video_input
      * - system_performance_overview
      * - app_status_modulation
+     * - linux_os_stats
      *
      * render_target has the same shape as the main render_target above.
      * For the Waveshare 1.3inch LCD HAT, keep it at 240x240 and use nearest
@@ -100,6 +101,8 @@
          *
          * The three vertical buttons default to mode/cycle, video input, and
          * system performance. Joystick press opens app modulation status.
+         * Any mapping can target linux_os_stats directly, or it can be reached
+         * through cycle_page/next_page.
          */
         "controls": {
             "key1": {

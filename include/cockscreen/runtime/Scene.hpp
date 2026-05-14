@@ -222,6 +222,7 @@ enum class SecondaryDisplayPage
     VideoInput,
     SystemPerformance,
     AppStatusModulation,
+    LinuxOsStats,
 };
 
 struct SecondaryDisplayControlMapping

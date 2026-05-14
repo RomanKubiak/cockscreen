@@ -180,6 +180,12 @@ SecondaryDisplayPage parse_secondary_display_page(const std::string &page)
     {
         return SecondaryDisplayPage::AppStatusModulation;
     }
+    if (normalized == QStringLiteral("linux") || normalized == QStringLiteral("linux-os") ||
+        normalized == QStringLiteral("linux-os-stats") || normalized == QStringLiteral("os-stats") ||
+        normalized == QStringLiteral("system-stats"))
+    {
+        return SecondaryDisplayPage::LinuxOsStats;
+    }
 
     return SecondaryDisplayPage::VideoInput;
 }
