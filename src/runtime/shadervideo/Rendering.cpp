@@ -502,10 +502,18 @@ void ShaderVideoWindow::paintGL()
     const bool playback_requested = scene_.playback_input.enabled && !scene_.playback_input.file.empty();
     const GLuint playback_texture = playback_texture_id_ != 0 ? playback_texture_id_ : blank_texture_id_;
     const bool playback_valid = playback_requested && playback_texture_id_ != 0 && !latest_playback_frame_.isNull();
-    const auto video_transform = helper::evaluate_video_transform(scene_.video_input, render_size, elapsed_seconds);
-    const auto playback_transform =
-        helper::evaluate_video_transform(scene_.playback_input, render_size, elapsed_seconds);
     const QRectF full_rect{0.0, 0.0, static_cast<qreal>(render_size.width()), static_cast<qreal>(render_size.height())};
+    const auto video_transform = helper::evaluate_video_transform(scene_.video_input, render_size, elapsed_seconds);
+    const auto playback_transform = scene_.playback_layer.transform.configured
+                                        ? helper::evaluate_layer_transform(scene_.playback_layer.transform,
+                                                                          scene_.playback_input, render_size,
+                                                                          elapsed_seconds)
+                                        : helper::evaluate_video_transform(scene_.playback_input, render_size,
+                                                                           elapsed_seconds);
+    const auto screen_transform = scene_.screen_layer.transform.configured
+                                      ? helper::evaluate_layer_transform(scene_.screen_layer.transform, render_size,
+                                                                        elapsed_seconds)
+                                      : helper::VideoTransform{full_rect, 0.0F};
 
     auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity,
                                   bool blend_with_source_alpha, const QSize &viewport_size,
@@ -802,11 +810,12 @@ void ShaderVideoWindow::paintGL()
         {
             if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
             {
-                draw_textured_quad(stage->background_image_texture_id, full_rect, QRectF{0.0, 0.0, 1.0, 1.0},
-                                   layer_opacity(layer_name), true, render_size);
+                draw_textured_quad(stage->background_image_texture_id, screen_transform.rect,
+                                   QRectF{0.0, 0.0, 1.0, 1.0}, layer_opacity(layer_name), true, render_size,
+                                   screen_transform.rotation_degrees);
             }
-            draw_textured_quad(screen_output, full_rect, QRectF{0.0, 0.0, 1.0, 1.0}, layer_opacity(layer_name), true,
-                               render_size);
+            draw_textured_quad(screen_output, screen_transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
+                               layer_opacity(layer_name), true, render_size, screen_transform.rotation_degrees);
         }
     }
 

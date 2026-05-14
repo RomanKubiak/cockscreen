@@ -477,6 +477,44 @@ VideoTransform evaluate_video_transform(const SceneInput &video_input, const QSi
     return VideoTransform{QRectF{x, y, width, height}, rotation};
 }
 
+VideoTransform evaluate_layer_transform(const SceneLayerTransform &transform, const SceneInput &fallback,
+                                        const QSize &viewport_size, float elapsed_seconds)
+{
+    SceneInput effective = fallback;
+    if (transform.scale.has_value())
+    {
+        effective.scale = *transform.scale;
+    }
+    if (transform.position_x.has_value())
+    {
+        effective.position_x = *transform.position_x;
+    }
+    if (transform.position_y.has_value())
+    {
+        effective.position_y = *transform.position_y;
+    }
+    if (transform.rotation.has_value())
+    {
+        effective.rotation = *transform.rotation;
+    }
+    if (transform.animation.enabled)
+    {
+        effective.animation = transform.animation;
+    }
+    return evaluate_video_transform(effective, viewport_size, elapsed_seconds);
+}
+
+VideoTransform evaluate_layer_transform(const SceneLayerTransform &transform, const QSize &viewport_size,
+                                        float elapsed_seconds)
+{
+    SceneInput fallback;
+    fallback.scale = 1.0F;
+    fallback.position_x = 0.0F;
+    fallback.position_y = 0.0F;
+    fallback.rotation = 0.0F;
+    return evaluate_layer_transform(transform, fallback, viewport_size, elapsed_seconds);
+}
+
 std::optional<std::filesystem::path> resolve_scene_resource_path(const std::filesystem::path &resources_directory,
                                                                  const std::string &resource_file)
 {

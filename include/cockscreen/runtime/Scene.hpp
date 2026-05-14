@@ -127,6 +127,16 @@ struct SceneBackgroundImage
     BackgroundImagePlacement placement{BackgroundImagePlacement::Center};
 };
 
+struct SceneLayerTransform
+{
+    bool configured{false};
+    std::optional<float> scale;
+    std::optional<float> position_x;
+    std::optional<float> position_y;
+    std::optional<float> rotation;
+    TransformAnimation animation;
+};
+
 struct SceneGeometry
 {
     int width{1024};
@@ -164,6 +174,7 @@ struct SceneLayer
     std::vector<std::string> shaders;
     SceneColor background_color;
     SceneBackgroundImage background_image;
+    SceneLayerTransform transform;
 };
 
 struct PinkKeySettings

@@ -265,7 +265,18 @@
         "audio_reactivity": 0.45,
         "midi_reactivity": 0.35
     },
-    /* Each layer accepts only enabled + shaders[]. */
+    /*
+     * Layers accept enabled, opacity, shaders[], background_color/background,
+     * background_image, and transform animation.
+     *
+     * playback can use inputs.playback scale/position/rotation/animation, or
+     * this top-level playback transform. A top-level playback transform only
+     * overrides the fields it declares, so an animation here can reuse the
+     * input playback scale and position.
+     *
+     * screen has no input object, so its layer transform starts from full-screen
+     * scale 1.0, position 0/0, rotation 0.
+     */
     "video": {
         "enabled": true,
         "shaders": [
@@ -275,12 +286,36 @@
     },
     "playback": {
         "enabled": false,
+        "transform": {
+            "animation": {
+                "enabled": true,
+                "preset": "wobble",
+                "speed": 0.2,
+                "amount": 0.15,
+                "phase": 0.0
+            }
+        },
         "shaders": [
             "pixelize_loop.glsl"
         ]
     },
     "screen": {
         "enabled": true,
+        "transform": {
+            "scale": 0.9,
+            "position": {
+                "x": 0.5,
+                "y": 0.5
+            },
+            "rotation": 0.0,
+            "animation": {
+                "enabled": true,
+                "preset": "rotate",
+                "speed": 0.02,
+                "amount": 1.0,
+                "phase": 0.0
+            }
+        },
         "shaders": [
             "wireframe_sphere.glsl",
             "crt_noise.glsl"

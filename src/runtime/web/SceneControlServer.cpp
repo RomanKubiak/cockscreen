@@ -427,6 +427,34 @@ QJsonObject transform_animation_to_json(const TransformAnimation &animation)
                        {QStringLiteral("axis"), QString::fromStdString(animation.axis)}};
 }
 
+QJsonObject layer_transform_to_json(const SceneLayerTransform &transform)
+{
+    QJsonObject object{{QStringLiteral("configured"), transform.configured},
+                       {QStringLiteral("animation"), transform_animation_to_json(transform.animation)}};
+    if (transform.scale.has_value())
+    {
+        object.insert(QStringLiteral("scale"), *transform.scale);
+    }
+    QJsonObject position;
+    if (transform.position_x.has_value())
+    {
+        position.insert(QStringLiteral("x"), *transform.position_x);
+    }
+    if (transform.position_y.has_value())
+    {
+        position.insert(QStringLiteral("y"), *transform.position_y);
+    }
+    if (!position.isEmpty())
+    {
+        object.insert(QStringLiteral("position"), position);
+    }
+    if (transform.rotation.has_value())
+    {
+        object.insert(QStringLiteral("rotation"), *transform.rotation);
+    }
+    return object;
+}
+
 QJsonObject scene_input_to_json(const SceneInput &input)
 {
     return QJsonObject{{QStringLiteral("enabled"), input.enabled},
@@ -554,6 +582,7 @@ QJsonObject layer_to_json(const SceneLayer &layer)
 
     return QJsonObject{{QStringLiteral("enabled"), layer.enabled},
                        {QStringLiteral("opacity"), layer.opacity},
+                       {QStringLiteral("transform"), layer_transform_to_json(layer.transform)},
                        {QStringLiteral("shaders"), shaders}};
 }
 

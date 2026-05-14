@@ -382,6 +382,64 @@ TransformAnimation parse_transform_animation(const QJsonValue &value)
     return animation;
 }
 
+SceneLayerTransform parse_layer_transform(const QJsonObject &object)
+{
+    SceneLayerTransform transform;
+
+    const auto parse_fields = [&](const QJsonObject &source) {
+        if (const auto scale = source.value(QStringLiteral("scale")); scale.isDouble())
+        {
+            transform.scale = std::max(0.01F, static_cast<float>(scale.toDouble()));
+            transform.configured = true;
+        }
+        if (const auto position = source.value(QStringLiteral("position")); position.isObject())
+        {
+            const auto position_object = position.toObject();
+            if (const auto x = position_object.value(QStringLiteral("x")); x.isDouble())
+            {
+                transform.position_x = static_cast<float>(x.toDouble());
+                transform.configured = true;
+            }
+            if (const auto y = position_object.value(QStringLiteral("y")); y.isDouble())
+            {
+                transform.position_y = static_cast<float>(y.toDouble());
+                transform.configured = true;
+            }
+        }
+        if (const auto x = source.value(QStringLiteral("position_x")); x.isDouble())
+        {
+            transform.position_x = static_cast<float>(x.toDouble());
+            transform.configured = true;
+        }
+        if (const auto y = source.value(QStringLiteral("position_y")); y.isDouble())
+        {
+            transform.position_y = static_cast<float>(y.toDouble());
+            transform.configured = true;
+        }
+        if (const auto rotation = source.value(QStringLiteral("rotation")); rotation.isDouble())
+        {
+            transform.rotation = static_cast<float>(rotation.toDouble());
+            transform.configured = true;
+        }
+        if (const auto animation = source.value(QStringLiteral("animation")); animation.isObject())
+        {
+            transform.animation = parse_transform_animation(animation);
+            if (transform.animation.enabled)
+            {
+                transform.configured = true;
+            }
+        }
+    };
+
+    parse_fields(object);
+    if (const auto nested = object.value(QStringLiteral("transform")); nested.isObject())
+    {
+        parse_fields(nested.toObject());
+    }
+
+    return transform;
+}
+
 SceneInput parse_input(const QJsonObject &object)
 {
     SceneInput input;
@@ -485,6 +543,7 @@ SceneLayer parse_layer(const QJsonValue &value)
             }
         }
     }
+    layer.transform = parse_layer_transform(object);
     return layer;
 }
 

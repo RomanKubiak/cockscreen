@@ -56,6 +56,10 @@ struct VideoTransform
 QRectF video_display_rect(const SceneInput &video_input, const QSize &viewport_size);
 VideoTransform evaluate_video_transform(const SceneInput &video_input, const QSize &viewport_size,
                                         float elapsed_seconds);
+VideoTransform evaluate_layer_transform(const SceneLayerTransform &transform, const SceneInput &fallback,
+                                        const QSize &viewport_size, float elapsed_seconds);
+VideoTransform evaluate_layer_transform(const SceneLayerTransform &transform, const QSize &viewport_size,
+                                        float elapsed_seconds);
 std::optional<std::filesystem::path> resolve_scene_resource_path(const std::filesystem::path &resources_directory,
                                                                  const std::string &resource_file);
 QString note_font_family_for_scene(const SceneDefinition &scene);
