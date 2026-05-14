@@ -28,6 +28,131 @@
         "filter": "linear"
     },
     /*
+     * Optional Pi-only secondary framebuffer display.
+     *
+     * This is intended for small SPI framebuffer panels such as:
+     * https://www.waveshare.com/1.3inch-lcd-hat.htm
+     *
+     * The runtime writes compact pages to device, normally /dev/fb1, when
+     * running on a Raspberry Pi target. It is not an independent OpenGL render
+     * path, so it supports video/status pages rather than custom GLSL shaders.
+     *
+     * Pages currently understood by default_page and control mappings:
+     * - mode
+     * - video_input
+     * - system_performance_overview
+     * - app_status_modulation
+     *
+     * render_target has the same shape as the main render_target above.
+     * For the Waveshare 1.3inch LCD HAT, keep it at 240x240 and use nearest
+     * filtering to avoid spending CPU smoothing tiny status frames.
+     */
+    "secondary_display": {
+        "enabled": true,
+        "device": "/dev/fb1",
+        "model": "waveshare-1.3inch-lcd-hat",
+        "width": 240,
+        "height": 240,
+        /*
+         * Clockwise degrees applied before writing the framebuffer.
+         * Accepted numerically by runtime; common values are 0, 90, 180, 270.
+         */
+        "rotation_degrees": 90,
+        /* The parser also accepts "background" as an alias. */
+        "background_color": {
+            "r": 0.0,
+            "g": 0.0,
+            "b": 0.0,
+            "a": 1.0
+        },
+        "render_target": {
+            "enabled": true,
+            "width": 240,
+            "height": 240,
+            "presentation": "fit",
+            "filter": "nearest"
+        },
+        /*
+         * Initial page shown on startup. The video page mirrors the latest
+         * captured frame into the small framebuffer.
+         */
+        "default_page": "video_input",
+        /*
+         * Video page options use the regular layer subset: enabled, opacity,
+         * background_color/background, background_image. shaders[] is ignored
+         * for the secondary display.
+         */
+        "video": {
+            "enabled": true,
+            "opacity": 1.0
+        },
+        /*
+         * GPIO controls are polled from /sys/class/gpio when the framebuffer
+         * is active. Each mapping has:
+         * - gpio: BCM GPIO number.
+         * - active_low: true for buttons wired low when pressed.
+         * - action: set_page, cycle_page, next_page, previous_page.
+         * - page: target page for set_page, or label shown on the mode page.
+         *
+         * Waveshare 1.3inch LCD HAT defaults:
+         * KEY1 21, KEY2 20, KEY3 16, UP 6, DOWN 19, LEFT 5, RIGHT 26,
+         * joystick press 13.
+         *
+         * The three vertical buttons default to mode/cycle, video input, and
+         * system performance. Joystick press opens app modulation status.
+         */
+        "controls": {
+            "key1": {
+                "gpio": 21,
+                "active_low": true,
+                "action": "cycle_page",
+                "page": "mode"
+            },
+            "key2": {
+                "gpio": 20,
+                "active_low": true,
+                "action": "set_page",
+                "page": "video_input"
+            },
+            "key3": {
+                "gpio": 16,
+                "active_low": true,
+                "action": "set_page",
+                "page": "system_performance_overview"
+            },
+            "joystick_press": {
+                "gpio": 13,
+                "active_low": true,
+                "action": "set_page",
+                "page": "app_status_modulation"
+            },
+            "joystick_up": {
+                "gpio": 6,
+                "active_low": true,
+                "action": "previous_page",
+                "page": "mode"
+            },
+            "joystick_down": {
+                "gpio": 19,
+                "active_low": true,
+                "action": "next_page",
+                "page": "mode"
+            },
+            "joystick_left": {
+                "gpio": 5,
+                "active_low": true,
+                "action": "previous_page",
+                "page": "mode"
+            },
+            "joystick_right": {
+                "gpio": 26,
+                "active_low": true,
+                "action": "next_page",
+                "page": "mode"
+            }
+        }
+    },
+    /*
      * Top-level background_color is a fallback when inputs.background_color is omitted.
      * The parser also accepts the alias name "background".
      */
