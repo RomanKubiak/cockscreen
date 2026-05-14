@@ -991,9 +991,9 @@ int Application::run(int argc, char *argv[])
         }
 
         std::unique_ptr<pi::FramebufferMirror> secondary_fb_mirror;
-        if (is_pi_target())
+        if (is_pi_target() && scene.secondary_display.enabled)
         {
-            secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>("/dev/fb1");
+            secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>(scene.secondary_display);
             if (secondary_fb_mirror->ready())
             {
                 std::cout << "Framebuffer mirror: " << secondary_fb_mirror->device_path()
@@ -1063,12 +1063,6 @@ int Application::run(int argc, char *argv[])
             refresh_frame(&frame);
             modulation_bus_.update(frame);
             window.set_frame(frame);
-#ifndef _WIN32
-            if (secondary_fb_mirror != nullptr)
-            {
-                secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
-            }
-#endif
             const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(window.processing_fps(), 0, 'f', 1)
@@ -1089,6 +1083,14 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.address_count())
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
+#ifndef _WIN32
+            if (secondary_fb_mirror != nullptr)
+            {
+                secondary_fb_mirror->present_frame(
+                    window.latest_video_frame_image(), frame, QStringList{fps_line, device_line, audio_line, build_metrics_line()},
+                    QStringList{midi_line, osc_line, playback_config_summary(scene), playback_runtime_overlay_line(scene, window)});
+            }
+#endif
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              playback_config_summary(scene),
                                                              playback_runtime_overlay_line(scene, window),
@@ -1099,12 +1101,6 @@ int Application::run(int argc, char *argv[])
         refresh_frame(&live_frame);
         modulation_bus_.update(live_frame);
         window.set_frame(live_frame);
-#ifndef _WIN32
-        if (secondary_fb_mirror != nullptr)
-        {
-            secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
-        }
-#endif
         {
             const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                          .arg(window.processing_fps(), 0, 'f', 1)
@@ -1126,6 +1122,15 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.address_count())
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
+#ifndef _WIN32
+            if (secondary_fb_mirror != nullptr)
+            {
+                secondary_fb_mirror->present_frame(
+                    window.latest_video_frame_image(), live_frame,
+                    QStringList{fps_line, device_line, audio_line, build_metrics_line()},
+                    QStringList{midi_line, osc_line, playback_config_summary(scene), playback_runtime_overlay_line(scene, window)});
+            }
+#endif
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              playback_config_summary(scene),
                                                              playback_runtime_overlay_line(scene, window),
@@ -1179,9 +1184,9 @@ int Application::run(int argc, char *argv[])
 
 #ifndef _WIN32
     std::unique_ptr<pi::FramebufferMirror> secondary_fb_mirror;
-    if (is_pi_target())
+    if (is_pi_target() && scene.secondary_display.enabled)
     {
-        secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>("/dev/fb1");
+        secondary_fb_mirror = std::make_unique<pi::FramebufferMirror>(scene.secondary_display);
         if (secondary_fb_mirror->ready())
         {
             std::cout << "Framebuffer mirror: " << secondary_fb_mirror->device_path()
@@ -1205,12 +1210,6 @@ int Application::run(int argc, char *argv[])
         refresh_frame(&initial_frame);
         modulation_bus_.update(initial_frame);
         window.set_frame(initial_frame);
-#ifndef _WIN32
-        if (secondary_fb_mirror != nullptr)
-        {
-            secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
-        }
-#endif
         const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                      .arg(window.processing_fps(), 0, 'f', 1)
                                      .arg(window.processing_fps(), 0, 'f', 1)
@@ -1232,6 +1231,14 @@ int Application::run(int argc, char *argv[])
                                      .arg(osc_input.address_count())
                                      .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
+#ifndef _WIN32
+        if (secondary_fb_mirror != nullptr)
+        {
+            secondary_fb_mirror->present_frame(
+                window.latest_video_frame_image(), initial_frame, QStringList{fps_line, device_line, audio_line, build_metrics_line()},
+                QStringList{midi_line, osc_line, playback_config_summary(scene), playback_static_overlay_line(scene)});
+        }
+#endif
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                      playback_config_summary(scene),
                      playback_static_overlay_line(scene),
@@ -1242,12 +1249,6 @@ int Application::run(int argc, char *argv[])
     refresh_frame(&live_frame);
     modulation_bus_.update(live_frame);
     window.set_frame(live_frame);
-#ifndef _WIN32
-    if (secondary_fb_mirror != nullptr)
-    {
-        secondary_fb_mirror->present_video_frame(window.latest_video_frame_image());
-    }
-#endif
     {
         const QString fps_line = QStringLiteral("FPS process %1 | render %2 | gain %3")
                                      .arg(window.processing_fps(), 0, 'f', 1)
@@ -1270,6 +1271,14 @@ int Application::run(int argc, char *argv[])
                                      .arg(osc_input.address_count())
                                      .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                  : osc_input.activity_message());
+#ifndef _WIN32
+        if (secondary_fb_mirror != nullptr)
+        {
+            secondary_fb_mirror->present_frame(
+                window.latest_video_frame_image(), live_frame, QStringList{fps_line, device_line, audio_line, build_metrics_line()},
+                QStringList{midi_line, osc_line, playback_config_summary(scene), playback_static_overlay_line(scene)});
+        }
+#endif
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                  playback_config_summary(scene),
                  playback_static_overlay_line(scene),

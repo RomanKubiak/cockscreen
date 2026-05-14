@@ -216,6 +216,38 @@ struct SceneShaderUniform
     float value{0.0F};
 };
 
+enum class SecondaryDisplayPage
+{
+    Mode,
+    VideoInput,
+    SystemPerformance,
+    AppStatusModulation,
+};
+
+struct SecondaryDisplayControlMapping
+{
+    std::string control;
+    int gpio{-1};
+    bool active_low{true};
+    std::string action{"set_page"};
+    SecondaryDisplayPage page{SecondaryDisplayPage::Mode};
+};
+
+struct SceneSecondaryDisplay
+{
+    bool enabled{true};
+    std::string device{"/dev/fb1"};
+    std::string model{"waveshare-1.3inch-lcd-hat"};
+    int width{240};
+    int height{240};
+    int rotation_degrees{90};
+    SceneColor background_color;
+    SceneRenderTarget render_target;
+    SecondaryDisplayPage default_page{SecondaryDisplayPage::VideoInput};
+    SceneLayer video_layer;
+    std::vector<SecondaryDisplayControlMapping> controls;
+};
+
 struct SceneDefinition
 {
     std::filesystem::path source_path;
@@ -243,6 +275,7 @@ struct SceneDefinition
     std::vector<MidiNoteMapping> midi_note_mappings;
     std::vector<OscMapping> osc_mappings;
     std::vector<SceneShaderUniform> shader_uniforms;
+    SceneSecondaryDisplay secondary_display;
 };
 
 std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path,

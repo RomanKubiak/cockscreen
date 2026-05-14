@@ -26,6 +26,87 @@
         "presentation": "stretch",
         "filter": "nearest"
     },
+    /*
+     * Waveshare 1.3inch LCD HAT secondary display:
+     * 240x240 SPI framebuffer, rotated clockwise for the mounted panel.
+     * The framebuffer path is selected at runtime on Pi targets only.
+     */
+    "secondary_display": {
+        "enabled": true,
+        "device": "/dev/fb1",
+        "model": "waveshare-1.3inch-lcd-hat",
+        "width": 240,
+        "height": 240,
+        "rotation_degrees": 90,
+        "background_color": {
+            "r": 0.0,
+            "g": 0.0,
+            "b": 0.0,
+            "a": 1.0
+        },
+        "render_target": {
+            "enabled": true,
+            "width": 240,
+            "height": 240,
+            "presentation": "fit",
+            "filter": "nearest"
+        },
+        "default_page": "video_input",
+        "video": {
+            "enabled": true,
+            "opacity": 1.0
+        },
+        "controls": {
+            "key1": {
+                "gpio": 21,
+                "active_low": true,
+                "action": "cycle_page",
+                "page": "mode"
+            },
+            "key2": {
+                "gpio": 20,
+                "active_low": true,
+                "action": "set_page",
+                "page": "video_input"
+            },
+            "key3": {
+                "gpio": 16,
+                "active_low": true,
+                "action": "set_page",
+                "page": "system_performance_overview"
+            },
+            "joystick_press": {
+                "gpio": 13,
+                "active_low": true,
+                "action": "set_page",
+                "page": "app_status_modulation"
+            },
+            "joystick_up": {
+                "gpio": 6,
+                "active_low": true,
+                "action": "previous_page",
+                "page": "mode"
+            },
+            "joystick_down": {
+                "gpio": 19,
+                "active_low": true,
+                "action": "next_page",
+                "page": "mode"
+            },
+            "joystick_left": {
+                "gpio": 5,
+                "active_low": true,
+                "action": "previous_page",
+                "page": "mode"
+            },
+            "joystick_right": {
+                "gpio": 26,
+                "active_low": true,
+                "action": "next_page",
+                "page": "mode"
+            }
+        }
+    },
     "inputs": {
         "video": {
             "enabled": true,

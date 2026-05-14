@@ -5,13 +5,18 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
 #include <QColor>
+#include <QFont>
+#include <QFontMetrics>
 #include <QPainter>
 #include <QRect>
 #include <QSize>
+#include <QString>
 
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -37,9 +42,117 @@ std::uint32_t pack_channel(std::uint8_t channel, std::uint32_t length, std::uint
     return scaled << offset;
 }
 
+QColor scene_color_to_qcolor(const SceneColor &color)
+{
+    return QColor::fromRgbF(color.red, color.green, color.blue, color.alpha);
+}
+
+QString page_label(SecondaryDisplayPage page)
+{
+    switch (page)
+    {
+    case SecondaryDisplayPage::Mode:
+        return QStringLiteral("mode");
+    case SecondaryDisplayPage::VideoInput:
+        return QStringLiteral("video input");
+    case SecondaryDisplayPage::SystemPerformance:
+        return QStringLiteral("system performance");
+    case SecondaryDisplayPage::AppStatusModulation:
+        return QStringLiteral("app status");
+    }
+    return QStringLiteral("video input");
+}
+
+QStringList modulation_lines(const core::ControlFrame &frame)
+{
+    QStringList lines;
+    lines << QStringLiteral("gain %1").arg(frame.gain, 0, 'f', 2);
+    lines << QStringLiteral("audio rms %1 peak %2 beat %3")
+                 .arg(frame.audio_rms, 0, 'f', 2)
+                 .arg(frame.audio_peak, 0, 'f', 2)
+                 .arg(frame.audio_beat, 0, 'f', 2);
+    lines << QStringLiteral("midi primary %1 secondary %2")
+                 .arg(frame.midi_primary, 0, 'f', 2)
+                 .arg(frame.midi_secondary, 0, 'f', 2);
+    lines << QStringLiteral("osc x %1 y %2 values %3")
+                 .arg(frame.osc_x, 0, 'f', 2)
+                 .arg(frame.osc_y, 0, 'f', 2)
+                 .arg(frame.osc_values.size());
+
+    int shown_values = 0;
+    for (const auto &[name, value] : frame.osc_values)
+    {
+        if (shown_values >= 4)
+        {
+            break;
+        }
+        lines << QStringLiteral("%1 %2").arg(QString::fromStdString(name)).arg(value, 0, 'f', 2);
+        ++shown_values;
+    }
+    return lines;
+}
+
+void draw_text_page(QPainter &painter, const QRect &bounds, const QString &title, const QStringList &lines)
+{
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    QFont title_font = painter.font();
+    title_font.setPixelSize(16);
+    title_font.setBold(true);
+    painter.setFont(title_font);
+    painter.setPen(QColor{240, 246, 255});
+    painter.drawText(QRect{bounds.left() + 8, bounds.top() + 7, bounds.width() - 16, 20}, Qt::AlignLeft | Qt::AlignVCenter,
+                     title);
+
+    QFont body_font = painter.font();
+    body_font.setPixelSize(11);
+    body_font.setBold(false);
+    painter.setFont(body_font);
+    painter.setPen(QColor{190, 205, 218});
+
+    const QFontMetrics metrics{body_font};
+    int y = bounds.top() + 34;
+    for (const QString &line : lines)
+    {
+        if (y + metrics.height() > bounds.bottom() - 6)
+        {
+            break;
+        }
+        const QString elided = metrics.elidedText(line, Qt::ElideRight, bounds.width() - 16);
+        painter.drawText(QRect{bounds.left() + 8, y, bounds.width() - 16, metrics.height()}, Qt::AlignLeft | Qt::AlignVCenter,
+                         elided);
+        y += metrics.height() + 2;
+    }
+}
+
+std::filesystem::path gpio_path(int gpio, const char *entry)
+{
+    return std::filesystem::path{"/sys/class/gpio"} / ("gpio" + std::to_string(gpio)) / entry;
+}
+
+bool write_text_file(const std::filesystem::path &path, const std::string &text)
+{
+    std::ofstream stream{path};
+    if (!stream)
+    {
+        return false;
+    }
+    stream << text;
+    return static_cast<bool>(stream);
+}
+
 } // namespace
 
-FramebufferMirror::FramebufferMirror(std::string device_path) : device_path_{std::move(device_path)}
+FramebufferMirror::FramebufferMirror(std::string device_path) : FramebufferMirror{std::move(device_path), SceneSecondaryDisplay{}}
+{
+}
+
+FramebufferMirror::FramebufferMirror(SceneSecondaryDisplay display)
+    : FramebufferMirror{display.device, std::move(display)}
+{
+}
+
+FramebufferMirror::FramebufferMirror(std::string device_path, SceneSecondaryDisplay display)
+    : device_path_{std::move(device_path)}, display_{std::move(display)}, current_page_{display_.default_page}
 {
     device_present_ = (::access(device_path_.c_str(), F_OK) == 0);
     if (!device_present_)
@@ -93,6 +206,7 @@ FramebufferMirror::FramebufferMirror(std::string device_path) : device_path_{std
     }
 
     status_message_ = "ready";
+    initialize_controls();
 }
 
 FramebufferMirror::~FramebufferMirror()
@@ -137,34 +251,224 @@ std::string_view FramebufferMirror::status_message() const
 
 bool FramebufferMirror::present_video_frame(const QImage &source)
 {
+    return present_frame(source, core::ControlFrame{}, {}, {});
+}
+
+bool FramebufferMirror::present_frame(const QImage &source, const core::ControlFrame &frame, const QStringList &system_lines,
+                                      const QStringList &app_lines)
+{
     if (!ready())
     {
         return false;
     }
 
-    QImage canvas{std::max(width_, 1), std::max(height_, 1), QImage::Format_RGB32};
-    canvas.fill(QColor{0, 0, 0});
+    poll_controls();
+    return write_canvas(orient_for_framebuffer(render_page(source, frame, system_lines, app_lines)));
+}
 
-    if (!source.isNull())
+void FramebufferMirror::clear()
+{
+    if (ready())
     {
-        QImage rotated_source{std::max(height_, 1), std::max(width_, 1), QImage::Format_RGB32};
-        rotated_source.fill(QColor{0, 0, 0});
+        std::memset(mapped_, 0, mapped_size_);
+    }
+}
 
-        const QImage scaled = source.convertToFormat(QImage::Format_RGB32)
-                                  .scaled(rotated_source.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        const QRect source_rect{(rotated_source.width() - scaled.width()) / 2,
-                                (rotated_source.height() - scaled.height()) / 2, scaled.width(), scaled.height()};
+void FramebufferMirror::initialize_controls()
+{
+    controls_.clear();
+    controls_.reserve(display_.controls.size());
+
+    for (const auto &mapping : display_.controls)
+    {
+        if (mapping.gpio < 0)
         {
-            QPainter painter{&rotated_source};
-            painter.drawImage(source_rect, scaled);
+            continue;
         }
 
-        QPainter painter{&canvas};
-        painter.translate(canvas.width(), 0);
-        painter.rotate(90.0);
-        painter.drawImage(QPoint{0, 0}, rotated_source);
+        GpioControl control{mapping};
+        const auto value_path = gpio_path(mapping.gpio, "value");
+        if (!std::filesystem::exists(value_path))
+        {
+            write_text_file("/sys/class/gpio/export", std::to_string(mapping.gpio));
+        }
+        write_text_file(gpio_path(mapping.gpio, "direction"), "in");
+        control.available = std::filesystem::exists(value_path);
+        control.last_pressed = control.available && read_gpio_pressed(control);
+        controls_.push_back(std::move(control));
+    }
+}
+
+void FramebufferMirror::poll_controls()
+{
+    for (auto &control : controls_)
+    {
+        if (!control.available)
+        {
+            continue;
+        }
+        const bool pressed = read_gpio_pressed(control);
+        if (pressed && !control.last_pressed)
+        {
+            handle_control_press(control.mapping);
+        }
+        control.last_pressed = pressed;
+    }
+}
+
+bool FramebufferMirror::read_gpio_pressed(const GpioControl &control) const
+{
+    std::ifstream stream{gpio_path(control.mapping.gpio, "value")};
+    char value{'1'};
+    stream >> value;
+    if (!stream)
+    {
+        return false;
+    }
+    return control.mapping.active_low ? value == '0' : value != '0';
+}
+
+void FramebufferMirror::handle_control_press(const SecondaryDisplayControlMapping &mapping)
+{
+    const QString action = QString::fromStdString(mapping.action).trimmed().toLower().replace(QChar{'-'}, QChar{'_'});
+    if (action == QStringLiteral("next_page") || action == QStringLiteral("next"))
+    {
+        current_page_ = adjacent_page(1);
+    }
+    else if (action == QStringLiteral("previous_page") || action == QStringLiteral("previous") ||
+             action == QStringLiteral("prev"))
+    {
+        current_page_ = adjacent_page(-1);
+    }
+    else if (action == QStringLiteral("cycle_page") || action == QStringLiteral("cycle"))
+    {
+        current_page_ = adjacent_page(1);
+    }
+    else
+    {
+        current_page_ = mapping.page;
+    }
+}
+
+SecondaryDisplayPage FramebufferMirror::adjacent_page(int delta) const
+{
+    const std::vector<SecondaryDisplayPage> pages{SecondaryDisplayPage::Mode, SecondaryDisplayPage::VideoInput,
+                                                  SecondaryDisplayPage::SystemPerformance,
+                                                  SecondaryDisplayPage::AppStatusModulation};
+    auto it = std::find(pages.begin(), pages.end(), current_page_);
+    const int current = it == pages.end() ? 0 : static_cast<int>(std::distance(pages.begin(), it));
+    const int next = (current + delta + static_cast<int>(pages.size())) % static_cast<int>(pages.size());
+    return pages[static_cast<std::size_t>(next)];
+}
+
+QImage FramebufferMirror::render_page(const QImage &source, const core::ControlFrame &frame,
+                                      const QStringList &system_lines, const QStringList &app_lines) const
+{
+    const int logical_width =
+        display_.render_target.enabled ? std::max(1, display_.render_target.width) : std::max(width_, 1);
+    const int logical_height =
+        display_.render_target.enabled ? std::max(1, display_.render_target.height) : std::max(height_, 1);
+
+    QImage page{logical_width, logical_height, QImage::Format_RGB32};
+    page.fill(scene_color_to_qcolor(display_.background_color));
+
+    QPainter painter{&page};
+    const QRect bounds{0, 0, page.width(), page.height()};
+
+    if (current_page_ == SecondaryDisplayPage::VideoInput)
+    {
+        if (!source.isNull())
+        {
+            const Qt::TransformationMode filter =
+                display_.render_target.filter == RenderTargetFilter::Nearest ? Qt::FastTransformation
+                                                                              : Qt::SmoothTransformation;
+            const QImage scaled = source.convertToFormat(QImage::Format_RGB32).scaled(page.size(), Qt::KeepAspectRatio, filter);
+            const QRect target_rect{(page.width() - scaled.width()) / 2, (page.height() - scaled.height()) / 2,
+                                    scaled.width(), scaled.height()};
+            painter.setOpacity(display_.video_layer.enabled ? display_.video_layer.opacity : 0.0);
+            painter.drawImage(target_rect, scaled);
+            painter.setOpacity(1.0);
+        }
+        draw_text_page(painter, bounds, QStringLiteral("video input"), {});
+        return page;
     }
 
+    if (current_page_ == SecondaryDisplayPage::SystemPerformance)
+    {
+        draw_text_page(painter, bounds, QStringLiteral("system performance"), system_lines);
+        return page;
+    }
+
+    if (current_page_ == SecondaryDisplayPage::AppStatusModulation)
+    {
+        QStringList lines = app_lines;
+        lines << modulation_lines(frame);
+        draw_text_page(painter, bounds, QStringLiteral("modulation status"), lines);
+        return page;
+    }
+
+    QStringList mode_lines;
+    mode_lines << QStringLiteral("current: %1").arg(page_label(current_page_));
+    for (const auto &control : display_.controls)
+    {
+        const QString action = QString::fromStdString(control.action);
+        mode_lines << QStringLiteral("%1 gpio%2 %3 %4")
+                          .arg(QString::fromStdString(control.control))
+                          .arg(control.gpio)
+                          .arg(action)
+                          .arg(page_label(control.page));
+    }
+    draw_text_page(painter, bounds, QStringLiteral("mode"), mode_lines);
+    return page;
+}
+
+QImage FramebufferMirror::orient_for_framebuffer(const QImage &image) const
+{
+    QImage canvas{std::max(width_, 1), std::max(height_, 1), QImage::Format_RGB32};
+    canvas.fill(scene_color_to_qcolor(display_.background_color));
+
+    if (image.isNull())
+    {
+        return canvas;
+    }
+
+    const int rotation = ((display_.rotation_degrees % 360) + 360) % 360;
+    const QSize staging_size = (rotation == 90 || rotation == 270) ? QSize{canvas.height(), canvas.width()} : canvas.size();
+    QImage staging{staging_size, QImage::Format_RGB32};
+    staging.fill(scene_color_to_qcolor(display_.background_color));
+
+    const QImage scaled = image.convertToFormat(QImage::Format_RGB32).scaled(staging.size(), Qt::KeepAspectRatio, Qt::FastTransformation);
+    {
+        QPainter painter{&staging};
+        const QRect target_rect{(staging.width() - scaled.width()) / 2, (staging.height() - scaled.height()) / 2,
+                                scaled.width(), scaled.height()};
+        painter.drawImage(target_rect, scaled);
+    }
+
+    QPainter painter{&canvas};
+    switch (rotation)
+    {
+    case 90:
+        painter.translate(canvas.width(), 0);
+        painter.rotate(90.0);
+        break;
+    case 180:
+        painter.translate(canvas.width(), canvas.height());
+        painter.rotate(180.0);
+        break;
+    case 270:
+        painter.translate(0, canvas.height());
+        painter.rotate(270.0);
+        break;
+    default:
+        break;
+    }
+    painter.drawImage(QPoint{0, 0}, staging);
+    return canvas;
+}
+
+bool FramebufferMirror::write_canvas(const QImage &canvas)
+{
     auto *dst_bytes = static_cast<std::uint8_t *>(mapped_);
     for (int y = 0; y < canvas.height(); ++y)
     {
@@ -206,14 +510,6 @@ bool FramebufferMirror::present_video_frame(const QImage &source)
     }
 
     return true;
-}
-
-void FramebufferMirror::clear()
-{
-    if (ready())
-    {
-        std::memset(mapped_, 0, mapped_size_);
-    }
 }
 
 void FramebufferMirror::close_device()

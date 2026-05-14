@@ -161,6 +161,122 @@ SceneRenderTarget parse_render_target(const QJsonValue &value, const SceneGeomet
     return target;
 }
 
+SceneLayer parse_layer(const QJsonValue &value);
+
+SecondaryDisplayPage parse_secondary_display_page(const std::string &page)
+{
+    const QString normalized = QString::fromStdString(page).trimmed().toLower().replace(QChar{'_'}, QChar{'-'});
+    if (normalized == QStringLiteral("mode"))
+    {
+        return SecondaryDisplayPage::Mode;
+    }
+    if (normalized == QStringLiteral("system") || normalized == QStringLiteral("system-performance") ||
+        normalized == QStringLiteral("system-performance-overview"))
+    {
+        return SecondaryDisplayPage::SystemPerformance;
+    }
+    if (normalized == QStringLiteral("app-status") || normalized == QStringLiteral("app-status-modulation") ||
+        normalized == QStringLiteral("modulation"))
+    {
+        return SecondaryDisplayPage::AppStatusModulation;
+    }
+
+    return SecondaryDisplayPage::VideoInput;
+}
+
+std::vector<SecondaryDisplayControlMapping> default_secondary_display_controls()
+{
+    return {
+        SecondaryDisplayControlMapping{"key1", 21, true, "cycle_page", SecondaryDisplayPage::Mode},
+        SecondaryDisplayControlMapping{"key2", 20, true, "set_page", SecondaryDisplayPage::VideoInput},
+        SecondaryDisplayControlMapping{"key3", 16, true, "set_page", SecondaryDisplayPage::SystemPerformance},
+        SecondaryDisplayControlMapping{"joystick_press", 13, true, "set_page", SecondaryDisplayPage::AppStatusModulation},
+        SecondaryDisplayControlMapping{"joystick_up", 6, true, "previous_page", SecondaryDisplayPage::Mode},
+        SecondaryDisplayControlMapping{"joystick_down", 19, true, "next_page", SecondaryDisplayPage::Mode},
+        SecondaryDisplayControlMapping{"joystick_left", 5, true, "previous_page", SecondaryDisplayPage::Mode},
+        SecondaryDisplayControlMapping{"joystick_right", 26, true, "next_page", SecondaryDisplayPage::Mode},
+    };
+}
+
+SceneSecondaryDisplay parse_secondary_display(const QJsonValue &value)
+{
+    SceneSecondaryDisplay display;
+    display.controls = default_secondary_display_controls();
+    display.video_layer.enabled = true;
+
+    if (!value.isObject())
+    {
+        return display;
+    }
+
+    const auto object = value.toObject();
+    display.enabled = json_bool(object, "enabled", display.enabled);
+    display.device = json_string(object, "device", display.device);
+    display.model = json_string(object, "model", display.model);
+    display.width = std::max(1, json_int(object, "width", display.width));
+    display.height = std::max(1, json_int(object, "height", display.height));
+    display.rotation_degrees = json_int(object, "rotation_degrees", json_int(object, "rotation", display.rotation_degrees));
+    if (const auto background = object.value(QStringLiteral("background_color")); background.isObject())
+    {
+        display.background_color = parse_color(background);
+    }
+    else if (const auto background = object.value(QStringLiteral("background")); background.isObject())
+    {
+        display.background_color = parse_color(background);
+    }
+
+    SceneGeometry secondary_geometry;
+    secondary_geometry.width = display.width;
+    secondary_geometry.height = display.height;
+    display.render_target = parse_render_target(object.value(QStringLiteral("render_target")), secondary_geometry);
+    if (!display.render_target.enabled)
+    {
+        display.render_target.width = display.width;
+        display.render_target.height = display.height;
+    }
+
+    display.default_page = parse_secondary_display_page(json_string(object, "default_page", "video_input"));
+    if (const auto source = object.value(QStringLiteral("source")); source.isString())
+    {
+        display.default_page = parse_secondary_display_page(source.toString().toStdString());
+    }
+    if (const auto mode = object.value(QStringLiteral("mode")); mode.isString())
+    {
+        display.default_page = parse_secondary_display_page(mode.toString().toStdString());
+    }
+
+    display.video_layer = parse_layer(object.value(QStringLiteral("video")));
+    if (!object.value(QStringLiteral("video")).isObject())
+    {
+        display.video_layer.enabled = true;
+    }
+    if (const auto controls = object.value(QStringLiteral("controls")); controls.isObject())
+    {
+        display.controls.clear();
+        const auto controls_object = controls.toObject();
+        for (auto it = controls_object.begin(); it != controls_object.end(); ++it)
+        {
+            if (!it.value().isObject())
+            {
+                continue;
+            }
+            const auto control_object = it.value().toObject();
+            SecondaryDisplayControlMapping mapping;
+            mapping.control = it.key().toStdString();
+            mapping.gpio = json_int(control_object, "gpio", -1);
+            mapping.active_low = json_bool(control_object, "active_low", true);
+            mapping.action = json_string(control_object, "action", "set_page");
+            mapping.page = parse_secondary_display_page(json_string(control_object, "page", mapping.control));
+            if (mapping.gpio >= 0)
+            {
+                display.controls.push_back(std::move(mapping));
+            }
+        }
+    }
+
+    return display;
+}
+
 ArtifactParams parse_artifact(const QJsonValue &value)
 {
     ArtifactParams params;
@@ -483,6 +599,7 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
     }
 
     scene.render_target = parse_render_target(root.value(QStringLiteral("render_target")), scene.geometry);
+    scene.secondary_display = parse_secondary_display(root.value(QStringLiteral("secondary_display")));
 
     if (const auto show_status_overlay = root.value(QStringLiteral("show_status_overlay"));
         show_status_overlay.isBool())
