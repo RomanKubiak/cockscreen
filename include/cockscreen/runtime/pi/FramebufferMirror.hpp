@@ -44,6 +44,7 @@ class FramebufferMirror
     struct GpioControl
     {
         SecondaryDisplayControlMapping mapping;
+        int sysfs_gpio{-1};
         bool available{false};
         bool last_pressed{false};
     };

@@ -5,10 +5,14 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
+#include <sstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include <QColor>
@@ -139,6 +143,103 @@ bool write_text_file(const std::filesystem::path &path, const std::string &text)
     }
     stream << text;
     return static_cast<bool>(stream);
+}
+
+std::optional<int> read_int_file(const std::filesystem::path &path)
+{
+    std::ifstream stream{path};
+    int value{0};
+    stream >> value;
+    if (!stream)
+    {
+        return std::nullopt;
+    }
+    return value;
+}
+
+std::string read_string_file(const std::filesystem::path &path)
+{
+    std::ifstream stream{path};
+    std::string value;
+    std::getline(stream, value);
+    return value;
+}
+
+int resolve_sysfs_gpio(int bcm_gpio)
+{
+    if (std::filesystem::exists(gpio_path(bcm_gpio, "value")))
+    {
+        return bcm_gpio;
+    }
+
+    const std::filesystem::path gpio_root{"/sys/class/gpio"};
+    for (const auto &entry : std::filesystem::directory_iterator{gpio_root})
+    {
+        const std::string filename = entry.path().filename().string();
+        if (filename.rfind("gpiochip", 0) != 0)
+        {
+            continue;
+        }
+
+        const std::filesystem::path chip_path = entry.path();
+        const std::string label = read_string_file(chip_path / "label");
+        if (label.find("pinctrl") == std::string::npos && label.find("bcm") == std::string::npos)
+        {
+            continue;
+        }
+
+        const auto base = read_int_file(chip_path / "base");
+        const auto ngpio = read_int_file(chip_path / "ngpio");
+        if (!base.has_value() || !ngpio.has_value() || bcm_gpio < 0 || bcm_gpio >= *ngpio)
+        {
+            continue;
+        }
+        return *base + bcm_gpio;
+    }
+
+    return bcm_gpio;
+}
+
+void configure_input_pullups(const std::vector<SecondaryDisplayControlMapping> &controls, bool verbose_debug)
+{
+    std::unordered_set<int> gpio_set;
+    for (const auto &control : controls)
+    {
+        if (control.gpio >= 0 && control.active_low)
+        {
+            gpio_set.insert(control.gpio);
+        }
+    }
+    if (gpio_set.empty())
+    {
+        return;
+    }
+
+    std::vector<int> gpios{gpio_set.begin(), gpio_set.end()};
+    std::sort(gpios.begin(), gpios.end());
+
+    std::ostringstream command;
+    command << "command -v pinctrl >/dev/null 2>&1 && pinctrl set ";
+    for (std::size_t i = 0; i < gpios.size(); ++i)
+    {
+        if (i > 0)
+        {
+            command << ',';
+        }
+        command << gpios[i];
+    }
+    command << " ip pu >/dev/null 2>&1";
+
+    const int result = std::system(command.str().c_str());
+    if (verbose_debug)
+    {
+        std::cerr << "[secondary-display] input pull-up setup for BCM GPIOs";
+        for (const int gpio : gpios)
+        {
+            std::cerr << ' ' << gpio;
+        }
+        std::cerr << (result == 0 ? " succeeded" : " skipped/failed") << '\n';
+    }
 }
 
 } // namespace
@@ -281,6 +382,7 @@ void FramebufferMirror::initialize_controls()
 {
     controls_.clear();
     controls_.reserve(display_.controls.size());
+    configure_input_pullups(display_.controls, verbose_debug_);
 
     for (const auto &mapping : display_.controls)
     {
@@ -289,14 +391,22 @@ void FramebufferMirror::initialize_controls()
             continue;
         }
 
-        GpioControl control{mapping};
-        const auto value_path = gpio_path(mapping.gpio, "value");
+        GpioControl control;
+        control.mapping = mapping;
+        control.sysfs_gpio = resolve_sysfs_gpio(mapping.gpio);
+        const auto value_path = gpio_path(control.sysfs_gpio, "value");
         if (!std::filesystem::exists(value_path))
         {
-            write_text_file("/sys/class/gpio/export", std::to_string(mapping.gpio));
+            write_text_file("/sys/class/gpio/export", std::to_string(control.sysfs_gpio));
         }
-        write_text_file(gpio_path(mapping.gpio, "direction"), "in");
+        write_text_file(gpio_path(control.sysfs_gpio, "direction"), "in");
         control.available = std::filesystem::exists(value_path);
+        if (verbose_debug_)
+        {
+            std::cerr << "[secondary-display] control=" << mapping.control << " bcm_gpio=" << mapping.gpio
+                      << " sysfs_gpio=" << control.sysfs_gpio
+                      << (control.available ? " available" : " unavailable") << '\n';
+        }
         control.last_pressed = control.available && read_gpio_pressed(control);
         controls_.push_back(std::move(control));
     }
@@ -321,7 +431,7 @@ void FramebufferMirror::poll_controls()
 
 bool FramebufferMirror::read_gpio_pressed(const GpioControl &control) const
 {
-    std::ifstream stream{gpio_path(control.mapping.gpio, "value")};
+    std::ifstream stream{gpio_path(control.sysfs_gpio, "value")};
     char value{'1'};
     stream >> value;
     if (!stream)
