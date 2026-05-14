@@ -1,0 +1,12 @@
+[
+	{
+		"key": "f5",
+		"command": "workbench.action.tasks.runTask",
+		"args": "Remote Pi: Build Sync Run Cross Debug"
+	},
+	{
+		"key": "f8",
+		"command": "workbench.action.tasks.runTask",
+		"args": "Remote Pi: Deploy Scene & Run"
+	}
+]

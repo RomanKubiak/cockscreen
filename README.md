@@ -812,6 +812,7 @@ cmake --build --preset windows-x86_64-release
 | `Remote Pi: Build Release` | Sync + native build on Pi (release) |
 | `Remote Pi: Upload Cross Debug` | Sync + upload cross-compiled debug binary |
 | `Remote Pi: Upload Cross Release` | Sync + upload cross-compiled release binary |
+| `Remote Pi: Build Sync Run Cross Debug` | Default `F5` flow; cross-build locally, sync source, upload the binary, stop any old `cockscreen`, and run on the Pi |
 | `Remote Pi: Run Cross Debug` | Upload + run cross debug on Pi |
 | `Remote Pi: Run Cross Release` | Upload + run cross release on Pi |
 | `Remote Pi: Run Debug` | Build on Pi + run |

@@ -44,7 +44,13 @@
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
-			"group": "build"
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true,
+				"focus": true
+			}
 		},
 		{
 			"label": "Local: Cross Build Release",
@@ -58,7 +64,7 @@
 		{
 			"label": "Remote Pi: Sync Workspace",
 			"type": "shell",
-			"command": "ssh atom@cockscreen \"mkdir -p /home/atom/cockscreen\" && rsync -az --delete --exclude .git --exclude out --exclude build --exclude .cache --exclude .vscode/ipch ${workspaceFolder}/ atom@cockscreen:/home/atom/cockscreen/",
+			"command": "ssh atom@cockscreen \"mkdir -p /home/atom/cockscreen\" && rsync -az --delete --exclude .git --exclude out --exclude build --exclude .cache --exclude .vscode/ipch --exclude tmp --exclude pi --exclude oe-logs --exclude oe-workdir --exclude resources/videos --exclude distro/build --exclude distro/bitbake --exclude distro/oe-core --exclude distro/meta-openembedded --exclude distro/meta-qt6 --exclude distro/sources ${workspaceFolder}/ atom@cockscreen:/home/atom/cockscreen/",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -82,10 +88,17 @@
 				"cwd": "${workspaceFolder}"
 			},
 			"dependsOn": [
-				"Remote Pi: Sync Workspace",
-				"Local: Cross Build Debug"
+				"Local: Cross Build Debug",
+				"Remote Pi: Sync Workspace"
 			],
-			"group": "build"
+			"dependsOrder": "sequence",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true,
+				"focus": true
+			}
 		},
 		{
 			"label": "Remote Pi: Upload Cross Release",
@@ -95,21 +108,40 @@
 				"cwd": "${workspaceFolder}"
 			},
 			"dependsOn": [
-				"Remote Pi: Sync Workspace",
-				"Local: Cross Build Release"
+				"Local: Cross Build Release",
+				"Remote Pi: Sync Workspace"
 			],
+			"dependsOrder": "sequence",
 			"group": "build"
 		},
 		{
 			"label": "Remote Pi: Run Cross Debug",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen || exit 1; pkill -x cockscreen || true; ./out/build/cross-pi-zero2w-debug/cockscreen --scene-file scenes/pizero-linux.scene.jsonc --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
 			"dependsOn": "Remote Pi: Upload Cross Debug",
 			"group": "test",
 			"isBackground": true
+		},
+		{
+			"label": "Remote Pi: Build Sync Run Cross Debug",
+			"type": "shell",
+			"command": "${workspaceFolder}/scripts/run-pi-cross-debug.sh",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true,
+				"focus": true
+			}
 		},
 		{
 			"label": "Remote Pi: Smoke Cross Debug",
@@ -168,11 +200,26 @@
 		{
 			"label": "Remote Pi Start No Sync",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen || exit 1; pkill -x cockscreen || true; ./out/build/cross-pi-zero2w-debug/cockscreen --scene-file scenes/pizero-linux.scene.jsonc --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
 			"group": "test"
+		},
+		{
+			"label": "Remote Pi: Deploy Scene & Run",
+			"type": "shell",
+			"command": "ssh atom@cockscreen \"mkdir -p /home/atom/cockscreen/scenes\" && rsync -az ${workspaceFolder}/scenes/pizero-linux.scene.jsonc atom@cockscreen:/home/atom/cockscreen/scenes/pizero-linux.scene.jsonc && stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen || exit 1; pkill -x cockscreen || true; ./out/build/cross-pi-zero2w-debug/cockscreen --scene-file scenes/pizero-linux.scene.jsonc --enable-web-server http://0.0.0.0:8080\"",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true,
+				"focus": true
+			}
 		},
 		{
 			"label": "Remote Pi: Smoke Debug",
