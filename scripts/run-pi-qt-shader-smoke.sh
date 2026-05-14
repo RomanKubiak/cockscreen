@@ -3,7 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-remote_host="${COCKSCREEN_PI_HOST:-atom@192.168.41.181}"
+remote_host="${COCKSCREEN_PI_HOST:-atom@cockscreen}"
 binary_path="${1:-./out/build/cross-pi-zero2w-debug/cockscreen}"
 scene_path="${2:-scenes/pizero-linux.scene.jsonc}"
 signal_lock_seconds="${3:-4}"

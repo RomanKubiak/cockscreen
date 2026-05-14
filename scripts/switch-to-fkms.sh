@@ -4,7 +4,7 @@
 # The Pi will need a reboot after this script completes.
 set -euo pipefail
 
-PI=atom@192.168.41.181
+PI=atom@cockscreen
 
 echo "=== Patching /boot/firmware/config.txt ==="
 ssh "$PI" "sudo cp /boot/firmware/config.txt /boot/firmware/config.txt.bak-kms"

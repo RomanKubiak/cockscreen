@@ -58,7 +58,7 @@
 		{
 			"label": "Remote Pi: Sync Workspace",
 			"type": "shell",
-			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen\" && rsync -az --delete --exclude .git --exclude out --exclude build --exclude .cache --exclude .vscode/ipch ${workspaceFolder}/ atom@192.168.41.181:/home/atom/cockscreen/",
+			"command": "ssh atom@cockscreen \"mkdir -p /home/atom/cockscreen\" && rsync -az --delete --exclude .git --exclude out --exclude build --exclude .cache --exclude .vscode/ipch ${workspaceFolder}/ atom@cockscreen:/home/atom/cockscreen/",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -67,7 +67,7 @@
 		{
 			"label": "Remote Pi: Build Debug",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && cmake --preset pi-zero2w-debug && cmake --build --preset pi-zero2w-debug --parallel 1\"",
+			"command": "stdbuf -oL -eL ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && cmake --preset pi-zero2w-debug && cmake --build --preset pi-zero2w-debug --parallel 2\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -77,7 +77,7 @@
 		{
 			"label": "Remote Pi: Upload Cross Debug",
 			"type": "shell",
-			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen/out/build/cross-pi-zero2w-debug\" && rsync -az ${workspaceFolder}/out/build/cross-pi-zero2w-debug/ atom@192.168.41.181:/home/atom/cockscreen/out/build/cross-pi-zero2w-debug/",
+			"command": "ssh atom@cockscreen \"mkdir -p /home/atom/cockscreen/out/build/cross-pi-zero2w-debug\" && rsync -az ${workspaceFolder}/out/build/cross-pi-zero2w-debug/ atom@cockscreen:/home/atom/cockscreen/out/build/cross-pi-zero2w-debug/",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -90,7 +90,7 @@
 		{
 			"label": "Remote Pi: Upload Cross Release",
 			"type": "shell",
-			"command": "ssh atom@192.168.41.181 \"mkdir -p /home/atom/cockscreen/out/build/cross-pi-zero2w-release\" && rsync -az ${workspaceFolder}/out/build/cross-pi-zero2w-release/ atom@192.168.41.181:/home/atom/cockscreen/out/build/cross-pi-zero2w-release/",
+			"command": "ssh atom@cockscreen \"mkdir -p /home/atom/cockscreen/out/build/cross-pi-zero2w-release\" && rsync -az ${workspaceFolder}/out/build/cross-pi-zero2w-release/ atom@cockscreen:/home/atom/cockscreen/out/build/cross-pi-zero2w-release/",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -103,7 +103,7 @@
 		{
 			"label": "Remote Pi: Run Cross Debug",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -130,7 +130,7 @@
 		{
 			"label": "Remote Pi: Run Cross Release",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -157,7 +157,7 @@
 		{
 			"label": "Remote Pi: Run Debug",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -168,7 +168,7 @@
 		{
 			"label": "Remote Pi Start No Sync",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/cross-pi-zero2w-debug/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -193,7 +193,7 @@
 		{
 			"label": "Remote Pi: Build Release",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && cmake --preset pi-zero2w-release && cmake --build --preset pi-zero2w-release --parallel 1\"",
+			"command": "stdbuf -oL -eL ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && cmake --preset pi-zero2w-release && cmake --build --preset pi-zero2w-release --parallel 2\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
@@ -203,7 +203,7 @@
 		{
 			"label": "Remote Pi: Run Release",
 			"type": "shell",
-			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@192.168.41.181 \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
+			"command": "stdbuf -oL -eL ssh -t -o ServerAliveInterval=30 -o ServerAliveCountMax=120 atom@cockscreen \"cd /home/atom/cockscreen && ./out/build/pi-zero2w-release/cockscreen --enable-web-server http://0.0.0.0:8080\"",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},

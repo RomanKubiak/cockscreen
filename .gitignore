@@ -3,6 +3,10 @@
 /.cache/
 /tmp/*
 !/tmp/.gitignore
+/pi/
+/oe-logs
+/oe-workdir
+/resources/videos/
 *.user
 *.swp
 *.swo
