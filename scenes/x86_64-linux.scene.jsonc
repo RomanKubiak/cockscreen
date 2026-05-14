@@ -42,8 +42,6 @@
             "format": "vga",
             /** @field scale {number} [0.01, ∞) Display scale relative to the window. Clamped to minimum 0.01. */
             "scale": 0.25,
-            /** @field on_top {boolean} Legacy compositing fallback used only when layer_order is omitted. true = video layer drawn above playback. */
-            "on_top": false,
             /**
              * @object position
              * @description Normalised anchor point in viewport space. (0,0) = top-left, (1,1) = bottom-right.
@@ -68,8 +66,6 @@
             "file": "/home/atom/Videos/pizza.mp4",
             /** @field scale {number} [0.01, ∞) Display scale relative to the window. Clamped to minimum 0.01. */
             "scale": 1.0,
-            /** @field on_top {boolean} Legacy compositing fallback. Used only when layer_order is omitted. */
-            "on_top": true,
             /**
              * @object position
              * @description Normalised anchor point in viewport space. (0,0) = top-left, (1,1) = bottom-right.
@@ -290,9 +286,7 @@
     },
     /**
      * @field layer_order {string[]} Back-to-front compositing order for "screen", "video", and "playback".
-     *   The last entry is drawn on top. Must contain all three names exactly once;
-     *   invalid or duplicate entries cause the whole field to be ignored.
-     *   When omitted, the runtime falls back to the legacy inputs.video.on_top field.
+     *   The last entry is drawn on top. Omit disabled layers; invalid or duplicate entries are ignored.
      */
     "layer_order": [
         "screen"

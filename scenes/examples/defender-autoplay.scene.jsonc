@@ -14,7 +14,6 @@
             "device": "/dev/video0",
             "format": "vga",
             "scale": 1.0,
-            "on_top": false,
             "position": {
                 "x": 0.5,
                 "y": 0.5
@@ -24,7 +23,6 @@
             "enabled": false,
             "file": "../../resources/videos/example.mp4",
             "scale": 1.0,
-            "on_top": true,
             "position": {
                 "x": 0.0,
                 "y": 0.0

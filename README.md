@@ -1,6 +1,6 @@
 # Cockscreen
 
-A Qt6 / OpenGL ES shader pipeline for Raspberry Pi Zero 2 W and x86_64 Linux. It captures video, audio, MIDI, and OSC data and drives a real-time GLSL shader chain. Typical uses: live VJing, AV installations, generative visuals.
+A Qt6 / OpenGL ES shader pipeline for Raspberry Pi 3B+ and x86_64 Linux. It captures video, audio, MIDI, and OSC data and drives a real-time GLSL shader chain. Typical uses: live VJing, AV installations, generative visuals.
 
 The bundled `chimeras_breath` shader comes from https://www.shadertoy.com/view/4tGfDW.
 
@@ -15,10 +15,10 @@ The bundled `chimeras_breath` shader comes from https://www.shadertoy.com/view/4
 ## Remote target
 
 ```text
-ssh://atom@192.168.41.190
+ssh://atom@cockscreen
 ```
 
-Local x86_64 scenes default to a 1024×600 Qt6 window. Pi Zero 2 W builds use `eglfs` directly on DRM/KMS without a compositor.
+Local x86_64 scenes default to a 1024×600 Qt6 window. Pi 3B+ builds use `eglfs` directly on DRM/KMS without a compositor.
 
 ---
 
@@ -86,6 +86,7 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
 |---|---|---|
 | `render_path` | string | Render backend. Current runtime choices are `qt`, `qt-shader`, and `v4l2-dmabuf-egl`. Parser default: `qt-shader`. |
 | `geometry` | object | Window size object. Parser default: `{ "width": 1024, "height": 600 }`. |
+| `render_target` | object | Optional offscreen render size for `qt-shader`, presented to the window after final compositing. |
 | `width` / `height` | integer | Legacy top-level geometry fallback used only when `geometry` is omitted. Values are clamped to minimum `1`. |
 | `resources_directory` | string | Path resolved relative to the scene file directory. Parser default: scene file directory itself. |
 | `shader_directory` | string | Path resolved relative to the scene file directory unless already absolute. |
@@ -106,14 +107,18 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
 | `midi_cc_mappings` | array | MIDI CC to shader uniform mappings. |
 | `midi_note_mappings` | array | MIDI note to shader uniform mappings. |
 | `osc_mappings` | array | OSC address to shader uniform mappings. |
+| `shader_uniforms` | array | Static float shader uniform values applied before MIDI/OSC/runtime overrides. |
 
 ### Parser defaults and clamping
 
 | Value | Parser behavior |
 |---|---|
 | `geometry.width`, `geometry.height`, top-level `width`, `height` | Clamped to minimum `1`. |
+| `render_target.width`, `render_target.height` | Clamped to minimum `1`. Defaults to `geometry`. |
 | colour channels `r/g/b/a` and aliases `red/green/blue/alpha` | Clamped to `[0, 1]`. |
 | `inputs.*.scale` | Clamped to minimum `0.01`. Default `1.0`. |
+| `inputs.*.animation.speed` | Clamped to minimum `0.0`. Default `1.0`. |
+| `video.opacity`, `playback.opacity`, `screen.opacity` | Clamped to `[0, 1]`. Default `1.0`. |
 | `start_ms`, `loop_start_ms`, `loop_end_ms` | Clamped to minimum `0`. |
 | `loop_repeat` | Clamped to minimum `0`. |
 | `playback_rate`, `playback_rate_looping` | Clamped to minimum `0.01`. |
@@ -127,6 +132,9 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
 |---|---|---|
 | `render_path` | `qt`, `qt-shader`, `v4l2-dmabuf-egl` | Runtime-valid values. Parser accepts any string and leaves runtime validation to startup. |
 | `background_image.placement` | `center`, `stretched`, `proportional-stretch`, `tiled` | Parser also accepts aliases `centered`, `propotional-stretch`, and `proportional_stretch`. Unknown values fall back to `center`. |
+| `render_target.presentation` | `stretch`, `fit`, `fill`, `center`, `integer-scale` | Controls how the offscreen texture is presented to the real window. Unknown values fall back to `fit`. |
+| `render_target.filter` | `linear`, `nearest` | Texture filtering for the final upscale. `nearest` is useful for pixel-art or hard-edged low-res looks. |
+| `inputs.*.animation.preset` | `rotate`, `resize`, `move-x`, `move-y`, `orbit`, `wobble`, `bounce` | Unknown values disable the animation block. Presets are evaluated by `qt-shader`; `v4l2-dmabuf-egl` applies them to the video quad. |
 | `layer_order[*]` | `video`, `playback`, `screen` | Entries are case-insensitive. Invalid or duplicate entries are ignored. The whole field is accepted only if all three unique layer names are present. |
 | `pink_key.audio_algorithm` | `0`, `1`, `2`, `3`, `4`, `5` | `0` bass focus, `1` low-mid, `2` high-mid, `3` high, `4` spectral centroid, `5` full-spectrum average. |
 
@@ -138,6 +146,20 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
     "height": 600
 }
 ```
+
+Use `render_target` when the physical display should stay at its native mode but shaders should run at a lower resolution:
+
+```json
+"render_target": {
+    "enabled": true,
+    "width": 640,
+    "height": 480,
+    "presentation": "fit",
+    "filter": "linear"
+}
+```
+
+`geometry` remains the actual app/window size. `render_target` is the internal shader/composite size. This is useful on small HDMI panels that do not scale lower HDMI modes cleanly.
 
 ### `background_image`
 
@@ -184,15 +206,22 @@ Accepted parser aliases for `placement`:
         "device": "/dev/video1",
         "format": "qvga",           // "qvga" (320×240), "vga", "hd" etc.
         "scale": 0.5,               // display scale relative to window
-        "on_top": false,            // legacy fallback when layer_order is omitted
-        "position": { "x": 0.5, "y": 0.5 }
+        "position": { "x": 0.5, "y": 0.5 },
+        "rotation": 0.0,            // degrees, applied around the quad centre
+        "animation": {
+            "enabled": true,
+            "preset": "move-x",
+            "speed": 0.25,          // cycles per second
+            "amount": 0.15,         // normalized intensity
+            "phase": 0.0
+        }
     },
     "playback": {
         "enabled": true,
         "file": "videos/clip.mp4",  // relative to resources_directory
         "scale": 0.28,
-        "on_top": true,
         "position": { "x": 0.02, "y": 0.02 },
+        "rotation": -5.0,
         "start_ms": 0,
         "loop_start_ms": 0,
         "loop_end_ms": 8000,
@@ -230,9 +259,15 @@ Parser defaults for every `inputs.*` object use the same `SceneInput` defaults:
 | `file` | string | `""` | Used by `playback`. |
 | `format` | string | `""` | Used mainly by `video`. |
 | `scale` | float | `1.0` | Clamped to minimum `0.01`. |
-| `on_top` | bool | omitted | Optional legacy fallback when `layer_order` is omitted. |
 | `position` | object | `{ "x": 0, "y": 0 }` | Preferred form. |
 | `position_x`, `position_y` | float | `0.0` | Legacy fallback when `position` object is absent. |
+| `rotation` | float | `0.0` | Degrees. Applied around the video quad centre by `qt-shader` and `v4l2-dmabuf-egl`. |
+| `animation.enabled` | bool | `false` | Enables time-based transform animation. |
+| `animation.preset` | string | `""` | One of `rotate`, `resize`, `move-x`, `move-y`, `orbit`, `wobble`, or `bounce`. |
+| `animation.speed` | float | `1.0` | Cycles per second for oscillating presets; rotations use full turns per second. |
+| `animation.amount` | float | `0.0` | Preset intensity. `resize` is multiplicative; movement presets offset normalized position. |
+| `animation.phase` | float | `0.0` | Starting phase, in cycles. |
+| `transform.animation` | object | omitted | Accepted alias shape for nesting animation under a `transform` block. |
 | `start_ms` | integer | `0` | Parsed for all inputs, but meaningful for playback. |
 | `loop_start_ms` | integer | `0` | Parsed for all inputs, but meaningful for playback. |
 | `loop_end_ms` | integer or `null` | omitted | Omitted or `null` disables custom loop end. |
@@ -305,14 +340,39 @@ Use `layer_order` to explicitly control the final screen compositing order. The 
 "layer_order": ["screen", "video", "playback"]
 ```
 
-`layer_order` must contain `screen`, `video`, and `playback` exactly once. If it is omitted, the runtime falls back to the older `inputs.video.on_top` behavior.
+`layer_order` is the only compositing-order control. Omit disabled layers from the array; invalid or duplicate entries are ignored.
 
 Each layer object accepts only these fields during parsing:
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `enabled` | bool | `true` | |
+| `opacity` | float | `1.0` | Final layer opacity, clamped to `[0, 1]`. |
 | `shaders` | array of strings | `[]` | Non-string entries are ignored. |
+
+### `shader_uniforms`
+
+Set fixed float uniforms for a shader stage:
+
+```json
+"shader_uniforms": [
+    {
+        "layer":   "screen",
+        "shader":  "wireframe_plane.glsl",
+        "uniform": "u_plane_audio_speed_mod",
+        "value":   1.4
+    }
+]
+```
+
+Parser fields for each shader uniform:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `layer` | string | `""` | Required for the uniform to be kept. |
+| `shader` | string | `""` | Optional filename or partial shader path match. |
+| `uniform` | string | `""` | Required for the uniform to be kept. |
+| `value` | float | `0.0` | Applied before MIDI, OSC, and web/runtime overrides. |
 
 ### `midi_cc_mappings`
 
@@ -424,13 +484,11 @@ Across [scenes/x86_64-linux.scene.jsonc](/home/atom/devel/cockscreen/scenes/x86_
 - `inputs.video.device`
 - `inputs.video.format`
 - `inputs.video.scale`
-- `inputs.video.on_top`
 - `inputs.video.position.x`
 - `inputs.video.position.y`
 - `inputs.playback.enabled`
 - `inputs.playback.file`
 - `inputs.playback.scale`
-- `inputs.playback.on_top`
 - `inputs.playback.position.x`
 - `inputs.playback.position.y`
 - `inputs.playback.start_ms`
@@ -469,6 +527,10 @@ Across [scenes/x86_64-linux.scene.jsonc](/home/atom/devel/cockscreen/scenes/x86_
 - `screen.enabled`
 - `screen.shaders[]`
 - `layer_order[]`
+- `shader_uniforms[].layer`
+- `shader_uniforms[].shader`
+- `shader_uniforms[].uniform`
+- `shader_uniforms[].value`
 - `midi_cc_mappings[].layer`
 - `midi_cc_mappings[].shader`
 - `midi_cc_mappings[].uniform`
@@ -506,6 +568,7 @@ Every shader receives these automatically — no mapping needed:
 | `u_audio_level` | `float` | Overall audio level in dB (normalised 0–1). |
 | `u_audio_rms` | `float` | RMS audio level 0–1. |
 | `u_audio_peak` | `float` | Peak audio level 0–1. |
+| `u_audio_beat` | `float` | Beat/onset pulse 0–1, derived from audio energy and low-frequency transients. |
 | `u_audio_fft[16]` | `float[]` | 16-band FFT magnitude 0–1 (low→high frequency). |
 | `u_audio_waveform[64]` | `float[]` | 64-sample waveform buffer −1..1. |
 | `u_midi_primary` | `float` | Most-recent MIDI note number normalised 0–1. |
@@ -657,6 +720,19 @@ White wireframe sphere that bounces off the viewport edges and spins. Blends ove
 
 **Audio uniforms used:** `u_audio_level` (modulates radius), `u_audio_fft[16]`, `u_time`
 
+### `wireframe_plane.glsl`
+Synthwave-style perspective floor grid over the previous stage.
+
+**Custom uniforms:**
+
+| Uniform | Range | Default | Description |
+|---|---|---|---|
+| `u_plane_base_speed` | 0+ | 0.15 | Base grid travel speed. |
+| `u_plane_audio_speed_mod` | -1+ | 1.4 | Multiplies speed from RMS, peak, and low FFT energy. Set below `-0.5` to disable. |
+| `u_plane_beat_speed_mod` | -1+ | 2.2 | Adds beat/onset kicks to the grid travel and glow. Set below `-0.5` to disable. |
+
+**Audio uniforms used:** `u_audio_rms`, `u_audio_peak`, `u_audio_beat`, `u_audio_fft[16]`, `u_time`
+
 ### `midi_dots.glsl`
 Renders held MIDI notes as animated dots. Each of the 8 tracked notes spawns a coloured ring whose size encodes velocity.
 
@@ -698,14 +774,14 @@ cmake --build --preset local-x86_64-debug
 ./out/build/local-x86_64-debug/cockscreen --scene-file scenes/x86_64-linux.scene.json
 ```
 
-### Pi Zero 2 W native build (via SSH)
+### Pi 3B+ native build (via SSH)
 
 ```bash
 cmake --preset pi-zero2w-debug
 cmake --build --preset pi-zero2w-debug
 ```
 
-### Pi Zero 2 W cross-compilation
+### Pi 3B+ cross-compilation
 
 ```bash
 ./scripts/bootstrap-pizero-cross.sh
@@ -739,6 +815,7 @@ cmake --build --preset windows-x86_64-release
 | `Remote Pi: Run Cross Debug` | Upload + run cross debug on Pi |
 | `Remote Pi: Run Cross Release` | Upload + run cross release on Pi |
 | `Remote Pi: Run Debug` | Build on Pi + run |
+| `Remote Pi: Deploy Scene & Run` | Bound to `F8`; scp `scenes/pizero-linux.scene.jsonc` to the Pi, stop any running `cockscreen`, and restart the cross-debug binary with that scene |
 
 ---
 

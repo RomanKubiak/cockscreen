@@ -15,6 +15,19 @@
         "height": 600
     },
     /*
+     * Optional qt-shader offscreen target. The app/window can stay at the
+     * physical display mode while shaders run at a lower resolution.
+     * presentation: stretch, fit, fill, center, integer-scale.
+     * filter: linear or nearest.
+     */
+    "render_target": {
+        "enabled": false,
+        "width": 640,
+        "height": 480,
+        "presentation": "fit",
+        "filter": "linear"
+    },
+    /*
      * Top-level background_color is a fallback when inputs.background_color is omitted.
      * The parser also accepts the alias name "background".
      */
@@ -44,12 +57,25 @@
             "format": "qvga",
             /* scale is clamped to a minimum of 0.01. */
             "scale": 0.35,
-            /* Legacy fallback when layer_order is omitted. */
-            "on_top": false,
             /* Preferred position form. */
             "position": {
                 "x": 0.5,
                 "y": 0.5
+            },
+            /* Rotation is in degrees and pivots around the video quad centre in qt-shader. */
+            "rotation": 0.0,
+            /*
+             * Time-based transform animation for qt-shader.
+             * Presets: rotate, resize, move-x, move-y, orbit, wobble, bounce.
+             * speed is cycles per second; phase is a starting offset in cycles.
+             * amount is preset-specific normalized intensity.
+             */
+            "animation": {
+                "enabled": true,
+                "preset": "move-x",
+                "speed": 0.25,
+                "amount": 0.15,
+                "phase": 0.0
             },
             /*
              * Legacy fallback also exists:
@@ -63,11 +89,11 @@
             "enabled": true,
             "file": "../../resources/videos/example.mp4",
             "scale": 0.4,
-            "on_top": true,
             "position": {
                 "x": 0.05,
                 "y": 0.05
             },
+            "rotation": -5.0,
             /* All transport numbers are clamped to >= 0. */
             "start_ms": 0,
             "loop_start_ms": 0,

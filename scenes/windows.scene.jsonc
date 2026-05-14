@@ -19,7 +19,6 @@
             "device": "/dev/video1",
             "format": "qvga",
             "scale": 0.25,
-            "on_top": false,
             "position": {
                 "x": 0.5,
                 "y": 0.5
@@ -29,7 +28,6 @@
             "enabled": false,
             "file": "/home/atom/Videos/video.mp4",
             "scale": 0.28,
-            "on_top": true,
             "position": {
                 "x": 0.02,
                 "y": 0.02

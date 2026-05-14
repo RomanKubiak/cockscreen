@@ -1,5 +1,5 @@
 {
-    /* Raspberry Pi Zero 2 W preset for fullscreen device use. */
+    /* Raspberry Pi 3B+ preset for fullscreen device use. */
     "resources_directory": "../resources/",
     "note_font_file": "fonts/MaxelFreePersonalUseRegular-G3AAP.ttf",
     /* Background image object form supports file + placement. */
@@ -9,28 +9,52 @@
     // "placement": "centered"
     //},
     "shader_directory": "../shaders/",
-    "render_path": "v4l2-dmabuf-egl",
+    "render_path": "qt-shader",
     "geometry": {
-        "width": 1024,
-        "height": 600
+        "width": 640,
+        "height": 480
+    },
+    /*
+     * Keep HDMI at the panel-native 1024x600, but render shaders into a
+     * cheaper offscreen target and scale that texture to the screen. This
+     * stays useful on the Pi 3B+ because fragment shader cost dominates.
+     */
+    "render_target": {
+        "enabled": true,
+        "width": 447,
+        "height": 163,
+        "presentation": "stretch",
+        "filter": "nearest"
     },
     "inputs": {
         "video": {
             "enabled": true,
             "device": "/dev/video0",
-            "format": "720x576",
+            "format": "qvga",
+            /*
+             * Time-based transform animation for the video quad.
+             * Presets: rotate, resize, move-x, move-y, orbit, wobble, bounce.
+             * speed is cycles per second; phase is a starting offset in cycles.
+             * amount is preset-specific normalized intensity.
+             */
+            "animation": {
+                "enabled": true,
+                "preset": "resize",
+                "speed": 0.04,
+                "amount": 0.6,
+                "phase": 2.0
+            },
             "scale": 1.0,
-            "on_top": true,
+            /* Preferred position form. */
             "position": {
-                "x": 0.5,
-                "y": 0.5
+                "x": 0.0,
+                "y": 0.0
             }
         },
         "playback": {
             "enabled": false,
             "file": "/home/atom/Videos/video.mp4",
             "scale": 0.28,
-            "on_top": true,
             "position": {
                 "x": 0.02,
                 "y": 0.02
@@ -51,181 +75,55 @@
         },
         "audio": {
             "enabled": true,
-            "device": "PCM2902 Audio Codec"
+            "device": "MS210x Video Grabber [EasierCAP] Analog Stereo"
         },
         "midi": {
             "enabled": false,
             "device": "SQ-1"
         }
     },
-    "show_status_overlay": true,
-    "timecode": false,
-    "pink_key": {
-        "audio_algorithm": 0,
-        "audio_reactivity": 0.45,
-        "midi_reactivity": 0.35
-    },
+    "show_status_overlay": false,
     "shader_uniforms": [
         /*
-         * wireframe_plane.glsl built-in audio uniforms:
-         * u_audio_bpm is detected from audio transients and scales plane motion
-         * around 120 BPM. u_audio_fft[0..5] is treated as mostly <2 kHz tone
-         * energy and pushes X motion left; u_audio_fft[6..15] is treated as
-         * mostly >2 kHz tone energy and pushes X motion right.
+         * 2026-05-14 autonomous Pi pass:
+         * wireframe_plane.glsl ignores audio input and now renders only the
+         * autonomous plane. The shader applies a 4x travel multiplier on top
+         * of this base speed.
          */
         {
-            /* Base forward speed before BPM, audio energy, and beat accents. */
+            /* Base forward travel speed for the autonomous plane motion. */
             "layer": "screen",
             "shader": "wireframe_plane.glsl",
             "uniform": "u_plane_base_speed",
-            "value": 0.3
-        },
-        {
-            /* Multiplies RMS/peak/bass energy contribution to forward speed. */
-            "layer": "screen",
-            "shader": "wireframe_plane.glsl",
-            "uniform": "u_plane_audio_speed_mod",
-            "value": 4.0
-        },
-        {
-            /* Adds short forward surges on detected beat/onset hits. */
-            "layer": "screen",
-            "shader": "wireframe_plane.glsl",
-            "uniform": "u_plane_beat_speed_mod",
-            "value": 4.0
-        },
-        {
-            /* Multiplies the detected-BPM speed factor; 1.0 keeps BPM literal. */
-            "layer": "screen",
-            "shader": "wireframe_plane.glsl",
-            "uniform": "u_plane_bpm_speed_scale",
-            "value": 1.0
-        },
-        {
-            /* Scales left/right X drift from tonal balance around the 2 kHz split. */
-            "layer": "screen",
-            "shader": "wireframe_plane.glsl",
-            "uniform": "u_plane_x_tone_speed_mod",
-            "value": 0.65
-        },
-        {
-            /* Adds fixed X bias: negative favors left, positive favors right. */
-            "layer": "screen",
-            "shader": "wireframe_plane.glsl",
-            "uniform": "u_plane_x_tone_bias",
-            "value": 0.0
+            "value": 0.008
         }
     ],
-    /* Enabled layer + ordered shader chain per compositing stage. */
     "video": {
         "enabled": true,
-        "shaders": []
+        "opacity": 1.0,
+        "shaders": [
+            "shadertoy.com/Nice_glass_wall.glsl"
+        ]
     },
     "playback": {
         "enabled": false,
+        "opacity": 1.0,
         "shaders": []
     },
     "screen": {
-        "enabled": true,
-        "shaders": [
-            "wireframe_plane.glsl"
-        ]
+        "enabled": false,
+        "opacity": 0.5,
+        "background_color": {
+            "r": 0.5,
+            "g": 0.5,
+            "b": 0.5,
+            "a": 0.5
+        },
+        "shaders": []
     },
     /* Compositing order from back to front. */
     "layer_order": [
-        "screen",
-        "playback",
-        "video"
-    ],
-    "midi_cc_mappings": [
-        {
-            "layer": "screen",
-            "shader": "wireframe_sphere.glsl",
-            "uniform": "u_wire_density",
-            "channel": 0,
-            "cc": 91,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "screen",
-            "shader": "pixelize_viewport.glsl",
-            "uniform": "u_pixelize_amount",
-            "channel": 0,
-            "cc": 92,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_h",
-            "channel": 0,
-            "cc": 93,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_hrange",
-            "channel": 0,
-            "cc": 94,
-            "min": 0.0,
-            "max": 0.5,
-            "exponent": 1.0
-        },
-        {
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_spread",
-            "channel": 0,
-            "cc": 95,
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        }
-    ],
-    /* OSC mappings use address -> uniform translation with min/max/exponent shaping. */
-    "osc_mappings": [
-        {
-            "address": "/cockscreen/key/hue",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_h",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/hrange",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_hrange",
-            "min": 0.0,
-            "max": 0.5,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/spread",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_spread",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        },
-        {
-            "address": "/cockscreen/key/smin",
-            "layer": "video",
-            "shader": "pink_key.glsl",
-            "uniform": "u_key_smin",
-            "min": 0.0,
-            "max": 1.0,
-            "exponent": 1.0
-        }
+        "video",
+        "screen"
     ]
 }

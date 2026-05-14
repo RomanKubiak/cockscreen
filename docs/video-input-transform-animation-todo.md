@@ -7,19 +7,19 @@ Scope:
 - Reuse for `inputs.playback` if the design stays generic.
 - Supports position, scale, and rotation.
 - Works on `qt-shader`.
-- Keep `v4l2-dmabuf-egl` static unless a later direct-render transform pass is added.
+- Works on `v4l2-dmabuf-egl` for direct video quad transforms.
 
 ## Scene Schema
 
-- [ ] Add `rotation` to `SceneInput`, in degrees.
-- [ ] Add `transform` or `animation` block under `inputs.video`.
-- [ ] Keep existing static fields as the base transform:
+- [x] Add `rotation` to `SceneInput`, in degrees.
+- [x] Add `transform` or `animation` block under `inputs.video`.
+- [x] Keep existing static fields as the base transform:
   - `scale`
   - `position.x`
   - `position.y`
   - `rotation`
 - [ ] Define modulation as additive or multiplicative per property.
-- [ ] Clamp safe ranges:
+- [x] Clamp safe ranges:
   - `scale >= 0.01`
   - `position.x/y` may exceed `[0, 1]` only if offscreen movement is desired
   - `rotation` wraps naturally
@@ -44,21 +44,21 @@ Example shape:
 
 ## Preset Animations
 
-- [ ] `rotate`: continuously rotate around the video quad center.
-- [ ] `resize`: pulse scale around the base scale.
-- [ ] `move-x`: oscillate horizontally around the base position.
-- [ ] `move-y`: oscillate vertically around the base position.
-- [ ] `orbit`: move in a circular path around the base position.
-- [ ] `wobble`: combine small position, scale, and rotation offsets.
-- [ ] `bounce`: move between screen edges using normalized position.
+- [x] `rotate`: continuously rotate around the video quad center.
+- [x] `resize`: pulse scale around the base scale.
+- [x] `move-x`: oscillate horizontally around the base position.
+- [x] `move-y`: oscillate vertically around the base position.
+- [x] `orbit`: move in a circular path around the base position.
+- [x] `wobble`: combine small position, scale, and rotation offsets.
+- [x] `bounce`: move between screen edges using normalized position.
 
 Shared preset fields:
 
-- [ ] `enabled`: boolean.
-- [ ] `preset`: string enum.
-- [ ] `speed`: cycles per second or normalized multiplier.
-- [ ] `amount`: normalized intensity.
-- [ ] `phase`: starting phase offset.
+- [x] `enabled`: boolean.
+- [x] `preset`: string enum.
+- [x] `speed`: cycles per second or normalized multiplier.
+- [x] `amount`: normalized intensity.
+- [x] `phase`: starting phase offset.
 - [ ] `axis`: optional for move-style presets.
 
 ## External Modulation
@@ -100,35 +100,35 @@ Example shape:
 
 ## Runtime Data Model
 
-- [ ] Add a transform animation struct to `include/cockscreen/runtime/Scene.hpp`.
+- [x] Add a transform animation struct to `include/cockscreen/runtime/Scene.hpp`.
 - [ ] Add transform mapping structs to `Scene.hpp`.
-- [ ] Parse animation blocks in `src/runtime/scene/Parse.cpp`.
+- [x] Parse animation blocks in `src/runtime/scene/Parse.cpp`.
 - [ ] Parse transform mappings in `Parse.cpp`.
-- [ ] Document all new fields in `README.md`.
-- [ ] Add annotated examples in `scenes/examples/annotated.scene.jsonc`.
+- [x] Document all new fields in `README.md`.
+- [x] Add annotated examples in `scenes/examples/annotated.scene.jsonc`.
 
 ## Rendering
 
-- [ ] Replace static `video_display_rect(...)` usage with an evaluated transform.
+- [x] Replace static `video_display_rect(...)` usage with an evaluated transform.
 - [ ] Compute evaluated transform each frame from:
   - base scene input
   - elapsed time
   - current `ControlFrame`
   - transform mappings
-- [ ] Update `draw_textured_quad` to support rotation.
-- [ ] Rotate around the quad center by default.
-- [ ] Preserve current behavior when animation is disabled and rotation is `0`.
-- [ ] Use the same transform evaluator for playback if enabled.
+- [x] Update `draw_textured_quad` to support rotation.
+- [x] Rotate around the quad center by default.
+- [x] Preserve current behavior when animation is disabled and rotation is `0`.
+- [x] Use the same transform evaluator for playback if enabled.
 
 Implementation files:
 
-- [ ] `include/cockscreen/runtime/Scene.hpp`
-- [ ] `src/runtime/scene/Parse.cpp`
-- [ ] `src/runtime/shadervideo/Support.cpp`
-- [ ] `include/cockscreen/runtime/shadervideo/Support.hpp`
-- [ ] `src/runtime/shadervideo/Rendering.cpp`
-- [ ] `README.md`
-- [ ] `scenes/examples/annotated.scene.jsonc`
+- [x] `include/cockscreen/runtime/Scene.hpp`
+- [x] `src/runtime/scene/Parse.cpp`
+- [x] `src/runtime/shadervideo/Support.cpp`
+- [x] `include/cockscreen/runtime/shadervideo/Support.hpp`
+- [x] `src/runtime/shadervideo/Rendering.cpp`
+- [x] `README.md`
+- [x] `scenes/examples/annotated.scene.jsonc`
 
 ## Web Control
 
@@ -155,7 +155,7 @@ Implementation files:
 
 ## Suggested First Cut
 
-- [ ] Implement `rotation`.
-- [ ] Implement `rotate`, `resize`, and `move-x`.
-- [ ] Implement only time-based animation first.
+- [x] Implement `rotation`.
+- [x] Implement `rotate`, `resize`, and `move-x`.
+- [x] Implement only time-based animation first.
 - [ ] Add OSC/MIDI/audio transform mappings after the base evaluator is stable.
