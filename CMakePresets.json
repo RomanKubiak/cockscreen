@@ -60,6 +60,8 @@
             "cacheVariables": {
                 "COCKSCREEN_TARGET_PLATFORM": "raspberry-pi-3b-plus",
                 "COCKSCREEN_PI_ZERO2W_ROOT": "/work/pizero",
+                "COCKSCREEN_PI_SYNC_HOST": "atom@cockscreen",
+                "COCKSCREEN_ENABLE_PI_AUTO_SYNC": "OFF",
                 "QT_HOST_PATH": "/usr"
             }
         },

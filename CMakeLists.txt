@@ -9,6 +9,7 @@ set(COCKSCREEN_PI_SYNC_HOST "atom@cockscreen" CACHE STRING "SSH destination for 
 set(COCKSCREEN_PI_SYNC_ROOT "/home/atom/cockscreen" CACHE STRING "Remote Pi workspace root for automatic binary sync")
 
 option(COCKSCREEN_ENABLE_STRICT_WARNINGS "Enable extra warning flags" ON)
+option(COCKSCREEN_ENABLE_PI_AUTO_SYNC "Sync cross-built Pi binaries from the CMake build graph" OFF)
 set(COCKSCREEN_TARGET_PLATFORM "raspberry-pi-3b-plus" CACHE STRING "Target platform label")
 
 set(PFFFT_USE_TYPE_DOUBLE OFF CACHE BOOL "" FORCE)
@@ -175,7 +176,7 @@ if(COCKSCREEN_ENABLE_STRICT_WARNINGS)
     target_compile_options(cockscreen PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-if(CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET_PLATFORM MATCHES "^raspberry-pi-(zero-2w|3b-plus)$")
+if(COCKSCREEN_ENABLE_PI_AUTO_SYNC AND CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET_PLATFORM MATCHES "^raspberry-pi-(zero-2w|3b-plus)$")
     add_custom_target(cockscreen_pi_sync ALL
         DEPENDS cockscreen
         COMMAND
