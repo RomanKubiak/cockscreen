@@ -20,6 +20,7 @@
 #include <QFontMetrics>
 #include <QPainter>
 #include <QRect>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 
@@ -68,35 +69,6 @@ QString page_label(SecondaryDisplayPage page)
     return QStringLiteral("video input");
 }
 
-QStringList modulation_lines(const core::ControlFrame &frame)
-{
-    QStringList lines;
-    lines << QStringLiteral("gain %1").arg(frame.gain, 0, 'f', 2);
-    lines << QStringLiteral("audio rms %1 peak %2 beat %3")
-                 .arg(frame.audio_rms, 0, 'f', 2)
-                 .arg(frame.audio_peak, 0, 'f', 2)
-                 .arg(frame.audio_beat, 0, 'f', 2);
-    lines << QStringLiteral("midi primary %1 secondary %2")
-                 .arg(frame.midi_primary, 0, 'f', 2)
-                 .arg(frame.midi_secondary, 0, 'f', 2);
-    lines << QStringLiteral("osc x %1 y %2 values %3")
-                 .arg(frame.osc_x, 0, 'f', 2)
-                 .arg(frame.osc_y, 0, 'f', 2)
-                 .arg(frame.osc_values.size());
-
-    int shown_values = 0;
-    for (const auto &[name, value] : frame.osc_values)
-    {
-        if (shown_values >= 4)
-        {
-            break;
-        }
-        lines << QStringLiteral("%1 %2").arg(QString::fromStdString(name)).arg(value, 0, 'f', 2);
-        ++shown_values;
-    }
-    return lines;
-}
-
 void draw_text_page(QPainter &painter, const QRect &bounds, const QString &title, const QStringList &lines)
 {
     painter.setRenderHint(QPainter::TextAntialiasing, true);
@@ -127,6 +99,157 @@ void draw_text_page(QPainter &painter, const QRect &bounds, const QString &title
                          elided);
         y += metrics.height() + 2;
     }
+}
+
+float clamp01(float value)
+{
+    return std::clamp(value, 0.0F, 1.0F);
+}
+
+QString first_metric_value(const QString &line, const QString &label)
+{
+    const int start = line.indexOf(label);
+    if (start < 0)
+    {
+        return QStringLiteral("--");
+    }
+    const int value_start = start + label.size();
+    int value_end = line.indexOf(QStringLiteral(" | "), value_start);
+    if (value_end < 0)
+    {
+        value_end = line.size();
+    }
+    return line.mid(value_start, value_end - value_start).trimmed();
+}
+
+void draw_tile(QPainter &painter, const QRect &rect, const QString &label, const QString &value, const QColor &accent)
+{
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor{18, 23, 28});
+    painter.drawRoundedRect(rect, 5, 5);
+    painter.setBrush(accent);
+    painter.drawRect(QRect{rect.left(), rect.top(), 4, rect.height()});
+
+    QFont label_font = painter.font();
+    label_font.setPixelSize(10);
+    label_font.setBold(true);
+    painter.setFont(label_font);
+    painter.setPen(QColor{155, 168, 180});
+    painter.drawText(rect.adjusted(9, 5, -6, -rect.height() / 2), Qt::AlignLeft | Qt::AlignTop, label.toUpper());
+
+    QFont value_font = painter.font();
+    value_font.setPixelSize(24);
+    value_font.setBold(true);
+    painter.setFont(value_font);
+    painter.setPen(QColor{245, 250, 255});
+    painter.drawText(rect.adjusted(8, 17, -6, -4), Qt::AlignLeft | Qt::AlignVCenter, value);
+}
+
+void draw_meter(QPainter &painter, const QRect &rect, const QString &label, float value, const QColor &accent)
+{
+    const float clamped = clamp01(value);
+    QFont font = painter.font();
+    font.setPixelSize(11);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(QColor{215, 224, 232});
+    painter.drawText(QRect{rect.left(), rect.top(), 58, rect.height()}, Qt::AlignLeft | Qt::AlignVCenter,
+                     label.toUpper());
+
+    const QRect track{rect.left() + 64, rect.top() + 5, rect.width() - 64, rect.height() - 10};
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor{29, 35, 41});
+    painter.drawRoundedRect(track, 4, 4);
+    QRect fill = track.adjusted(2, 2, -2, -2);
+    fill.setWidth(static_cast<int>(static_cast<float>(fill.width()) * clamped));
+    painter.setBrush(accent);
+    painter.drawRoundedRect(fill, 3, 3);
+}
+
+void draw_header(QPainter &painter, const QRect &bounds, const QString &title)
+{
+    QFont title_font = painter.font();
+    title_font.setPixelSize(15);
+    title_font.setBold(true);
+    painter.setFont(title_font);
+    painter.setPen(QColor{236, 244, 252});
+    painter.drawText(QRect{bounds.left() + 8, bounds.top() + 5, bounds.width() - 16, 20},
+                     Qt::AlignLeft | Qt::AlignVCenter, title.toUpper());
+}
+
+void draw_performance_page(QPainter &painter, const QRect &bounds, const core::ControlFrame &frame,
+                           const QStringList &system_lines)
+{
+    draw_header(painter, bounds, QStringLiteral("performance"));
+
+    const QString fps_line = system_lines.isEmpty() ? QString{} : system_lines.front();
+    QString process_fps = first_metric_value(fps_line, QStringLiteral("FPS process "));
+    if (process_fps == QStringLiteral("--"))
+    {
+        process_fps = first_metric_value(fps_line, QStringLiteral("FPS capture "));
+    }
+    const QString render_fps = first_metric_value(fps_line, QStringLiteral("render "));
+
+    draw_tile(painter, QRect{8, 31, 108, 55}, QStringLiteral("process"), process_fps, QColor{73, 196, 255});
+    draw_tile(painter, QRect{124, 31, 108, 55}, QStringLiteral("render"), render_fps, QColor{92, 231, 165});
+    draw_tile(painter, QRect{8, 94, 108, 50}, QStringLiteral("gain"), QString::number(frame.gain, 'f', 2),
+              QColor{255, 198, 78});
+    draw_tile(painter, QRect{124, 94, 108, 50}, QStringLiteral("beat"), QString::number(frame.audio_beat, 'f', 2),
+              QColor{255, 103, 138});
+
+    draw_meter(painter, QRect{8, 153, 224, 22}, QStringLiteral("rms"), frame.audio_rms, QColor{83, 184, 255});
+    draw_meter(painter, QRect{8, 178, 224, 22}, QStringLiteral("peak"), frame.audio_peak, QColor{255, 116, 96});
+
+    QFont font = painter.font();
+    font.setPixelSize(10);
+    font.setBold(false);
+    painter.setFont(font);
+    painter.setPen(QColor{142, 154, 166});
+    const QString device_line = system_lines.size() > 1 ? system_lines.at(1) : QStringLiteral("video <unknown>");
+    painter.drawText(QRect{8, 211, 224, 17}, Qt::AlignLeft | Qt::AlignVCenter,
+                     QFontMetrics{font}.elidedText(device_line, Qt::ElideRight, 224));
+}
+
+void draw_xy_scope(QPainter &painter, const QRect &rect, float x, float y)
+{
+    painter.setPen(QPen{QColor{70, 82, 92}, 1});
+    painter.setBrush(QColor{15, 19, 24});
+    painter.drawRoundedRect(rect, 5, 5);
+    painter.drawLine(rect.center().x(), rect.top() + 6, rect.center().x(), rect.bottom() - 6);
+    painter.drawLine(rect.left() + 6, rect.center().y(), rect.right() - 6, rect.center().y());
+
+    const int dot_x = rect.left() + 8 + static_cast<int>(clamp01(x) * static_cast<float>(rect.width() - 16));
+    const int dot_y = rect.bottom() - 8 - static_cast<int>(clamp01(y) * static_cast<float>(rect.height() - 16));
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor{255, 219, 92});
+    painter.drawEllipse(QPoint{dot_x, dot_y}, 6, 6);
+}
+
+void draw_modulation_page(QPainter &painter, const QRect &bounds, const core::ControlFrame &frame,
+                          const QStringList &app_lines)
+{
+    draw_header(painter, bounds, QStringLiteral("modulation"));
+
+    draw_meter(painter, QRect{8, 31, 224, 24}, QStringLiteral("audio"), frame.audio_level, QColor{83, 184, 255});
+    draw_meter(painter, QRect{8, 58, 224, 24}, QStringLiteral("midi 1"), frame.midi_primary, QColor{210, 130, 255});
+    draw_meter(painter, QRect{8, 85, 224, 24}, QStringLiteral("midi 2"), frame.midi_secondary, QColor{143, 221, 126});
+
+    draw_xy_scope(painter, QRect{8, 119, 104, 86}, frame.osc_x, frame.osc_y);
+    draw_tile(painter, QRect{122, 119, 110, 40}, QStringLiteral("osc x"), QString::number(frame.osc_x, 'f', 2),
+              QColor{255, 219, 92});
+    draw_tile(painter, QRect{122, 166, 110, 40}, QStringLiteral("osc y"), QString::number(frame.osc_y, 'f', 2),
+              QColor{255, 219, 92});
+
+    QFont font = painter.font();
+    font.setPixelSize(10);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(QColor{151, 164, 176});
+    const QString app_line = app_lines.isEmpty() ? QStringLiteral("osc/midi/adc status") : app_lines.front();
+    const QString count_line = QStringLiteral("OSC values %1").arg(frame.osc_values.size());
+    painter.drawText(QRect{8, 211, 111, 17}, Qt::AlignLeft | Qt::AlignVCenter, count_line);
+    painter.drawText(QRect{122, 211, 110, 17}, Qt::AlignRight | Qt::AlignVCenter,
+                     QFontMetrics{font}.elidedText(app_line, Qt::ElideLeft, 110));
 }
 
 std::filesystem::path gpio_path(int gpio, const char *entry)
@@ -515,15 +638,13 @@ QImage FramebufferMirror::render_page(const QImage &source, const core::ControlF
 
     if (current_page_ == SecondaryDisplayPage::SystemPerformance)
     {
-        draw_text_page(painter, bounds, QStringLiteral("system performance"), system_lines);
+        draw_performance_page(painter, bounds, frame, system_lines);
         return page;
     }
 
     if (current_page_ == SecondaryDisplayPage::AppStatusModulation)
     {
-        QStringList lines = app_lines;
-        lines << modulation_lines(frame);
-        draw_text_page(painter, bounds, QStringLiteral("modulation status"), lines);
+        draw_modulation_page(painter, bounds, frame, app_lines);
         return page;
     }
 
