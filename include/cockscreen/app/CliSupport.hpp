@@ -27,6 +27,19 @@ std::optional<std::string> detect_default_audio_device();
 std::vector<std::string> detect_midi_devices();
 std::optional<std::string> detect_default_midi_device();
 
+#ifndef _WIN32
+struct RpiCameraDevice
+{
+    std::string path;
+    std::string driver;
+    std::string card;
+    bool requires_media_controller{false};
+    std::vector<std::string> modes;
+};
+
+std::vector<RpiCameraDevice> detect_rpi_cameras();
+#endif
+
 CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings settings);
 void print_help();
 void print_device_list();

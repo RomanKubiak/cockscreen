@@ -1,9 +1,18 @@
 #include "cockscreen/app/CliSupport.hpp"
 
+#include "cockscreen/runtime/V4l2Capture.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+
+#ifndef _WIN32
+#include <fcntl.h>
+#include <linux/videodev2.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -306,5 +315,77 @@ std::optional<std::string> detect_default_midi_device()
 
     return midi_devices.front();
 }
+
+std::vector<RpiCameraDevice> detect_rpi_cameras()
+{
+    static constexpr std::string_view rpi_driver_keywords[] = {
+        "unicam", "bm2835", "mmal", "rpivid", "imx219", "imx477", "imx708",
+        "ov5647", "ov9281", "ov64a40", "se327m12",
+    };
+
+    std::vector<RpiCameraDevice> result;
+
+    std::error_code ec;
+    for (const auto &entry : std::filesystem::directory_iterator{"/dev", ec})
+    {
+        if (ec)
+        {
+            break;
+        }
+
+        const auto filename = entry.path().filename().string();
+        if (filename.rfind("video", 0) != 0)
+        {
+            continue;
+        }
+
+        const std::string path = entry.path().string();
+        const int fd = ::open(path.c_str(), O_RDONLY | O_NONBLOCK);
+        if (fd < 0)
+        {
+            continue;
+        }
+
+        v4l2_capability cap{};
+        const bool ok = (::ioctl(fd, VIDIOC_QUERYCAP, &cap) == 0);
+        ::close(fd);
+
+        if (!ok || (cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) == 0)
+        {
+            continue;
+        }
+
+        const std::string driver{reinterpret_cast<const char *>(cap.driver)};
+        const std::string card{reinterpret_cast<const char *>(cap.card)};
+
+        bool is_rpi = false;
+        for (const auto &kw : rpi_driver_keywords)
+        {
+            if (contains_case_insensitive(driver, kw) || contains_case_insensitive(card, kw))
+            {
+                is_rpi = true;
+                break;
+            }
+        }
+
+        if (!is_rpi)
+        {
+            continue;
+        }
+
+        RpiCameraDevice dev;
+        dev.path = path;
+        dev.driver = driver;
+        dev.card = card;
+        dev.requires_media_controller = (cap.capabilities & V4L2_CAP_IO_MC) != 0U;
+        dev.modes = runtime::V4l2Capture::enumerate_supported_modes(path);
+        result.push_back(std::move(dev));
+    }
+
+    std::sort(result.begin(), result.end(),
+              [](const RpiCameraDevice &a, const RpiCameraDevice &b) { return a.path < b.path; });
+    return result;
+}
+
 #endif // !_WIN32
 } // namespace cockscreen::app
