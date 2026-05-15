@@ -91,6 +91,11 @@ void DirectVideoWindow::upload_latest_frame()
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame->width, frame->height, GL_RGB, GL_UNSIGNED_BYTE, source);
             texture_layout_ = frame->pixel_format == V4l2PixelFormat::rgb24 ? 2.0F : 3.0F;
         }
+        else if (frame->pixel_format == V4l2PixelFormat::bayer_bggr8)
+        {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frame->width, frame->height, GL_LUMINANCE, GL_UNSIGNED_BYTE, source);
+            texture_layout_ = 4.0F;
+        }
 
         glBindTexture(GL_TEXTURE_2D, 0);
         current_texture_is_external_ = false;
@@ -156,6 +161,10 @@ void DirectVideoWindow::ensure_cpu_texture(const V4l2FrameView &frame)
     if (frame.pixel_format == V4l2PixelFormat::yuyv || frame.pixel_format == V4l2PixelFormat::uyvy)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, target_width, target_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    }
+    else if (frame.pixel_format == V4l2PixelFormat::bayer_bggr8)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, target_width, target_height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);
     }
     else
     {
@@ -328,6 +337,8 @@ int DirectVideoWindow::bytes_per_line(const V4l2FrameView &frame)
     case V4l2PixelFormat::rgb24:
     case V4l2PixelFormat::bgr24:
         return frame.width * 3;
+    case V4l2PixelFormat::bayer_bggr8:
+        return frame.width;
     default:
         return frame.stride;
     }

@@ -93,6 +93,7 @@ if(NOT WIN32)
             src/runtime/v4l2/Buffers.cpp
             src/runtime/v4l2/Capture.cpp
             src/runtime/v4l2/Formats.cpp
+            src/runtime/v4l2/MediaController.cpp
             src/runtime/pi/DisplaySwitch.cpp
             src/runtime/pi/FramebufferMirror.cpp
     )
@@ -166,6 +167,18 @@ target_link_libraries(cockscreen PRIVATE cockscreen::core)
 
 target_compile_features(cockscreen PRIVATE cxx_std_20)
 
+if(NOT WIN32)
+    add_executable(cockscreen_spi_linux_stats
+        src/tools/spi_linux_stats/main.cpp
+    )
+    target_link_libraries(cockscreen_spi_linux_stats PRIVATE cockscreen::core Qt6::Gui)
+    target_compile_features(cockscreen_spi_linux_stats PRIVATE cxx_std_20)
+
+    if(COCKSCREEN_ENABLE_STRICT_WARNINGS)
+        target_compile_options(cockscreen_spi_linux_stats PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endif()
+
 if(COCKSCREEN_TARGET_PLATFORM STREQUAL "raspberry-pi-3b-plus" AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm|aarch64")
     set(_cockscreen_pi3bplus_cpu_flags -mcpu=cortex-a53 -mtune=cortex-a53)
     target_compile_options(cockscreen_core PRIVATE ${_cockscreen_pi3bplus_cpu_flags})
@@ -191,6 +204,10 @@ if(COCKSCREEN_ENABLE_PI_AUTO_SYNC AND CMAKE_CROSSCOMPILING AND COCKSCREEN_TARGET
 endif()
 
 install(TARGETS cockscreen RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if(NOT WIN32)
+    install(TARGETS cockscreen_spi_linux_stats RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_program(WINE_EXECUTABLE NAMES wine wine64 REQUIRED

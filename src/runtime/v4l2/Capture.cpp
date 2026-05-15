@@ -38,8 +38,9 @@ bool V4l2Capture::open(std::string_view device_path, int requested_width, int re
 {
     close_device();
     prefer_rgb_capture_ = prefer_rgb_capture;
+    device_path_ = std::string(device_path);
 
-    fd_ = ::open(std::string(device_path).c_str(), O_RDWR | O_NONBLOCK);
+    fd_ = ::open(device_path_.c_str(), O_RDWR | O_NONBLOCK);
     if (fd_ < 0)
     {
         error_message_ = "Failed to open V4L2 device";
@@ -62,7 +63,31 @@ bool V4l2Capture::open(std::string_view device_path, int requested_width, int re
         return false;
     }
 
-    if (!configure_format(requested_width, requested_height) || !request_buffers())
+    is_mc_device_ = (capability.capabilities & V4L2_CAP_IO_MC) != 0;
+
+    std::string mc_error;
+    bool mc_configured = false;
+    if (is_mc_device_)
+    {
+        mc_configured = v4l2::mc_setup_pipeline(device_path_, requested_width, requested_height, &mc_error);
+    }
+
+    bool format_ready = configure_format(requested_width, requested_height);
+    if (!format_ready && is_mc_device_)
+    {
+        const std::string direct_error = error_message_;
+        if (!mc_configured)
+        {
+            error_message_ = "Direct MC capture negotiation failed: " + direct_error +
+                             " | Media Controller pipeline setup failed: " + mc_error;
+            close_device();
+            return false;
+        }
+        error_message_ = "Direct MC capture negotiation failed: " + direct_error +
+                         " | After Media Controller setup: " + error_message_;
+    }
+
+    if (!format_ready || !request_buffers())
     {
         close_device();
         return false;
@@ -87,6 +112,21 @@ bool V4l2Capture::start()
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (v4l2::ioctl_retry(fd_, VIDIOC_STREAMON, &type) != 0)
     {
+        if (is_mc_device_)
+        {
+            std::string mc_error;
+            if (v4l2::mc_setup_pipeline(device_path_, width_, height_, &mc_error) &&
+                v4l2::ioctl_retry(fd_, VIDIOC_STREAMON, &type) == 0)
+            {
+                streaming_ = true;
+                return true;
+            }
+            if (!mc_error.empty())
+            {
+                error_message_ = "VIDIOC_STREAMON failed after MC retry: " + mc_error;
+                return false;
+            }
+        }
         error_message_ = "VIDIOC_STREAMON failed";
         return false;
     }

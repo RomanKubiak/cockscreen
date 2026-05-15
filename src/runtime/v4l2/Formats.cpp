@@ -24,6 +24,11 @@ V4l2PixelFormat to_pixel_format(std::uint32_t value)
         return V4l2PixelFormat::rgb24;
     case V4L2_PIX_FMT_BGR24:
         return V4l2PixelFormat::bgr24;
+    case V4L2_PIX_FMT_SBGGR8:
+    case V4L2_PIX_FMT_SRGGB8:
+    case V4L2_PIX_FMT_SGRBG8:
+    case V4L2_PIX_FMT_SGBRG8:
+        return V4l2PixelFormat::bayer_bggr8;
     default:
         return V4l2PixelFormat::unsupported;
     }
@@ -45,6 +50,9 @@ std::string to_format_label(V4l2PixelFormat pixel_format, int width, int height)
         break;
     case V4l2PixelFormat::bgr24:
         label = "BGR24";
+        break;
+    case V4l2PixelFormat::bayer_bggr8:
+        label = "BAYER8";
         break;
     default:
         label = "unknown";
@@ -148,15 +156,18 @@ std::vector<std::string> V4l2Capture::enumerate_supported_modes(std::string_view
 
 bool V4l2Capture::configure_format(int requested_width, int requested_height)
 {
-    const std::array<std::uint32_t, 4> candidate_formats = prefer_rgb_capture_
-                                                               ? std::array<std::uint32_t, 4>{V4L2_PIX_FMT_RGB24,
-                                                                                               V4L2_PIX_FMT_BGR24,
-                                                                                               V4L2_PIX_FMT_YUYV,
-                                                                                               V4L2_PIX_FMT_UYVY}
-                                                               : std::array<std::uint32_t, 4>{V4L2_PIX_FMT_YUYV,
-                                                                                               V4L2_PIX_FMT_UYVY,
-                                                                                               V4L2_PIX_FMT_RGB24,
-                                                                                               V4L2_PIX_FMT_BGR24};
+    const std::array<std::uint32_t, 4> mc_formats = {
+        V4L2_PIX_FMT_SBGGR8, V4L2_PIX_FMT_SRGGB8,
+        V4L2_PIX_FMT_SGRBG8, V4L2_PIX_FMT_SGBRG8,
+    };
+    const std::array<std::uint32_t, 4> standard_formats =
+        prefer_rgb_capture_
+            ? std::array<std::uint32_t, 4>{V4L2_PIX_FMT_RGB24, V4L2_PIX_FMT_BGR24,
+                                            V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_UYVY}
+            : std::array<std::uint32_t, 4>{V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_UYVY,
+                                            V4L2_PIX_FMT_RGB24, V4L2_PIX_FMT_BGR24};
+
+    const auto &candidate_formats = is_mc_device_ ? mc_formats : standard_formats;
 
     for (const auto candidate : candidate_formats)
     {
@@ -185,7 +196,8 @@ bool V4l2Capture::configure_format(int requested_width, int requested_height)
         return true;
     }
 
-    error_message_ = "Failed to negotiate a supported V4L2 pixel format";
+    error_message_ = is_mc_device_ ? "Failed to negotiate a Bayer pixel format for MC device"
+                                   : "Failed to negotiate a supported V4L2 pixel format";
     return false;
 }
 

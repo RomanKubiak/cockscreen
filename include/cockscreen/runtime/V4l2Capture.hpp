@@ -17,6 +17,10 @@ enum class V4l2PixelFormat
     uyvy,
     rgb24,
     bgr24,
+    bayer_bggr8,  // SBGGR8 — B G / G R  (pixel (0,0) is Blue)
+    bayer_gbrg8,  // SGBRG8 — G B / R G  (OV5647)
+    bayer_grbg8,  // SGRBG8 — G R / B G
+    bayer_rggb8,  // SRGGB8 — R G / G B  (IMX219, IMX477)
 };
 
 struct V4l2FrameView
@@ -63,6 +67,7 @@ class V4l2Capture
     };
 
     int fd_{-1};
+    std::string device_path_;
     std::vector<Buffer> buffers_;
     int active_buffer_index_{-1};
     int width_{0};
@@ -74,6 +79,7 @@ class V4l2Capture
     bool streaming_{false};
     bool dmabuf_export_supported_{false};
     bool prefer_rgb_capture_{false};
+    bool is_mc_device_{false};
 
     bool configure_format(int requested_width, int requested_height);
     bool request_buffers();

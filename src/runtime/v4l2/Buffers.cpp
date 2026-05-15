@@ -134,6 +134,8 @@ void V4l2Capture::close_device()
     format_label_ = "unknown";
     dmabuf_export_supported_ = false;
     prefer_rgb_capture_ = false;
+    is_mc_device_ = false;
+    device_path_.clear();
 }
 
 } // namespace cockscreen::runtime

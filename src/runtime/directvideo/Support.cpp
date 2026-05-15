@@ -89,6 +89,13 @@ const char *cpu_fragment_shader()
             return;
         }
 
+        if (u_layout > 3.5)
+        {
+            float lum = texture2D(u_texture, v_texcoord).r;
+            gl_FragColor = vec4(lum, lum, lum, 1.0);
+            return;
+        }
+
         vec3 rgb = texture2D(u_texture, v_texcoord).rgb;
         if (u_layout > 2.5)
         {
