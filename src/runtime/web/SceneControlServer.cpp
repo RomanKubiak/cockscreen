@@ -85,15 +85,17 @@ std::filesystem::path preset_root_directory(const std::filesystem::path &scene_f
     return scene_file.parent_path();
 }
 
-std::filesystem::path shader_preset_file_path(const std::filesystem::path &shader_directory, std::string_view shader_name)
+// Returns the per-shader preset directory: <shader_dir>/../presets/<shader_name>/
+std::filesystem::path shader_preset_directory(const std::filesystem::path &shader_directory,
+                                              std::string_view shader_name)
 {
     if (shader_directory.empty() || shader_name.empty())
     {
         return {};
     }
 
-    const std::filesystem::path shader_path{std::string{shader_name}};
-    return shader_directory / std::filesystem::path{shader_path.generic_string() + ".preset"};
+    const auto name = std::filesystem::path{std::string{shader_name}}.filename();
+    return std::filesystem::weakly_canonical(shader_directory / ".." / "presets" / name);
 }
 
 bool read_json_object_file(const std::filesystem::path &file_path, QJsonObject *object, QString *error_message)
@@ -178,6 +180,37 @@ bool write_json_object_file(const std::filesystem::path &file_path, const QJsonO
     }
 
     return true;
+}
+
+// Loads all *.json preset files from a per-shader preset directory.
+// Returns (preset_name, values) pairs sorted by filename.
+std::vector<std::pair<std::string, QJsonObject>> load_shader_presets(const std::filesystem::path &preset_dir)
+{
+    std::vector<std::pair<std::string, QJsonObject>> result;
+    if (preset_dir.empty() || !std::filesystem::exists(preset_dir))
+    {
+        return result;
+    }
+
+    std::vector<std::filesystem::path> files;
+    for (const auto &entry : std::filesystem::directory_iterator(preset_dir))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".json")
+        {
+            files.push_back(entry.path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+
+    for (const auto &path : files)
+    {
+        QJsonObject values;
+        if (read_json_object_file(path, &values, nullptr))
+        {
+            result.emplace_back(path.stem().string(), values);
+        }
+    }
+    return result;
 }
 
 std::string relative_path_string(const std::filesystem::path &path, const std::filesystem::path &root)
@@ -622,11 +655,26 @@ constexpr ShaderParameterSpec kWireframePlaneParameterSpecs[] = {
     {"u_plane_base_speed", "Cruise speed", "float", 0.0, 0.5, 0.001, 0.15},
 };
 
+constexpr ShaderParameterSpec kFluidFlowParameterSpecs[] = {
+    {"u_flow_speed",       "Flow speed",        "float", 0.05, 3.0,  0.01, 0.4},
+    {"u_flow_scale",       "Flow scale",        "float", 0.5,  6.0,  0.1,  2.0},
+    {"u_turbulence",       "Turbulence",        "float", 0.0,  1.5,  0.01, 0.6},
+    {"u_whirl_x",          "Whirl X",           "float", 0.0,  1.0,  0.01, 0.5},
+    {"u_whirl_y",          "Whirl Y",           "float", 0.0,  1.0,  0.01, 0.5},
+    {"u_whirl_strength",   "Whirl strength",    "float", -8.0, 8.0,  0.1,  3.0},
+    {"u_whirl_radius",     "Whirl radius",      "float", 0.02, 1.0,  0.01, 0.25},
+    {"u_palette_shift",    "Color shift",       "float", 0.0,  1.0,  0.01, 0.0},
+    {"u_palette_contrast", "Color contrast",    "float", 0.0,  2.0,  0.01, 0.8},
+    {"u_color_speed",      "Color cycle speed", "float", 0.0,  1.0,  0.01, 0.12},
+    {"u_brightness",       "Brightness",        "float", 0.0,  2.0,  0.01, 1.0},
+};
+
 constexpr ShaderParameterCatalog kShaderParameterCatalogs[] = {
     {"rat_distortion.glsl", "Rat distortion saw teeth", kRatDistortionParameterSpecs,
      std::size(kRatDistortionParameterSpecs)},
     {"wireframe_plane.glsl", "Wireframe plane", kWireframePlaneParameterSpecs,
      std::size(kWireframePlaneParameterSpecs)},
+    {"fluid_flow.glsl", "Fluid flow", kFluidFlowParameterSpecs, std::size(kFluidFlowParameterSpecs)},
 };
 
 double shader_parameter_viewport_height(const SceneDefinition *scene)
@@ -826,27 +874,19 @@ QJsonObject shader_preset_state_to_json(const std::filesystem::path &shader_dire
 
     for (const auto &catalog : kShaderParameterCatalogs)
     {
-        const auto preset_path = shader_preset_file_path(shader_directory, catalog.shader);
-        QJsonObject store;
-        if (!read_json_object_file(preset_path, &store, nullptr))
-        {
-            continue;
-        }
+        const auto preset_dir = shader_preset_directory(shader_directory, catalog.shader);
+        const auto loaded     = load_shader_presets(preset_dir);
 
         QJsonArray presets;
-        for (auto it = store.begin(); it != store.end(); ++it)
+        for (const auto &[name, values] : loaded)
         {
-            if (!it.value().isObject())
-            {
-                continue;
-            }
-
-            presets.push_back(QJsonObject{{QStringLiteral("name"), it.key()},
-                                          {QStringLiteral("values"), it.value().toObject()}});
+            presets.push_back(QJsonObject{{QStringLiteral("name"), QString::fromStdString(name)},
+                                          {QStringLiteral("values"), values}});
         }
 
         result.insert(QString::fromUtf8(catalog.shader),
-                      QJsonObject{{QStringLiteral("file"), QString::fromStdString(preset_path.generic_string())},
+                      QJsonObject{{QStringLiteral("directory"),
+                                   QString::fromStdString(preset_dir.generic_string())},
                                   {QStringLiteral("presets"), presets}});
     }
     return result;
@@ -937,20 +977,10 @@ bool save_shader_preset_values(const QString &shader_name, const QString &preset
         return false;
     }
 
-    const auto preset_path = shader_preset_file_path(shader_directory, shader_key);
-    QJsonObject store;
-    if (!read_json_object_file(preset_path, &store, error_message))
-    {
-        return false;
-    }
-
-    store.insert(preset_key, shader_parameter_values_to_json(shader_name, scene, window));
-    if (!write_json_object_file(preset_path, store, error_message))
-    {
-        return false;
-    }
-
-    return true;
+    const auto preset_dir  = shader_preset_directory(shader_directory, shader_key);
+    const auto preset_file = preset_dir / (preset_key.toStdString() + ".json");
+    const auto preset_values = shader_parameter_values_to_json(shader_name, scene, window);
+    return write_json_object_file(preset_file, preset_values, error_message);
 }
 
 QStringList json_array_to_string_list(const QJsonValue &value)
@@ -1631,7 +1661,7 @@ QByteArray SceneControlServer::build_index_html() const
             }
         }
         function shaderPresetCatalog(shaderName) {
-            return currentState?.shaderPresets?.[shaderName] || { file: '', presets: [] };
+            return currentState?.shaderPresets?.[shaderName] || { directory: '', presets: [] };
         }
         function collectShaderParameterValues(shaderName) {
             const popup = document.getElementById('shaderParamPopup');
@@ -1842,7 +1872,7 @@ QByteArray SceneControlServer::build_index_html() const
                 saveButton.onclick = () => saveShaderPreset(shaderName);
             }
             if (message) {
-                message.textContent = catalog.file ? `Preset file: ${catalog.file}` : 'No preset file yet.';
+                message.textContent = catalog.directory ? `Preset dir: ${catalog.directory}` : 'No preset directory yet.';
             }
         }
         function renderShaderParameterPopup(shaderName, layerName) {
@@ -1885,7 +1915,7 @@ QByteArray SceneControlServer::build_index_html() const
                 .join('');
             const presetInitialValue = (Array.isArray(presets.presets) && presets.presets.length > 0) ? escapeHtml(presets.presets[0].name) : '';
             const presetLoadDisabled = !Array.isArray(presets.presets) || presets.presets.length === 0 ? 'disabled' : '';
-            const presetHint = presets.file ? `Preset file: ${escapeHtml(presets.file)}` : 'No preset file yet.';
+            const presetHint = presets.directory ? `Preset dir: ${escapeHtml(presets.directory)}` : 'No preset directory yet.';
 
             popup.innerHTML = `
                 <div class="shader-popup-card" role="dialog" aria-modal="true" aria-label="Shader parameters">
