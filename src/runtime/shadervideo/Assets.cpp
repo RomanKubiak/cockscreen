@@ -267,14 +267,19 @@ QImage frame_to_rgba8888(const V4l2FrameView &frame)
         return converted;
     }
 
-    // Bayer debayer: bilinear interpolation for all four patterns.
+    // Bayer debayer: bilinear interpolation for 8-bit and 10-bit patterns.
     // Pattern determines the 2×2 mosaic at (0,0):
     //   BGGR: B G / G R    GBRG: G B / R G
     //   GRBG: G R / B G    RGGB: R G / G B
+    // 10-bit variants store one sample per 16-bit LE word (10-bit value in low bits).
     if (frame.pixel_format == V4l2PixelFormat::bayer_bggr8 ||
         frame.pixel_format == V4l2PixelFormat::bayer_gbrg8 ||
         frame.pixel_format == V4l2PixelFormat::bayer_grbg8 ||
-        frame.pixel_format == V4l2PixelFormat::bayer_rggb8)
+        frame.pixel_format == V4l2PixelFormat::bayer_rggb8 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_bggr10 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_gbrg10 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_grbg10 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_rggb10)
     {
         const int w = frame.width;
         const int h = frame.height;
@@ -286,12 +291,17 @@ QImage frame_to_rgba8888(const V4l2FrameView &frame)
         int r_row = 0;
         int b_col = 0;
         int b_row = 0;
+        bool is_10bit = false;
         switch (frame.pixel_format)
         {
-        case V4l2PixelFormat::bayer_bggr8: r_col = 1; r_row = 1; b_col = 0; b_row = 0; break;
-        case V4l2PixelFormat::bayer_gbrg8: r_col = 0; r_row = 1; b_col = 1; b_row = 0; break;
-        case V4l2PixelFormat::bayer_grbg8: r_col = 1; r_row = 0; b_col = 0; b_row = 1; break;
-        case V4l2PixelFormat::bayer_rggb8: r_col = 0; r_row = 0; b_col = 1; b_row = 1; break;
+        case V4l2PixelFormat::bayer_bggr8:  r_col = 1; r_row = 1; b_col = 0; b_row = 0; break;
+        case V4l2PixelFormat::bayer_gbrg8:  r_col = 0; r_row = 1; b_col = 1; b_row = 0; break;
+        case V4l2PixelFormat::bayer_grbg8:  r_col = 1; r_row = 0; b_col = 0; b_row = 1; break;
+        case V4l2PixelFormat::bayer_rggb8:  r_col = 0; r_row = 0; b_col = 1; b_row = 1; break;
+        case V4l2PixelFormat::bayer_bggr10: r_col = 1; r_row = 1; b_col = 0; b_row = 0; is_10bit = true; break;
+        case V4l2PixelFormat::bayer_gbrg10: r_col = 0; r_row = 1; b_col = 1; b_row = 0; is_10bit = true; break;
+        case V4l2PixelFormat::bayer_grbg10: r_col = 1; r_row = 0; b_col = 0; b_row = 1; is_10bit = true; break;
+        case V4l2PixelFormat::bayer_rggb10: r_col = 0; r_row = 0; b_col = 1; b_row = 1; is_10bit = true; break;
         default: break;
         }
 
@@ -300,11 +310,19 @@ QImage frame_to_rgba8888(const V4l2FrameView &frame)
             return {};
 
         const auto *src = reinterpret_cast<const uchar *>(frame.data);
-        const int stride = frame.stride > 0 ? frame.stride : w;
+        const int stride = frame.stride > 0 ? frame.stride : (is_10bit ? w * 2 : w);
 
+        // 10-bit: each pixel is a 16-bit LE word; top 8 bits = word >> 2.
         auto px = [&](int x, int y) -> int {
             x = std::clamp(x, 0, w - 1);
             y = std::clamp(y, 0, h - 1);
+            if (is_10bit)
+            {
+                const int offset = y * stride + x * 2;
+                const std::uint16_t word = static_cast<std::uint16_t>(src[offset]) |
+                                           (static_cast<std::uint16_t>(src[offset + 1]) << 8);
+                return static_cast<int>(word >> 2);
+            }
             return src[y * stride + x];
         };
 

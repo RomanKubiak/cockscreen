@@ -74,7 +74,7 @@ bool V4l2Capture::open(std::string_view device_path, int requested_width, int re
                                                 &mc_error, &mc_mbus_code);
     }
 
-    bool format_ready = configure_format(requested_width, requested_height);
+    bool format_ready = configure_format(requested_width, requested_height, mc_mbus_code);
     if (!format_ready && is_mc_device_)
     {
         const std::string direct_error = error_message_;

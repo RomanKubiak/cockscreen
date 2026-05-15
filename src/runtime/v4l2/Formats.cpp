@@ -33,6 +33,14 @@ V4l2PixelFormat to_pixel_format(std::uint32_t value)
         return V4l2PixelFormat::bayer_grbg8;
     case V4L2_PIX_FMT_SRGGB8:
         return V4l2PixelFormat::bayer_rggb8;
+    case V4L2_PIX_FMT_SBGGR10:
+        return V4l2PixelFormat::bayer_bggr10;
+    case V4L2_PIX_FMT_SGBRG10:
+        return V4l2PixelFormat::bayer_gbrg10;
+    case V4L2_PIX_FMT_SGRBG10:
+        return V4l2PixelFormat::bayer_grbg10;
+    case V4L2_PIX_FMT_SRGGB10:
+        return V4l2PixelFormat::bayer_rggb10;
     default:
         return V4l2PixelFormat::unsupported;
     }
@@ -67,6 +75,18 @@ std::string to_format_label(V4l2PixelFormat pixel_format, int width, int height)
     case V4l2PixelFormat::bayer_rggb8:
         label = "SRGGB8";
         break;
+    case V4l2PixelFormat::bayer_bggr10:
+        label = "SBGGR10";
+        break;
+    case V4l2PixelFormat::bayer_gbrg10:
+        label = "SGBRG10";
+        break;
+    case V4l2PixelFormat::bayer_grbg10:
+        label = "SGRBG10";
+        break;
+    case V4l2PixelFormat::bayer_rggb10:
+        label = "SRGGB10";
+        break;
     default:
         label = "unknown";
         break;
@@ -94,23 +114,47 @@ V4l2PixelFormat mbus_code_to_pixel_format(std::uint32_t mbus_code)
     switch (mbus_code)
     {
     case MEDIA_BUS_FMT_SBGGR8_1X8:
-    case MEDIA_BUS_FMT_SBGGR10_1X10:
-    case MEDIA_BUS_FMT_SBGGR12_1X12:
         return V4l2PixelFormat::bayer_bggr8;
     case MEDIA_BUS_FMT_SGBRG8_1X8:
-    case MEDIA_BUS_FMT_SGBRG10_1X10:
-    case MEDIA_BUS_FMT_SGBRG12_1X12:
         return V4l2PixelFormat::bayer_gbrg8;
     case MEDIA_BUS_FMT_SGRBG8_1X8:
-    case MEDIA_BUS_FMT_SGRBG10_1X10:
-    case MEDIA_BUS_FMT_SGRBG12_1X12:
         return V4l2PixelFormat::bayer_grbg8;
     case MEDIA_BUS_FMT_SRGGB8_1X8:
+        return V4l2PixelFormat::bayer_rggb8;
+    case MEDIA_BUS_FMT_SBGGR10_1X10:
+    case MEDIA_BUS_FMT_SBGGR12_1X12:
+        return V4l2PixelFormat::bayer_bggr10;
+    case MEDIA_BUS_FMT_SGBRG10_1X10:
+    case MEDIA_BUS_FMT_SGBRG12_1X12:
+        return V4l2PixelFormat::bayer_gbrg10;
+    case MEDIA_BUS_FMT_SGRBG10_1X10:
+    case MEDIA_BUS_FMT_SGRBG12_1X12:
+        return V4l2PixelFormat::bayer_grbg10;
     case MEDIA_BUS_FMT_SRGGB10_1X10:
     case MEDIA_BUS_FMT_SRGGB12_1X12:
-        return V4l2PixelFormat::bayer_rggb8;
+        return V4l2PixelFormat::bayer_rggb10;
     default:
         return V4l2PixelFormat::unsupported;
+    }
+}
+
+std::uint32_t mbus_code_to_v4l2_pixelformat(std::uint32_t mbus_code)
+{
+    switch (mbus_code)
+    {
+    case MEDIA_BUS_FMT_SBGGR8_1X8:   return V4L2_PIX_FMT_SBGGR8;
+    case MEDIA_BUS_FMT_SGBRG8_1X8:   return V4L2_PIX_FMT_SGBRG8;
+    case MEDIA_BUS_FMT_SGRBG8_1X8:   return V4L2_PIX_FMT_SGRBG8;
+    case MEDIA_BUS_FMT_SRGGB8_1X8:   return V4L2_PIX_FMT_SRGGB8;
+    case MEDIA_BUS_FMT_SBGGR10_1X10:
+    case MEDIA_BUS_FMT_SBGGR12_1X12: return V4L2_PIX_FMT_SBGGR10;
+    case MEDIA_BUS_FMT_SGBRG10_1X10:
+    case MEDIA_BUS_FMT_SGBRG12_1X12: return V4L2_PIX_FMT_SGBRG10;
+    case MEDIA_BUS_FMT_SGRBG10_1X10:
+    case MEDIA_BUS_FMT_SGRBG12_1X12: return V4L2_PIX_FMT_SGRBG10;
+    case MEDIA_BUS_FMT_SRGGB10_1X10:
+    case MEDIA_BUS_FMT_SRGGB12_1X12: return V4L2_PIX_FMT_SRGGB10;
+    default: return 0;
     }
 }
 
@@ -192,11 +236,19 @@ std::vector<std::string> V4l2Capture::enumerate_supported_modes(std::string_view
     return result;
 }
 
-bool V4l2Capture::configure_format(int requested_width, int requested_height)
+bool V4l2Capture::configure_format(int requested_width, int requested_height, std::uint32_t mc_mbus_code_hint)
 {
-    const std::array<std::uint32_t, 4> mc_formats = {
-        V4L2_PIX_FMT_SBGGR8, V4L2_PIX_FMT_SRGGB8,
-        V4L2_PIX_FMT_SGRBG8, V4L2_PIX_FMT_SGBRG8,
+    // For MC devices: if we know the sensor's mbus code, try that exact V4L2 format first.
+    // VIDIOC_S_FMT accepts 8-bit even when the sensor is 10-bit, but VIDIOC_STREAMON then
+    // fails — so the hint avoids that false positive.
+    const std::uint32_t hint_fmt = (is_mc_device_ && mc_mbus_code_hint != 0)
+                                       ? v4l2::mbus_code_to_v4l2_pixelformat(mc_mbus_code_hint)
+                                       : 0U;
+
+    const std::array<std::uint32_t, 8> mc_formats = {
+        hint_fmt != 0 ? hint_fmt : V4L2_PIX_FMT_SGBRG10,
+        V4L2_PIX_FMT_SBGGR10, V4L2_PIX_FMT_SRGGB10, V4L2_PIX_FMT_SGRBG10, V4L2_PIX_FMT_SGBRG10,
+        V4L2_PIX_FMT_SBGGR8,  V4L2_PIX_FMT_SRGGB8,  V4L2_PIX_FMT_SGRBG8,
     };
     const std::array<std::uint32_t, 4> standard_formats =
         prefer_rgb_capture_
@@ -205,37 +257,46 @@ bool V4l2Capture::configure_format(int requested_width, int requested_height)
             : std::array<std::uint32_t, 4>{V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_UYVY,
                                             V4L2_PIX_FMT_RGB24, V4L2_PIX_FMT_BGR24};
 
-    const auto &candidate_formats = is_mc_device_ ? mc_formats : standard_formats;
+    const auto try_formats = [&](const std::uint32_t *fmts, std::size_t count) -> bool {
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            if (fmts[i] == 0)
+                continue;
 
-    for (const auto candidate : candidate_formats)
+            v4l2_format format{};
+            format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+            format.fmt.pix.width = static_cast<std::uint32_t>(requested_width);
+            format.fmt.pix.height = static_cast<std::uint32_t>(requested_height);
+            format.fmt.pix.pixelformat = fmts[i];
+            format.fmt.pix.field = V4L2_FIELD_NONE;
+
+            if (v4l2::ioctl_retry(fd_, VIDIOC_S_FMT, &format) != 0)
+                continue;
+
+            pixel_format_ = v4l2::to_pixel_format(format.fmt.pix.pixelformat);
+            if (pixel_format_ == V4l2PixelFormat::unsupported)
+                continue;
+
+            width_ = static_cast<int>(format.fmt.pix.width);
+            height_ = static_cast<int>(format.fmt.pix.height);
+            stride_ = static_cast<int>(format.fmt.pix.bytesperline);
+            format_label_ = v4l2::to_format_label(pixel_format_, width_, height_);
+            return true;
+        }
+        return false;
+    };
+
+    if (is_mc_device_)
     {
-        v4l2_format format{};
-        format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        format.fmt.pix.width = requested_width;
-        format.fmt.pix.height = requested_height;
-        format.fmt.pix.pixelformat = candidate;
-        format.fmt.pix.field = V4L2_FIELD_NONE;
-
-        if (v4l2::ioctl_retry(fd_, VIDIOC_S_FMT, &format) != 0)
-        {
-            continue;
-        }
-
-        pixel_format_ = v4l2::to_pixel_format(format.fmt.pix.pixelformat);
-        if (pixel_format_ == V4l2PixelFormat::unsupported)
-        {
-            continue;
-        }
-
-        width_ = static_cast<int>(format.fmt.pix.width);
-        height_ = static_cast<int>(format.fmt.pix.height);
-        stride_ = static_cast<int>(format.fmt.pix.bytesperline);
-        format_label_ = v4l2::to_format_label(pixel_format_, width_, height_);
-        return true;
+        if (try_formats(mc_formats.data(), mc_formats.size()))
+            return true;
+        error_message_ = "Failed to negotiate a Bayer pixel format for MC device";
+        return false;
     }
 
-    error_message_ = is_mc_device_ ? "Failed to negotiate a Bayer pixel format for MC device"
-                                   : "Failed to negotiate a supported V4L2 pixel format";
+    if (try_formats(standard_formats.data(), standard_formats.size()))
+        return true;
+    error_message_ = "Failed to negotiate a supported V4L2 pixel format";
     return false;
 }
 

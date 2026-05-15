@@ -12,5 +12,6 @@ std::string fourcc_to_string(std::uint32_t fourcc);
 bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::string *error_out,
                        std::uint32_t *out_mbus_code = nullptr);
 V4l2PixelFormat mbus_code_to_pixel_format(std::uint32_t mbus_code);
+std::uint32_t mbus_code_to_v4l2_pixelformat(std::uint32_t mbus_code);
 
 } // namespace cockscreen::runtime::v4l2

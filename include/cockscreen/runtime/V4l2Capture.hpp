@@ -17,10 +17,14 @@ enum class V4l2PixelFormat
     uyvy,
     rgb24,
     bgr24,
-    bayer_bggr8,  // SBGGR8 — B G / G R  (pixel (0,0) is Blue)
-    bayer_gbrg8,  // SGBRG8 — G B / R G  (OV5647)
-    bayer_grbg8,  // SGRBG8 — G R / B G
-    bayer_rggb8,  // SRGGB8 — R G / G B  (IMX219, IMX477)
+    bayer_bggr8,   // SBGGR8  — B G / G R  (pixel (0,0) is Blue)
+    bayer_gbrg8,   // SGBRG8  — G B / R G  (OV5647 8-bit mode)
+    bayer_grbg8,   // SGRBG8  — G R / B G
+    bayer_rggb8,   // SRGGB8  — R G / G B  (IMX219, IMX477)
+    bayer_bggr10,  // SBGGR10 — same pattern, 16-bit word per pixel (10-bit in low bits)
+    bayer_gbrg10,  // SGBRG10 — G B / R G  (OV5647 native 10-bit output)
+    bayer_grbg10,  // SGRBG10
+    bayer_rggb10,  // SRGGB10 — R G / G B  (IMX219 native)
 };
 
 struct V4l2FrameView
@@ -81,7 +85,7 @@ class V4l2Capture
     bool prefer_rgb_capture_{false};
     bool is_mc_device_{false};
 
-    bool configure_format(int requested_width, int requested_height);
+    bool configure_format(int requested_width, int requested_height, std::uint32_t mc_mbus_code_hint = 0);
     bool request_buffers();
     bool queue_all_buffers();
     void stop_stream();
