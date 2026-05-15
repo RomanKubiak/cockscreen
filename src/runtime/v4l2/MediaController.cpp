@@ -17,7 +17,8 @@
 namespace cockscreen::runtime::v4l2
 {
 
-bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::string *error_out)
+bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::string *error_out,
+                       std::uint32_t *out_mbus_code)
 {
     struct stat video_stat{};
     if (::stat(std::string(video_path).c_str(), &video_stat) != 0)
@@ -175,6 +176,7 @@ bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::
     };
 
     bool format_set = false;
+    std::uint32_t negotiated_code = 0;
     for (const auto code : mbus_codes)
     {
         v4l2_subdev_format fmt{};
@@ -187,6 +189,7 @@ bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::
         fmt.format.colorspace = V4L2_COLORSPACE_RAW;
         if (ioctl(subdev_fd, VIDIOC_SUBDEV_S_FMT, &fmt) == 0)
         {
+            negotiated_code = fmt.format.code;  // read back what the sensor accepted
             format_set = true;
             break;
         }
@@ -198,6 +201,9 @@ bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::
         if (error_out) *error_out = "Failed to set sensor subdev format";
         return false;
     }
+
+    if (out_mbus_code != nullptr)
+        *out_mbus_code = negotiated_code;
 
     return true;
 }

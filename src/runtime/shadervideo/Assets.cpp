@@ -267,6 +267,96 @@ QImage frame_to_rgba8888(const V4l2FrameView &frame)
         return converted;
     }
 
+    // Bayer debayer: bilinear interpolation for all four patterns.
+    // Pattern determines the 2×2 mosaic at (0,0):
+    //   BGGR: B G / G R    GBRG: G B / R G
+    //   GRBG: G R / B G    RGGB: R G / G B
+    if (frame.pixel_format == V4l2PixelFormat::bayer_bggr8 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_gbrg8 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_grbg8 ||
+        frame.pixel_format == V4l2PixelFormat::bayer_rggb8)
+    {
+        const int w = frame.width;
+        const int h = frame.height;
+
+        // Offsets into the 2×2 Bayer mosaic for each colour channel.
+        // (r_col, r_row) = top-left of red pixels; (b_col, b_row) = blue.
+        // Green is at the other two positions.
+        int r_col = 0;
+        int r_row = 0;
+        int b_col = 0;
+        int b_row = 0;
+        switch (frame.pixel_format)
+        {
+        case V4l2PixelFormat::bayer_bggr8: r_col = 1; r_row = 1; b_col = 0; b_row = 0; break;
+        case V4l2PixelFormat::bayer_gbrg8: r_col = 0; r_row = 1; b_col = 1; b_row = 0; break;
+        case V4l2PixelFormat::bayer_grbg8: r_col = 1; r_row = 0; b_col = 0; b_row = 1; break;
+        case V4l2PixelFormat::bayer_rggb8: r_col = 0; r_row = 0; b_col = 1; b_row = 1; break;
+        default: break;
+        }
+
+        QImage out{w, h, QImage::Format_RGBA8888};
+        if (out.isNull())
+            return {};
+
+        const auto *src = reinterpret_cast<const uchar *>(frame.data);
+        const int stride = frame.stride > 0 ? frame.stride : w;
+
+        auto px = [&](int x, int y) -> int {
+            x = std::clamp(x, 0, w - 1);
+            y = std::clamp(y, 0, h - 1);
+            return src[y * stride + x];
+        };
+
+        for (int y = 0; y < h; ++y)
+        {
+            uchar *row = out.scanLine(y);
+            for (int x = 0; x < w; ++x)
+            {
+                int red = 0;
+                int green = 0;
+                int blue = 0;
+
+                const int xmod = x & 1;
+                const int ymod = y & 1;
+
+                if (xmod == r_col && ymod == r_row)
+                {
+                    // Red pixel
+                    red = px(x, y);
+                    green = (px(x - 1, y) + px(x + 1, y) + px(x, y - 1) + px(x, y + 1)) / 4;
+                    blue = (px(x - 1, y - 1) + px(x + 1, y - 1) + px(x - 1, y + 1) + px(x + 1, y + 1)) / 4;
+                }
+                else if (xmod == b_col && ymod == b_row)
+                {
+                    // Blue pixel
+                    blue = px(x, y);
+                    green = (px(x - 1, y) + px(x + 1, y) + px(x, y - 1) + px(x, y + 1)) / 4;
+                    red = (px(x - 1, y - 1) + px(x + 1, y - 1) + px(x - 1, y + 1) + px(x + 1, y + 1)) / 4;
+                }
+                else if (ymod == r_row)
+                {
+                    // Green on red row: red left/right, blue above/below
+                    green = px(x, y);
+                    red = (px(x - 1, y) + px(x + 1, y)) / 2;
+                    blue = (px(x, y - 1) + px(x, y + 1)) / 2;
+                }
+                else
+                {
+                    // Green on blue row: blue left/right, red above/below
+                    green = px(x, y);
+                    blue = (px(x - 1, y) + px(x + 1, y)) / 2;
+                    red = (px(x, y - 1) + px(x, y + 1)) / 2;
+                }
+
+                write_rgba_pixel(row, red, green, blue);
+                row += 4;
+            }
+        }
+
+        return out;
+    }
+
     return {};
 }
 #endif

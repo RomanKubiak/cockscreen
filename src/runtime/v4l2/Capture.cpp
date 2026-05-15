@@ -66,10 +66,12 @@ bool V4l2Capture::open(std::string_view device_path, int requested_width, int re
     is_mc_device_ = (capability.capabilities & V4L2_CAP_IO_MC) != 0;
 
     std::string mc_error;
+    std::uint32_t mc_mbus_code = 0;
     bool mc_configured = false;
     if (is_mc_device_)
     {
-        mc_configured = v4l2::mc_setup_pipeline(device_path_, requested_width, requested_height, &mc_error);
+        mc_configured = v4l2::mc_setup_pipeline(device_path_, requested_width, requested_height,
+                                                &mc_error, &mc_mbus_code);
     }
 
     bool format_ready = configure_format(requested_width, requested_height);
@@ -91,6 +93,18 @@ bool V4l2Capture::open(std::string_view device_path, int requested_width, int re
     {
         close_device();
         return false;
+    }
+
+    // Override pixel_format_ with the exact pattern from the sensor's mbus code
+    // so debayering uses the correct channel layout (OV5647=GBRG, IMX219=RGGB, etc.).
+    if (is_mc_device_ && mc_mbus_code != 0)
+    {
+        const auto pattern = v4l2::mbus_code_to_pixel_format(mc_mbus_code);
+        if (pattern != V4l2PixelFormat::unsupported)
+        {
+            pixel_format_ = pattern;
+            format_label_ = v4l2::to_format_label(pixel_format_, width_, height_);
+        }
     }
 
     return true;
@@ -115,9 +129,19 @@ bool V4l2Capture::start()
         if (is_mc_device_)
         {
             std::string mc_error;
-            if (v4l2::mc_setup_pipeline(device_path_, width_, height_, &mc_error) &&
+            std::uint32_t retry_mbus_code = 0;
+            if (v4l2::mc_setup_pipeline(device_path_, width_, height_, &mc_error, &retry_mbus_code) &&
                 v4l2::ioctl_retry(fd_, VIDIOC_STREAMON, &type) == 0)
             {
+                if (retry_mbus_code != 0)
+                {
+                    const auto pattern = v4l2::mbus_code_to_pixel_format(retry_mbus_code);
+                    if (pattern != V4l2PixelFormat::unsupported)
+                    {
+                        pixel_format_ = pattern;
+                        format_label_ = v4l2::to_format_label(pixel_format_, width_, height_);
+                    }
+                }
                 streaming_ = true;
                 return true;
             }

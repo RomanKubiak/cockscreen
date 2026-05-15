@@ -2,6 +2,7 @@
 
 #include "cockscreen/runtime/v4l2/Support.hpp"
 
+#include <linux/media-bus-format.h>
 #include <linux/videodev2.h>
 
 #include <algorithm>
@@ -25,10 +26,13 @@ V4l2PixelFormat to_pixel_format(std::uint32_t value)
     case V4L2_PIX_FMT_BGR24:
         return V4l2PixelFormat::bgr24;
     case V4L2_PIX_FMT_SBGGR8:
-    case V4L2_PIX_FMT_SRGGB8:
-    case V4L2_PIX_FMT_SGRBG8:
-    case V4L2_PIX_FMT_SGBRG8:
         return V4l2PixelFormat::bayer_bggr8;
+    case V4L2_PIX_FMT_SGBRG8:
+        return V4l2PixelFormat::bayer_gbrg8;
+    case V4L2_PIX_FMT_SGRBG8:
+        return V4l2PixelFormat::bayer_grbg8;
+    case V4L2_PIX_FMT_SRGGB8:
+        return V4l2PixelFormat::bayer_rggb8;
     default:
         return V4l2PixelFormat::unsupported;
     }
@@ -52,7 +56,16 @@ std::string to_format_label(V4l2PixelFormat pixel_format, int width, int height)
         label = "BGR24";
         break;
     case V4l2PixelFormat::bayer_bggr8:
-        label = "BAYER8";
+        label = "SBGGR8";
+        break;
+    case V4l2PixelFormat::bayer_gbrg8:
+        label = "SGBRG8";
+        break;
+    case V4l2PixelFormat::bayer_grbg8:
+        label = "SGRBG8";
+        break;
+    case V4l2PixelFormat::bayer_rggb8:
+        label = "SRGGB8";
         break;
     default:
         label = "unknown";
@@ -74,6 +87,31 @@ std::string fourcc_to_string(std::uint32_t fourcc)
     buffer[2] = static_cast<char>((fourcc >> 16U) & 0xFFU);
     buffer[3] = static_cast<char>((fourcc >> 24U) & 0xFFU);
     return std::string{buffer.data()};
+}
+
+V4l2PixelFormat mbus_code_to_pixel_format(std::uint32_t mbus_code)
+{
+    switch (mbus_code)
+    {
+    case MEDIA_BUS_FMT_SBGGR8_1X8:
+    case MEDIA_BUS_FMT_SBGGR10_1X10:
+    case MEDIA_BUS_FMT_SBGGR12_1X12:
+        return V4l2PixelFormat::bayer_bggr8;
+    case MEDIA_BUS_FMT_SGBRG8_1X8:
+    case MEDIA_BUS_FMT_SGBRG10_1X10:
+    case MEDIA_BUS_FMT_SGBRG12_1X12:
+        return V4l2PixelFormat::bayer_gbrg8;
+    case MEDIA_BUS_FMT_SGRBG8_1X8:
+    case MEDIA_BUS_FMT_SGRBG10_1X10:
+    case MEDIA_BUS_FMT_SGRBG12_1X12:
+        return V4l2PixelFormat::bayer_grbg8;
+    case MEDIA_BUS_FMT_SRGGB8_1X8:
+    case MEDIA_BUS_FMT_SRGGB10_1X10:
+    case MEDIA_BUS_FMT_SRGGB12_1X12:
+        return V4l2PixelFormat::bayer_rggb8;
+    default:
+        return V4l2PixelFormat::unsupported;
+    }
 }
 
 } // namespace cockscreen::runtime::v4l2

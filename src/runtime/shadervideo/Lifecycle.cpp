@@ -82,7 +82,6 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
     : QOpenGLWidget{parent}, settings_{settings}, scene_{std::move(scene)}, video_label_{std::move(video_label)},
       show_status_overlay_{show_status_overlay}, camera_format_label_{std::move(format_label)}
 {
-    Q_UNUSED(video_device_path);
     resize(settings_.width, settings_.height);
     setMinimumSize(900, 540);
     setAutoFillBackground(false);
@@ -162,6 +161,38 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
         }
         capture_session_.setCamera(camera_);
     }
+
+#ifndef _WIN32
+    // Raw V4L2 capture path for Media Controller devices (e.g. CSI cameras on Pi)
+    // that Qt's multimedia backend cannot enumerate.
+    const bool try_raw_capture = !use_camera_capture &&
+                                 !video_device_path.isEmpty() &&
+                                 !video_device_path.startsWith(QLatin1Char('@')) &&
+                                 !video_label_.startsWith(QStringLiteral("appsink:"));
+    if (try_raw_capture)
+    {
+        const std::string dev_path = video_device_path.toStdString();
+        if (raw_video_capture_.open(dev_path, requested_width, requested_height))
+        {
+            if (raw_video_capture_.start())
+            {
+                raw_video_capture_active_ = true;
+                raw_video_capture_start_time_ = std::chrono::steady_clock::now();
+                camera_format_label_ = QString::fromStdString(raw_video_capture_.format_label());
+                std::cout << "[raw-capture] opened " << dev_path
+                          << " as " << raw_video_capture_.format_label() << '\n';
+            }
+            else
+            {
+                std::cerr << "[raw-capture] start failed: " << raw_video_capture_.error_message() << '\n';
+            }
+        }
+        else
+        {
+            std::cerr << "[raw-capture] open failed: " << raw_video_capture_.error_message() << '\n';
+        }
+    }
+#endif
 
     playback_player_.setVideoSink(&playback_sink_);
 
