@@ -12,16 +12,11 @@
     "render_path": "qt-shader",
     "render_device": "/dev/fb0",
     "geometry": {
-        "width": 256,
-        "height": 128
+        "width": 1024,
+        "height": 600
     },
-    /*
-     * Keep HDMI at the panel-native 1024x600, but render shaders into a
-     * cheaper offscreen target and scale that texture to the screen. This
-     * stays useful on the Pi 3B+ because fragment shader cost dominates.
-     */
     "render_target": {
-        "enabled": true,
+        "enabled": false,
         "width": 320,
         "height": 240,
         "presentation": "stretch",
@@ -110,9 +105,9 @@
     },
     "inputs": {
         "video": {
-            "enabled": false,
+            "enabled": true,
             "device": "/dev/video2",
-            "format": "1024x600",
+            "format": "640x480",
             /*
              * Time-based transform animation for the video quad.
              * Presets: rotate, resize, move-x, move-y, orbit, wobble, bounce.
@@ -173,7 +168,7 @@
     },
     "show_status_overlay": true,
     "video": {
-        "enabled": false,
+        "enabled": true,
         "opacity": 1.0,
         "shaders": []
     },
@@ -191,7 +186,7 @@
     },
     /* Compositing order from back to front. */
     "layer_order": [
-        "screen"
+        "video"
     ],
     /*
      * fluid_flow.glsl startup defaults – aurora preset.
