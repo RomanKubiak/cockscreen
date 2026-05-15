@@ -159,3 +159,7 @@ Implementation files:
 - [x] Implement `rotate`, `resize`, and `move-x`.
 - [x] Implement only time-based animation first.
 - [ ] Add OSC/MIDI/audio transform mappings after the base evaluator is stable.
+
+## Ops Follow-Up
+
+- [ ] Add a `systemd` unit for `cockscreen_spi_linux_stats` so the SPI Linux stats page can auto-start on boot.

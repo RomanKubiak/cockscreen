@@ -18,7 +18,10 @@
      * Optional qt-shader offscreen target. The app/window can stay at the
      * physical display mode while shaders run at a lower resolution.
      * presentation: stretch, fit, fill, center, integer-scale.
+     *   "crop" is accepted as an alias for "fill".
+     *   "integer_scale" and "integer" are accepted as aliases for "integer-scale".
      * filter: linear or nearest.
+     *   "pixelated" is accepted as an alias for "nearest".
      */
     "render_target": {
         "enabled": false,
@@ -57,6 +60,7 @@
         /*
          * Clockwise degrees applied before writing the framebuffer.
          * Accepted numerically by runtime; common values are 0, 90, 180, 270.
+         * "rotation" is accepted as an alias for "rotation_degrees".
          */
         "rotation_degrees": 90,
         /* The parser also accepts "background" as an alias. */
@@ -76,6 +80,13 @@
         /*
          * Initial page shown on startup. The video page mirrors the latest
          * captured frame into the small framebuffer.
+         * Also accepted as "source" or "mode" (aliases for "default_page").
+         * Page name aliases:
+         *   video_input (default)
+         *   mode
+         *   system_performance_overview  →  also: "system", "system-performance"
+         *   app_status_modulation        →  also: "app-status", "modulation"
+         *   linux_os_stats               →  also: "linux", "linux-os", "os-stats", "system-stats"
          */
         "default_page": "video_input",
         /*
@@ -182,6 +193,12 @@
         "video": {
             "enabled": true,
             "device": "/dev/video1",
+            /*
+             * Named capture resolution shortcuts: qvga (320x240), vga (640x480),
+             * svga (800x600), xga (1024x768), 720p (1280x720), 1080p (1920x1080).
+             * Also accepts an explicit "WxH" string, e.g. "1280x720".
+             * Falls back to the window geometry dimensions when omitted.
+             */
             "format": "qvga",
             /* scale is clamped to a minimum of 0.01. */
             "scale": 0.35,
@@ -211,7 +228,44 @@
              * "position_y": 0.5
              */
             "position_x": 0.5,
-            "position_y": 0.5
+            "position_y": 0.5,
+            /*
+             * CPU-side pixel buffer corruption applied per-frame before GPU upload.
+             * All effects are reproducible given the same seed + frame index.
+             * strength is clamped to [0, 1]; block_size minimum is 2.
+             */
+            "artifact": {
+                "enabled": false,
+                "scanline_drop": false,
+                "block_corrupt": false,
+                "bit_flip": false,
+                "smear": false,
+                "strength": 0.3,
+                "block_size": 16,
+                "seed": 42
+            },
+            /*
+             * GStreamer RTP-over-UDP loopback with optional tc-netem network
+             * impairments. Requires v4l2loopback kernel module and CAP_NET_ADMIN
+             * (or root) for tc commands.
+             *
+             * When use_appsink is true the app reads decoded frames directly from
+             * GStreamer via appsink rather than v4l2loopback, skipping the virtual
+             * device entirely.
+             *
+             * loss_percent, corrupt_percent, and reorder_percent are clamped to
+             * [0, 100]; delay_ms to >= 0; udp_port to [1024, 65535].
+             */
+            "loopback": {
+                "enabled": false,
+                "loss_percent": 0.0,
+                "corrupt_percent": 0.0,
+                "delay_ms": 0,
+                "reorder_percent": 0.0,
+                "udp_port": 5004,
+                "loopback_device": "/dev/video10",
+                "use_appsink": false
+            }
         },
         "playback": {
             "enabled": true,
@@ -231,7 +285,50 @@
             "loop_repeat": 0,
             /* playback_rate and playback_rate_looping are clamped to >= 0.01. */
             "playback_rate": 1.0,
-            "playback_rate_looping": 0.75
+            "playback_rate_looping": 0.75,
+            /*
+             * Playback audio volume envelope. All values clamped to [0, 1] except
+             * the _ms fields which are clamped to >= 0.
+             * volume        — steady-state peak level (default 1.0).
+             * volume_initial — level at t=0, before the intro fade-in (default 0.0).
+             * volume_fade_in_ms        — ms to ramp volume_initial → volume on first play.
+             * volume_loop_fade_in_ms   — ms to ramp up to volume at the start of each loop.
+             * volume_loop_fade_out_ms  — ms to ramp down before each loop end.
+             * volume_fade_out_ms       — ms to ramp to 0 after the final loop or end-of-media.
+             */
+            "volume": 1.0,
+            "volume_initial": 0.0,
+            "volume_fade_in_ms": 0,
+            "volume_loop_fade_in_ms": 0,
+            "volume_loop_fade_out_ms": 0,
+            "volume_fade_out_ms": 0,
+            /*
+             * When true, the audio embedded in the playback file is routed into
+             * the FFT/level shader uniforms instead of the audio capture device.
+             * Requires inputs.audio_playback to be configured.
+             */
+            "fft_analysis_from_playback": false,
+            /* artifact and loopback work the same as for inputs.video. */
+            "artifact": {
+                "enabled": false,
+                "scanline_drop": false,
+                "block_corrupt": false,
+                "bit_flip": false,
+                "smear": false,
+                "strength": 0.3,
+                "block_size": 16,
+                "seed": 42
+            },
+            "loopback": {
+                "enabled": false,
+                "loss_percent": 0.0,
+                "corrupt_percent": 0.0,
+                "delay_ms": 0,
+                "reorder_percent": 0.0,
+                "udp_port": 5004,
+                "loopback_device": "/dev/video10",
+                "use_appsink": false
+            }
         },
         /* The parser also accepts inputs.background as an alias. */
         "background_color": {
@@ -240,10 +337,35 @@
             "b": 0.0,
             "a": 1.0
         },
-        /* device strings are backend-specific and matched later by runtime startup. */
+        /*
+         * Audio capture device for FFT/level shader uniforms.
+         * device tokens (case-insensitive):
+         *   "@default_input@"         — first non-HDMI capture device (Linux default).
+         *   "@default_monitor_output@" — PulseAudio/PipeWire monitor of the default sink;
+         *     also accepted: @DEFAULT_OUTPUT_MONITOR@, @DEFAULT_MONITOR@,
+         *     @default_monitor_output@, @DEFAULT_MONITOR_OUTPUT@.
+         *   "@disabled@"              — disables audio capture entirely.
+         *   Any other string is matched against device ID or description (case-insensitive).
+         *
+         * fft_analysis_enabled: when false the device is still opened for monitoring
+         * but its signal does NOT drive FFT/level uniforms (useful if you are routing
+         * analysis through inputs.audio_playback instead).
+         */
         "audio": {
             "enabled": true,
-            "device": "@default_monitor_output@"
+            "device": "@default_monitor_output@",
+            "fft_analysis_enabled": true
+        },
+        /*
+         * Optional secondary audio capture input used exclusively for driving FFT
+         * and level shader uniforms for the playback layer.  Configured identically
+         * to inputs.audio.  Only active when inputs.playback.fft_analysis_from_playback
+         * is true.  Set device to "@disabled@" (or omit entirely) to leave unused.
+         */
+        "audio_playback": {
+            "enabled": false,
+            "device": "@disabled@",
+            "fft_analysis_enabled": true
         },
         "midi": {
             "enabled": true,
@@ -337,7 +459,7 @@
             /* shader can be a filename or a partial match. */
             "shader": "wireframe_sphere.glsl",
             "uniform": "u_wire_density",
-            /* channel default is -1 if omitted. */
+            /* channel: 0–15 for a specific MIDI channel; -1 (or omit) matches all channels. */
             "channel": 0,
             "cc": 91,
             "min": 0.0,
@@ -372,6 +494,21 @@
             "min": 0.0,
             "max": 1.0,
             "exponent": 1.0
+        }
+    ],
+    /*
+     * Static shader uniform overrides. Applied once at startup and not updated
+     * by MIDI/OSC at runtime. Useful for setting scene-specific default values
+     * for a shader parameter without touching the shader file itself.
+     * layer and uniform are required; shader is an optional partial filename
+     * match, same as in midi_cc_mappings.
+     */
+    "shader_uniforms": [
+        {
+            "layer": "screen",
+            "shader": "wireframe_sphere.glsl",
+            "uniform": "u_wire_density",
+            "value": 0.5
         }
     ]
 }
