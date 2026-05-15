@@ -610,6 +610,8 @@ void ShaderVideoWindow::paintGL()
     {
         glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
         glViewport(0, 0, display_size.width(), display_size.height());
+        glClearColor(clear_color.redF(), clear_color.greenF(), clear_color.blueF(), clear_color.alphaF());
+        glClear(GL_COLOR_BUFFER_BIT);
     }
 
     if (background_image_texture_id_ != 0 && background_image_texture_width_ > 0 &&
