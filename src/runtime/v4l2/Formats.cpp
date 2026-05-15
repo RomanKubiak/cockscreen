@@ -245,10 +245,12 @@ bool V4l2Capture::configure_format(int requested_width, int requested_height, st
                                        ? v4l2::mbus_code_to_v4l2_pixelformat(mc_mbus_code_hint)
                                        : 0U;
 
-    const std::array<std::uint32_t, 8> mc_formats = {
-        hint_fmt != 0 ? hint_fmt : V4L2_PIX_FMT_SGBRG10,
-        V4L2_PIX_FMT_SBGGR10, V4L2_PIX_FMT_SRGGB10, V4L2_PIX_FMT_SGRBG10, V4L2_PIX_FMT_SGBRG10,
-        V4L2_PIX_FMT_SBGGR8,  V4L2_PIX_FMT_SRGGB8,  V4L2_PIX_FMT_SGRBG8,
+    // Try hint format first (derived from sensor mbus code), then all 4 10-bit and 4 8-bit
+    // variants as fallback.  Skip entries that duplicate the hint so we don't retry twice.
+    const std::array<std::uint32_t, 9> mc_formats = {
+        hint_fmt,
+        V4L2_PIX_FMT_SBGGR10, V4L2_PIX_FMT_SGBRG10, V4L2_PIX_FMT_SGRBG10, V4L2_PIX_FMT_SRGGB10,
+        V4L2_PIX_FMT_SBGGR8,  V4L2_PIX_FMT_SGBRG8,  V4L2_PIX_FMT_SGRBG8,  V4L2_PIX_FMT_SRGGB8,
     };
     const std::array<std::uint32_t, 4> standard_formats =
         prefer_rgb_capture_
