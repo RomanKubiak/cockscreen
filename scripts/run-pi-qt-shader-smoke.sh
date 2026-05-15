@@ -37,14 +37,39 @@ echo "[pi-smoke] run timeout: ${run_timeout_seconds}s"
 
 remote_output="$(ssh -o BatchMode=yes -o StrictHostKeyChecking=no "$remote_host" "cd /home/atom/cockscreen && \
 python3 - <<'PY' '$scene_path' '$remote_scene'
+import ctypes, ctypes.util, fcntl, os, re, struct, sys
 from pathlib import Path
-import sys
 
 source = Path(sys.argv[1])
 target = Path(sys.argv[2])
 text = source.read_text()
 if '\"render_path\": \"v4l2-dmabuf-egl\"' in text:
     text = text.replace('\"render_path\": \"v4l2-dmabuf-egl\"', '\"render_path\": \"qt-shader\"', 1)
+# Find the first /dev/videoN that is a plain V4L2 capture device (no Media
+# Controller requirement), which Qt's backend can enumerate and open.
+# V4L2_CAP_VIDEO_CAPTURE=0x1, V4L2_CAP_IO_MC=0x400000
+VIDIOC_QUERYCAP = 0x80685600
+qt_dev = None
+for n in range(32):
+    path = f'/dev/video{n}'
+    if not os.path.exists(path):
+        continue
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        buf = bytearray(104)
+        fcntl.ioctl(fd, VIDIOC_QUERYCAP, buf)
+        os.close(fd)
+        caps = struct.unpack_from('<I', buf, 84)[0]  # capabilities field: driver[16]+card[32]+bus_info[32]+version[4]
+        if (caps & 0x1) and not (caps & 0x400000):
+            qt_dev = path
+            break
+    except Exception:
+        try: os.close(fd)
+        except Exception: pass
+if qt_dev is None:
+    qt_dev = '/dev/video0'
+# Replace the first /dev/videoN device in the scene with a Qt-accessible one.
+text = re.sub(r'\"device\"\s*:\s*\"/dev/video\d+\"', f'\"device\": \"{qt_dev}\"', text, count=1)
 target.write_text(text)
 print(target)
 PY
