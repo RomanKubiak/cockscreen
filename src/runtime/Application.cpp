@@ -503,16 +503,6 @@ std::optional<WebServerBindConfig> parse_web_server_bind_url(const std::string &
     return WebServerBindConfig{address, static_cast<quint16>(url.port()), url.toString()};
 }
 
-QString effective_top_layer_name(const SceneDefinition &scene)
-{
-    if (!scene.layer_order.empty())
-    {
-        return QString::fromStdString(scene.layer_order.back());
-    }
-
-    return QStringLiteral("<none>");
-}
-
 } // namespace
 
 Application::Application(ApplicationSettings settings) : settings_{std::move(settings)} {}
@@ -608,6 +598,20 @@ int Application::run(int argc, char *argv[])
             std::cerr << "[kms] no connected DRM display connector detected; leaving eglfs KMS config unset" << '\n';
             ::unsetenv("QT_QPA_EGLFS_KMS_CONFIG");
         }
+    }
+#endif
+
+    // Peek render_device before QApplication so we can set QT_QPA_EGLFS_DEVICE in time.
+    if (!settings_.scene_file.empty())
+        settings_.render_device = peek_scene_render_device(std::filesystem::path{settings_.scene_file});
+
+#if defined(__linux__) && defined(__aarch64__)
+    if (settings_.render_device.rfind("/dev/fb", 0) == 0)
+    {
+        const std::string dri_device = "/dev/dri/card" + settings_.render_device.substr(7);
+        ::setenv("QT_QPA_EGLFS_DEVICE", dri_device.c_str(), 1);
+        std::cout << "[display] render_device=" << settings_.render_device
+                  << " -> QT_QPA_EGLFS_DEVICE=" << dri_device << '\n';
     }
 #endif
 
@@ -851,12 +855,11 @@ int Application::run(int argc, char *argv[])
 
         std::cout << "Cockscreen initial scaffold" << '\n';
         std::cout << "Target platform: " << COCKSCREEN_TARGET_PLATFORM << '\n';
-        std::cout << "Video input: " << effective_settings.video_device << '\n';
         std::cout << "Video device: " << effective_settings.video_device << '\n';
         std::cout << "Video format: " << window.capture_format_label().toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-          std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
+        std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
         std::cout << "Shader loaded: " << shader_label.toStdString() << '\n';
         std::cout << "Render path: " << settings_.render_path << '\n';
         std::cout << "DMABUF export: " << (window.dmabuf_export_supported() ? "available" : "unavailable") << '\n';
@@ -870,6 +873,7 @@ int Application::run(int argc, char *argv[])
 
         const auto startup_frame = modulation_bus_.snapshot();
         std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
+        std::cout.flush();
 
         return application.exec();
 #endif // !_WIN32
@@ -966,7 +970,6 @@ int Application::run(int argc, char *argv[])
                                          : std::nullopt;
         const QString camera_format_text = selected_format.has_value() ? camera_format_label(*selected_format)
                                                                       : QStringLiteral("unknown");
-        const QString top_layer_name = effective_top_layer_name(scene);
         const bool show_status_overlay = scene.show_status_overlay;
 
         ShaderVideoWindow window{settings_, scene, video_device.value_or(QCameraDevice{}), video_device_path,
@@ -1037,7 +1040,7 @@ int Application::run(int argc, char *argv[])
                 return 2;
             }
         }
-        if (has_screens && is_pi_target())
+        if (has_screens && is_pi_target() && settings_.render_device != "window")
         {
             window.showFullScreen();
         }
@@ -1067,10 +1070,9 @@ int Application::run(int argc, char *argv[])
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(frame.gain, 0, 'f', 2);
-            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3")
+            const QString device_line = QStringLiteral("Video %1 | format %2")
                                             .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
-                                            .arg(camera_format_text)
-                                            .arg(top_layer_name);
+                                            .arg(camera_format_text);
             const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
@@ -1106,10 +1108,9 @@ int Application::run(int argc, char *argv[])
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(window.processing_fps(), 0, 'f', 1)
                                          .arg(live_frame.gain, 0, 'f', 2);
-            const QString device_line = QStringLiteral("Video %1 | format %2 | top layer %3")
+            const QString device_line = QStringLiteral("Video %1 | format %2")
                                             .arg(selected_video_label.isEmpty() ? QStringLiteral("<none>") : selected_video_label)
-                                            .arg(camera_format_text)
-                                            .arg(top_layer_name);
+                                            .arg(camera_format_text);
             const QString audio_line = build_audio_overlay_text(audio_analysis, audio_label);
             const QString midi_line = QStringLiteral("MIDI %1 | %2")
                                           .arg(midi_input.status_message().isEmpty() ? QStringLiteral("inactive")
@@ -1140,20 +1141,19 @@ int Application::run(int argc, char *argv[])
 
         std::cout << "Cockscreen initial scaffold" << '\n';
         std::cout << "Target platform: " << COCKSCREEN_TARGET_PLATFORM << '\n';
-        std::cout << "Video input: " << (selected_video_label.isEmpty() ? "<none>" : selected_video_label.toStdString())
-                  << '\n';
         std::cout << "Video device: " << settings_.video_device << '\n';
+        std::cout << "Video opened: " << (selected_video_label.isEmpty() ? "<none>" : selected_video_label.toStdString()) << '\n';
         std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
         std::cout << "Audio device: " << settings_.audio_device << '\n';
         std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
         std::cout << "Scene file: " << (settings_.scene_file.empty() ? "<none>" : settings_.scene_file) << '\n';
-        std::cout << "Top layer: " << top_layer_name.toStdString() << '\n';
         std::cout << "Render path: " << settings_.render_path << '\n';
-        std::cout << "Window mode: Qt6 windowed" << '\n';
+        std::cout << "Window mode: " << (has_screens ? (is_pi_target() ? "fullscreen" : "Qt6 windowed") : "headless") << '\n';
         std::cout << "Qt platform: " << qt_platform_name << '\n';
 
         const auto startup_frame = modulation_bus_.snapshot();
         std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
+        std::cout.flush();
 
         return application.exec();
     }
@@ -1173,7 +1173,7 @@ int Application::run(int argc, char *argv[])
 
     VideoWindow window{settings_, video_device.value_or(QCameraDevice{}), selected_video_label, camera_format_text,
                        video_shader_label, show_status_overlay};
-    if (has_screens && is_pi_target())
+    if (has_screens && is_pi_target() && settings_.render_device != "window")
     {
         window.showFullScreen();
     }
@@ -1288,22 +1288,22 @@ int Application::run(int argc, char *argv[])
 
     std::cout << "Cockscreen initial scaffold" << '\n';
     std::cout << "Target platform: " << COCKSCREEN_TARGET_PLATFORM << '\n';
-    std::cout << "Video input: " << (selected_video_label.isEmpty() ? "<none>" : selected_video_label.toStdString()) << '\n';
     std::cout << "Video device: " << settings_.video_device << '\n';
+    std::cout << "Video opened: " << (selected_video_label.isEmpty() ? "<none>" : selected_video_label.toStdString()) << '\n';
     std::cout << "Video format: " << camera_format_text.toStdString() << '\n';
     std::cout << "Audio device: " << settings_.audio_device << '\n';
     std::cout << "OSC endpoint: " << settings_.osc_endpoint << '\n';
-      std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
+    std::cout << "Resources directory: " << scene.resources_directory.string() << '\n';
     std::cout << playback_config_summary(scene).toStdString() << '\n';
     std::cout << "Video shader loaded: " << video_shader_label.toStdString() << '\n';
     std::cout << "Screen shader loaded: " << screen_shader_label.toStdString() << '\n';
-    std::cout << "Top layer: " << effective_top_layer_name(scene).toStdString() << '\n';
     std::cout << "Render path: " << settings_.render_path << '\n';
-    std::cout << "Window mode: Qt6 windowed" << '\n';
+    std::cout << "Window mode: " << (has_screens ? (is_pi_target() ? "fullscreen" : "Qt6 windowed") : "headless") << '\n';
     std::cout << "Qt platform: " << qt_platform_name << '\n';
 
     const auto startup_frame = modulation_bus_.snapshot();
     std::cout << "Initial modulation state: audio=" << startup_frame.audio_level << ", gain=" << startup_frame.gain << '\n';
+    std::cout.flush();
 
     return application.exec();
 }

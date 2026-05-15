@@ -100,6 +100,19 @@ std::string strip_jsonc_comments(std::string_view input)
 
 } // namespace
 
+std::string peek_scene_render_device(const std::filesystem::path &path)
+{
+    const auto text = read_text_file(path);
+    if (!text.has_value())
+        return {};
+    const auto jsonc_text = strip_jsonc_comments(*text);
+    const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(jsonc_text));
+    if (!document.isObject())
+        return {};
+    const auto rd = document.object().value(QStringLiteral("render_device"));
+    return rd.isString() ? rd.toString().toStdString() : std::string{};
+}
+
 std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path, std::string *error_message)
 {
     const auto text = read_text_file(path);

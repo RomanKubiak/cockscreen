@@ -21,6 +21,7 @@ struct ApplicationSettings
     std::string web_server_bind_url{};
     bool scene_file_is_read_only{false};
     std::string render_path{"qt"};
+    std::string render_device;
     int width{1024};
     int height{600};
     int frame_rate{30};

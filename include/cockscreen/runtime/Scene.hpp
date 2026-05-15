@@ -270,6 +270,7 @@ struct SceneDefinition
     bool show_status_overlay{true};
     bool timecode{false};
     std::string render_path{"qt-shader"};
+    std::string render_device;
     std::string shader_directory;
     std::filesystem::path resources_directory;
     std::string note_font_file;
@@ -290,6 +291,7 @@ struct SceneDefinition
     SceneSecondaryDisplay secondary_display;
 };
 
+std::string peek_scene_render_device(const std::filesystem::path &path);
 std::optional<SceneDefinition> load_scene_definition(const std::filesystem::path &path,
                                                      std::string *error_message = nullptr);
 

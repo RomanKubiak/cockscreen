@@ -8,11 +8,12 @@
     /* Parser accepts centered as an alias for center. */
     // "placement": "centered"
     //},
-    "shader_directory": "../shaders/",
+    "shader_directory": "/home/atom/cockscreen/shaders/",
     "render_path": "qt-shader",
+    "render_device": "/dev/fb0",
     "geometry": {
-        "width": 640,
-        "height": 480
+        "width": 256,
+        "height": 128
     },
     /*
      * Keep HDMI at the panel-native 1024x600, but render shaders into a
@@ -21,8 +22,8 @@
      */
     "render_target": {
         "enabled": true,
-        "width": 447,
-        "height": 163,
+        "width": 320,
+        "height": 240,
         "presentation": "stretch",
         "filter": "nearest"
     },
@@ -109,9 +110,9 @@
     },
     "inputs": {
         "video": {
-            "enabled": true,
-            "device": "/dev/video0",
-            "format": "qvga",
+            "enabled": false,
+            "device": "/dev/video2",
+            "format": "1024x600",
             /*
              * Time-based transform animation for the video quad.
              * Presets: rotate, resize, move-x, move-y, orbit, wobble, bounce.
@@ -119,7 +120,7 @@
              * amount is preset-specific normalized intensity.
              */
             "animation": {
-                "enabled": true,
+                "enabled": false,
                 "preset": "resize",
                 "speed": 0.04,
                 "amount": 0.6,
@@ -128,17 +129,17 @@
             "scale": 1.0,
             /* Preferred position form. */
             "position": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 0.5,
+                "y": 0.5
             }
         },
         "playback": {
             "enabled": false,
-            "file": "/home/atom/Videos/video.mp4",
-            "scale": 0.28,
+            "file": "/home/atom/Videos/nana5minute.mpeg",
+            "scale": 0.15,
             "position": {
-                "x": 0.02,
-                "y": 0.02
+                "x": 0.5,
+                "y": 0.5
             },
             /* Null or omitted loop_end_ms disables a custom loop end. */
             "start_ms": 0,
@@ -146,7 +147,14 @@
             "loop_end_ms": null,
             "loop_repeat": 0,
             "playback_rate": 1.0,
-            "playback_rate_looping": 1.0
+            "playback_rate_looping": 1.0,
+            "animation": {
+                "enabled": true,
+                "preset": "rotate",
+                "speed": 0.04,
+                "amount": 0.6,
+                "phase": 2.0
+            }
         },
         "background_color": {
             "r": 0.0,
@@ -155,7 +163,7 @@
             "a": 1.0
         },
         "audio": {
-            "enabled": true,
+            "enabled": false,
             "device": "MS210x Video Grabber [EasierCAP] Analog Stereo"
         },
         "midi": {
@@ -163,28 +171,11 @@
             "device": "SQ-1"
         }
     },
-    "show_status_overlay": false,
-    "shader_uniforms": [
-        /*
-         * 2026-05-14 autonomous Pi pass:
-         * wireframe_plane.glsl ignores audio input and now renders only the
-         * autonomous plane. The shader applies a 4x travel multiplier on top
-         * of this base speed.
-         */
-        {
-            /* Base forward travel speed for the autonomous plane motion. */
-            "layer": "screen",
-            "shader": "wireframe_plane.glsl",
-            "uniform": "u_plane_base_speed",
-            "value": 0.008
-        }
-    ],
+    "show_status_overlay": true,
     "video": {
-        "enabled": true,
+        "enabled": false,
         "opacity": 1.0,
-        "shaders": [
-            "shadertoy.com/Nice_glass_wall.glsl"
-        ]
+        "shaders": []
     },
     "playback": {
         "enabled": false,
@@ -192,19 +183,86 @@
         "shaders": []
     },
     "screen": {
-        "enabled": false,
-        "opacity": 0.5,
-        "background_color": {
-            "r": 0.5,
-            "g": 0.5,
-            "b": 0.5,
-            "a": 0.5
-        },
-        "shaders": []
+        "enabled": true,
+        "opacity": 1.0,
+        "shaders": [
+            "fluid_flow.glsl"
+        ]
     },
     /* Compositing order from back to front. */
     "layer_order": [
-        "video",
         "screen"
+    ],
+    /*
+     * fluid_flow.glsl startup defaults – aurora preset.
+     * Match presets/fluid_flow.glsl/aurora.json so the web UI preset loads are idempotent.
+     */
+    "shader_uniforms": [
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_flow_speed",
+            "value": 0.3
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_flow_scale",
+            "value": 2.0
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_turbulence",
+            "value": 0.5
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_whirl_x",
+            "value": 0.5
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_whirl_y",
+            "value": 0.5
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_whirl_strength",
+            "value": 2.5
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_whirl_radius",
+            "value": 0.25
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_palette_shift",
+            "value": 0.55
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_palette_contrast",
+            "value": 0.7
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_color_speed",
+            "value": 0.08
+        },
+        {
+            "layer": "screen",
+            "shader": "fluid_flow.glsl",
+            "uniform": "u_brightness",
+            "value": 1.0
+        }
     ]
 }

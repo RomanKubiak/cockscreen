@@ -682,6 +682,11 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
         scene.render_path = render_path.toString().toStdString();
     }
 
+    if (const auto render_device = root.value(QStringLiteral("render_device")); render_device.isString())
+    {
+        scene.render_device = render_device.toString().toStdString();
+    }
+
     if (const auto shader_directory = root.value(QStringLiteral("shader_directory")); shader_directory.isString())
     {
         scene.shader_directory = resolve_shader_path(base_dir, shader_directory.toString().toStdString()).string();
