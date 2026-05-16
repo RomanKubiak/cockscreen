@@ -45,6 +45,11 @@ constexpr unsigned int kGateLine1{19};
 constexpr unsigned int kGateLine2{20};
 constexpr std::chrono::milliseconds kGatePollPeriod{20};
 
+// Sentinel stored in analog_voltages_ before the first ADC scan.  Must be
+// clearly outside ±VREF (±5 V max) so real near-zero readings aren't mistaken
+// for "no data yet".
+constexpr float kNoReadingSentinel = -10.0F;
+
 constexpr std::uint8_t kCommandWakeup{0x00};
 constexpr std::uint8_t kCommandRdata{0x01};
 constexpr std::uint8_t kCommandSdatac{0x0F};
@@ -151,14 +156,19 @@ struct WaveshareAds1256Monitor::Impl
     explicit Impl()
         : channel_{static_cast<unsigned int>(parse_int_env("COCKSCREEN_ADS1256_CHANNEL", 0, 0, 7).value_or(0))},
           mux_channel_count_{static_cast<unsigned int>(
-              parse_int_env("COCKSCREEN_ADS1256_MUX_CHANNELS", static_cast<int>(kMuxChannelCount), 1,
+              parse_int_env("COCKSCREEN_ADS1256_MUX_CHANNELS", 1, 1,
                             static_cast<int>(kMuxChannelCount))
-                  .value_or(static_cast<int>(kMuxChannelCount)))},
-                    gate_poll_period_{parse_period_env("COCKSCREEN_ADS1256_GATE_POLL_MS",
-                                                                                         static_cast<int>(kGatePollPeriod.count()))},
+                  .value_or(1))},
+          gate_poll_period_{parse_period_env("COCKSCREEN_ADS1256_GATE_POLL_MS",
+                                            static_cast<int>(kGatePollPeriod.count()))},
           vref_volts_{parse_double_env("COCKSCREEN_ADS1256_VREF_VOLTS", 5.0)},
           sample_period_{parse_period_env("COCKSCREEN_ADS1256_PERIOD_MS", 1000)}
     {
+        for (auto &v : analog_voltages_)
+        {
+            v.store(kNoReadingSentinel, std::memory_order_relaxed);
+        }
+
         if (mux_channel_count_ > 1)
         {
             channel_ = 0;
@@ -548,19 +558,25 @@ struct WaveshareAds1256Monitor::Impl
             return false;
         }
 
+        if (!set_output(OutputIndex::chip_select, false))
+        {
+            return false;
+        }
+
         spi_ioc_transfer transfer{};
         transfer.tx_buf = reinterpret_cast<unsigned long>(bytes);
         transfer.len = static_cast<__u32>(length);
         transfer.bits_per_word = 8;
         transfer.speed_hz = kDefaultSpiSpeedHz;
 
-        if (::ioctl(spi_fd_, SPI_IOC_MESSAGE(1), &transfer) < 0)
+        const bool ok = (::ioctl(spi_fd_, SPI_IOC_MESSAGE(1), &transfer) >= 0);
+        if (!ok)
         {
             std::cerr << "[ads1256] SPI write failed - " << std::strerror(errno) << '\n';
-            return false;
         }
 
-        return true;
+        set_output(OutputIndex::chip_select, true);
+        return ok;
     }
 
     bool read_raw(std::int32_t *raw)
@@ -570,8 +586,15 @@ struct WaveshareAds1256Monitor::Impl
             return false;
         }
 
+        // Hold CS low for the entire DRDY wait + RDATA + 24-bit read sequence.
+        if (!set_output(OutputIndex::chip_select, false))
+        {
+            return false;
+        }
+
         if (!wait_for_drdy_low(std::chrono::milliseconds{500}))
         {
+            set_output(OutputIndex::chip_select, true);
             return false;
         }
 
@@ -591,7 +614,10 @@ struct WaveshareAds1256Monitor::Impl
         transfers[1].bits_per_word = 8;
         transfers[1].speed_hz = kDefaultSpiSpeedHz;
 
-        if (::ioctl(spi_fd_, SPI_IOC_MESSAGE(2), transfers) < 0)
+        const bool ok = (::ioctl(spi_fd_, SPI_IOC_MESSAGE(2), transfers) >= 0);
+        set_output(OutputIndex::chip_select, true);
+
+        if (!ok)
         {
             std::cerr << "[ads1256] failed to read conversion data - " << std::strerror(errno) << '\n';
             return false;
@@ -616,6 +642,15 @@ struct WaveshareAds1256Monitor::Impl
         return static_cast<double>(raw) * vref_volts_ / kFullScale;
     }
 
+    bool select_adc_channel(unsigned int channel)
+    {
+        if (!write_register(kRegisterMux, mux_for_channel(channel)))
+        {
+            return false;
+        }
+        return send_command(kCommandSync) && send_command(kCommandWakeup);
+    }
+
     bool sample_once()
     {
         if (mux_enabled_ && mux_channel_count_ > 1)
@@ -636,15 +671,26 @@ struct WaveshareAds1256Monitor::Impl
             return true;
         }
 
-        std::int32_t raw = 0;
-        if (!read_raw(&raw))
+        for (unsigned int ch = 0; ch < 8; ++ch)
         {
-            return false;
+            if (!select_adc_channel(ch))
+            {
+                return false;
+            }
+
+            std::int32_t raw = 0;
+            if (!read_raw(&raw))
+            {
+                return false;
+            }
+
+            const double voltage = raw_to_voltage(raw);
+            analog_voltages_[ch].store(static_cast<float>(voltage), std::memory_order_relaxed);
+
+            if (verbose_debug_)
+                std::cout << format_voltage_line("", ch, voltage, raw) << '\n' << std::flush;
         }
 
-        const double voltage = raw_to_voltage(raw);
-        if (verbose_debug_)
-            std::cout << format_voltage_line("", channel_, voltage, raw) << '\n' << std::flush;
         return true;
     }
 
@@ -739,6 +785,8 @@ struct WaveshareAds1256Monitor::Impl
         }
     }
 
+    std::array<std::atomic<float>, 8> analog_voltages_{};
+
     int gpio_chip_fd_{-1};
     int gpio_output_fd_{-1};
     int gpio_input_fd_{-1};
@@ -780,6 +828,26 @@ void WaveshareAds1256Monitor::stop()
     {
         impl_->stop();
     }
+}
+
+float WaveshareAds1256Monitor::channel_voltage(unsigned int channel) const
+{
+    if (impl_ == nullptr || channel >= impl_->analog_voltages_.size())
+    {
+        return -1.0F;
+    }
+    return impl_->analog_voltages_[channel].load(std::memory_order_relaxed);
+}
+
+float WaveshareAds1256Monitor::channel_value(unsigned int channel) const
+{
+    const float voltage = channel_voltage(channel);
+    if (impl_ == nullptr || voltage <= -9.0F)
+    {
+        return -1.0F;
+    }
+    const float vref = static_cast<float>(impl_->vref_volts_);
+    return std::clamp(voltage / vref, 0.0F, 1.0F);
 }
 
 } // namespace cockscreen::runtime

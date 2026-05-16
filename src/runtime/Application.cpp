@@ -227,10 +227,37 @@ QString build_audio_overlay_text(const AudioAnalysisWindow &audio_analysis, cons
     return audio_line;
 }
 
+#if defined(__linux__) && defined(__aarch64__)
+QString build_adc_overlay_line(const WaveshareAds1256Monitor *monitor)
+{
+    if (monitor == nullptr)
+    {
+        return {};
+    }
+
+    QString line = QStringLiteral("ADC");
+    bool any_reading = false;
+    for (unsigned int ch = 0; ch < 8; ++ch)
+    {
+        const float v = monitor->channel_voltage(ch);
+        if (v > -9.0F)
+        {
+            line += QStringLiteral(" AD%1:%2V").arg(ch).arg(static_cast<double>(v), 0, 'f', 3);
+            any_reading = true;
+        }
+        else
+        {
+            line += QStringLiteral(" AD%1:---").arg(ch);
+        }
+    }
+    return any_reading ? line : QStringLiteral("ADC initializing…");
+}
+#endif
+
 QString build_overlay_text(const QString &fps_line, const QString &device_line, const QString &audio_line,
                            const QString &metrics_line, const QString &midi_line, const QString &osc_line,
                            const QString &extra_line = QString{}, const QString &extra_line_two = QString{},
-                           const QString &extra_line_three = QString{})
+                           const QString &extra_line_three = QString{}, const QString &extra_line_four = QString{})
 {
     constexpr int kPreferredCharsPerLine{58};
 
@@ -252,6 +279,10 @@ QString build_overlay_text(const QString &fps_line, const QString &device_line, 
     if (!extra_line_three.isEmpty())
     {
         lines << wrap_overlay_line(extra_line_three, kPreferredCharsPerLine);
+    }
+    if (!extra_line_four.isEmpty())
+    {
+        lines << wrap_overlay_line(extra_line_four, kPreferredCharsPerLine);
     }
 
     return lines.join('\n');
@@ -718,6 +749,19 @@ int Application::run(int argc, char *argv[])
         midi_input.populate_frame(frame);
         osc_input.poll();
         osc_input.populate_frame(frame);
+#if defined(__linux__) && defined(__aarch64__)
+        if (ads1256_monitor)
+        {
+            for (unsigned int ch = 0; ch < 8; ++ch)
+            {
+                const float v = ads1256_monitor->channel_value(ch);
+                if (v >= 0.0F)
+                {
+                    frame->osc_values["/analog/ad" + std::to_string(ch)] = v;
+                }
+            }
+        }
+#endif
     };
 
     const auto build_metrics_line = [&system_metrics]() {
@@ -816,9 +860,15 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.address_count())
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
+#if defined(__linux__) && defined(__aarch64__)
+            const QString adc_line = build_adc_overlay_line(ads1256_monitor.get());
+#else
+            const QString adc_line;
+#endif
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              playback_config_summary(scene),
-                                                             QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
+                                                             QStringLiteral("Pi fullscreen mode | mouse cursor hidden"),
+                                                             adc_line));
         });
 
         auto live_frame = modulation_bus_.snapshot();
@@ -847,9 +897,15 @@ int Application::run(int argc, char *argv[])
                                          .arg(osc_input.address_count())
                                          .arg(osc_input.activity_message().isEmpty() ? QStringLiteral("waiting")
                                                                                      : osc_input.activity_message());
+#if defined(__linux__) && defined(__aarch64__)
+            const QString adc_line = build_adc_overlay_line(ads1256_monitor.get());
+#else
+            const QString adc_line;
+#endif
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              playback_config_summary(scene),
-                                                             QStringLiteral("Pi fullscreen mode | mouse cursor hidden")));
+                                                             QStringLiteral("Pi fullscreen mode | mouse cursor hidden"),
+                                                             adc_line));
         }
         timer.start(static_cast<int>(frame_time.count()));
 
@@ -1093,10 +1149,16 @@ int Application::run(int argc, char *argv[])
                     QStringList{midi_line, osc_line, playback_config_summary(scene), playback_runtime_overlay_line(scene, window)});
             }
 #endif
+#if defined(__linux__) && defined(__aarch64__)
+            const QString adc_line = build_adc_overlay_line(ads1256_monitor.get());
+#else
+            const QString adc_line;
+#endif
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              playback_config_summary(scene),
                                                              playback_runtime_overlay_line(scene, window),
-                                                             QStringLiteral("Qt6 shader pipeline on Linux")));
+                                                             QStringLiteral("Qt6 shader pipeline on Linux"),
+                                                             adc_line));
         });
 
         auto live_frame = modulation_bus_.snapshot();
@@ -1132,10 +1194,16 @@ int Application::run(int argc, char *argv[])
                     QStringList{midi_line, osc_line, playback_config_summary(scene), playback_runtime_overlay_line(scene, window)});
             }
 #endif
+#if defined(__linux__) && defined(__aarch64__)
+            const QString adc_line = build_adc_overlay_line(ads1256_monitor.get());
+#else
+            const QString adc_line;
+#endif
             window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                                                              playback_config_summary(scene),
                                                              playback_runtime_overlay_line(scene, window),
-                                                             QStringLiteral("Qt6 shader pipeline on Linux")));
+                                                             QStringLiteral("Qt6 shader pipeline on Linux"),
+                                                             adc_line));
         }
         timer.start(static_cast<int>(frame_time.count()));
 
@@ -1239,10 +1307,16 @@ int Application::run(int argc, char *argv[])
                 QStringList{midi_line, osc_line, playback_config_summary(scene), playback_static_overlay_line(scene)});
         }
 #endif
+#if defined(__linux__) && defined(__aarch64__)
+        const QString adc_line = build_adc_overlay_line(ads1256_monitor.get());
+#else
+        const QString adc_line;
+#endif
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                      playback_config_summary(scene),
                      playback_static_overlay_line(scene),
-                                 QStringLiteral("Qt6 windowed mode on Linux")));
+                     QStringLiteral("Qt6 windowed mode on Linux"),
+                     adc_line));
     });
 
     auto live_frame = modulation_bus_.snapshot();
@@ -1279,10 +1353,16 @@ int Application::run(int argc, char *argv[])
                 QStringList{midi_line, osc_line, playback_config_summary(scene), playback_static_overlay_line(scene)});
         }
 #endif
+#if defined(__linux__) && defined(__aarch64__)
+        const QString adc_line = build_adc_overlay_line(ads1256_monitor.get());
+#else
+        const QString adc_line;
+#endif
         window.set_status_overlay_text(build_overlay_text(fps_line, device_line, audio_line, build_metrics_line(), midi_line, osc_line,
                  playback_config_summary(scene),
                  playback_static_overlay_line(scene),
-                     QStringLiteral("Qt6 windowed mode on Linux")));
+                 QStringLiteral("Qt6 windowed mode on Linux"),
+                 adc_line));
     }
     timer.start(static_cast<int>(frame_time.count()));
 
