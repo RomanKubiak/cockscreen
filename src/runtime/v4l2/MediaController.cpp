@@ -18,7 +18,7 @@ namespace cockscreen::runtime::v4l2
 {
 
 bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::string *error_out,
-                       std::uint32_t *out_mbus_code)
+                       std::uint32_t *out_mbus_code, int *out_width, int *out_height)
 {
     struct stat video_stat{};
     if (::stat(std::string(video_path).c_str(), &video_stat) != 0)
@@ -189,7 +189,9 @@ bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::
         fmt.format.colorspace = V4L2_COLORSPACE_RAW;
         if (ioctl(subdev_fd, VIDIOC_SUBDEV_S_FMT, &fmt) == 0)
         {
-            negotiated_code = fmt.format.code;  // read back what the sensor accepted
+            negotiated_code = fmt.format.code;
+            if (out_width)  *out_width  = static_cast<int>(fmt.format.width);
+            if (out_height) *out_height = static_cast<int>(fmt.format.height);
             format_set = true;
             break;
         }

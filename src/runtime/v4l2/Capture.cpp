@@ -68,13 +68,18 @@ bool V4l2Capture::open(std::string_view device_path, int requested_width, int re
     std::string mc_error;
     std::uint32_t mc_mbus_code = 0;
     bool mc_configured = false;
+    int negotiated_width = requested_width;
+    int negotiated_height = requested_height;
     if (is_mc_device_)
     {
         mc_configured = v4l2::mc_setup_pipeline(device_path_, requested_width, requested_height,
-                                                &mc_error, &mc_mbus_code);
+                                                &mc_error, &mc_mbus_code,
+                                                &negotiated_width, &negotiated_height);
     }
 
-    bool format_ready = configure_format(requested_width, requested_height, mc_mbus_code);
+    bool format_ready = configure_format(mc_configured ? negotiated_width : requested_width,
+                                         mc_configured ? negotiated_height : requested_height,
+                                         mc_mbus_code);
     if (!format_ready && is_mc_device_)
     {
         const std::string direct_error = error_message_;

@@ -12,11 +12,11 @@
     "render_path": "qt-shader",
     "render_device": "/dev/fb0",
     "geometry": {
-        "width": 1024,
-        "height": 600
+        "width": 320,
+        "height": 240
     },
     "render_target": {
-        "enabled": false,
+        "enabled": true,
         "width": 320,
         "height": 240,
         "presentation": "stretch",
@@ -28,7 +28,7 @@
      * The framebuffer path is selected at runtime on Pi targets only.
      */
     "secondary_display": {
-        "enabled": true,
+        "enabled": false,
         "device": "/dev/fb1",
         "model": "waveshare-1.3inch-lcd-hat",
         "width": 240,
@@ -47,7 +47,7 @@
             "presentation": "fit",
             "filter": "nearest"
         },
-        "default_page": "video_input",
+        "default_page": "system_performance_overview",
         "video": {
             "enabled": true,
             "opacity": 1.0
@@ -121,7 +121,7 @@
                 "amount": 0.6,
                 "phase": 2.0
             },
-            "scale": 1.0,
+            "scale": 0.5,
             /* Preferred position form. */
             "position": {
                 "x": 0.5,
@@ -166,7 +166,7 @@
             "device": "SQ-1"
         }
     },
-    "show_status_overlay": true,
+    "show_status_overlay": false,
     "video": {
         "enabled": true,
         "opacity": 1.0,
@@ -181,11 +181,13 @@
         "enabled": true,
         "opacity": 1.0,
         "shaders": [
-            "fluid_flow.glsl"
+            //"fluid_flow.glsl"
+            "wireframe_plane.glsl"
         ]
     },
     /* Compositing order from back to front. */
     "layer_order": [
+        "screen",
         "video"
     ],
     /*

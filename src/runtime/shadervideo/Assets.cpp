@@ -326,49 +326,32 @@ QImage frame_to_rgba8888(const V4l2FrameView &frame)
             return src[y * stride + x];
         };
 
-        for (int y = 0; y < h; ++y)
+        // Nearest-neighbour debayer: process 2×2 Bayer tiles.
+        // Each tile contributes one R, one B, and two G values — no averaging across tiles.
+        // R and B are shared across the 4 output pixels; each row gets its own G sample.
+        for (int ty = 0; ty < h; ty += 2)
         {
-            uchar *row = out.scanLine(y);
-            for (int x = 0; x < w; ++x)
+            for (int tx = 0; tx < w; tx += 2)
             {
-                int red = 0;
-                int green = 0;
-                int blue = 0;
+                const int v[2][2] = {
+                    {px(tx, ty),     px(tx + 1, ty)},
+                    {px(tx, ty + 1), px(tx + 1, ty + 1)},
+                };
+                const int red    = v[r_row][r_col];
+                const int blue   = v[b_row][b_col];
+                // G at the other position on each row (neither R nor B)
+                const int g_rrow = v[r_row][1 - r_col];
+                const int g_brow = v[b_row][1 - b_col];
+                const int g[2]   = {(r_row == 0) ? g_rrow : g_brow,
+                                    (r_row == 1) ? g_rrow : g_brow};
 
-                const int xmod = x & 1;
-                const int ymod = y & 1;
-
-                if (xmod == r_col && ymod == r_row)
+                for (int dy = 0; dy < 2 && ty + dy < h; ++dy)
                 {
-                    // Red pixel
-                    red = px(x, y);
-                    green = (px(x - 1, y) + px(x + 1, y) + px(x, y - 1) + px(x, y + 1)) / 4;
-                    blue = (px(x - 1, y - 1) + px(x + 1, y - 1) + px(x - 1, y + 1) + px(x + 1, y + 1)) / 4;
+                    uchar *row = out.scanLine(ty + dy) + tx * 4;
+                    write_rgba_pixel(row, red, g[dy], blue);
+                    if (tx + 1 < w)
+                        write_rgba_pixel(row + 4, red, g[dy], blue);
                 }
-                else if (xmod == b_col && ymod == b_row)
-                {
-                    // Blue pixel
-                    blue = px(x, y);
-                    green = (px(x - 1, y) + px(x + 1, y) + px(x, y - 1) + px(x, y + 1)) / 4;
-                    red = (px(x - 1, y - 1) + px(x + 1, y - 1) + px(x - 1, y + 1) + px(x + 1, y + 1)) / 4;
-                }
-                else if (ymod == r_row)
-                {
-                    // Green on red row: red left/right, blue above/below
-                    green = px(x, y);
-                    red = (px(x - 1, y) + px(x + 1, y)) / 2;
-                    blue = (px(x, y - 1) + px(x, y + 1)) / 2;
-                }
-                else
-                {
-                    // Green on blue row: blue left/right, red above/below
-                    green = px(x, y);
-                    blue = (px(x - 1, y) + px(x + 1, y)) / 2;
-                    red = (px(x, y - 1) + px(x, y + 1)) / 2;
-                }
-
-                write_rgba_pixel(row, red, green, blue);
-                row += 4;
             }
         }
 
