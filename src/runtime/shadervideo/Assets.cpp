@@ -802,8 +802,28 @@ void ShaderVideoWindow::upload_latest_frame()
         const auto raw_frame = raw_video_capture_.dequeue();
         if (raw_frame.has_value())
         {
-            const QImage image = frame_to_rgba8888(*raw_frame);
-            raw_video_capture_.release();
+            QImage image;
+            if (use_isp_)
+            {
+                // Copy raw Bayer into an ISP input buffer (memcpy, ~1ms),
+                // then release the unicam buffer immediately.
+                const bool queued = isp_pipeline_.queue_input(raw_frame->data, raw_frame->size);
+                raw_video_capture_.release();
+                if (queued)
+                {
+                    const auto isp_frame = isp_pipeline_.dequeue_output();
+                    if (isp_frame.has_value())
+                    {
+                        image = frame_to_rgba8888(*isp_frame);
+                        isp_pipeline_.release_output();
+                    }
+                }
+            }
+            else
+            {
+                image = frame_to_rgba8888(*raw_frame);
+                raw_video_capture_.release();
+            }
             if (!image.isNull())
             {
                 if (image_looks_blank(image))

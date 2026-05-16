@@ -93,6 +93,7 @@ if(NOT WIN32)
             src/runtime/v4l2/Buffers.cpp
             src/runtime/v4l2/Capture.cpp
             src/runtime/v4l2/Formats.cpp
+            src/runtime/v4l2/IspPipeline.cpp
             src/runtime/v4l2/MediaController.cpp
             src/runtime/pi/DisplaySwitch.cpp
             src/runtime/pi/FramebufferMirror.cpp

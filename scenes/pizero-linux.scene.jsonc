@@ -12,13 +12,13 @@
     "render_path": "qt-shader",
     "render_device": "/dev/fb0",
     "geometry": {
-        "width": 320,
-        "height": 240
+        "width": 640,
+        "height": 480
     },
     "render_target": {
         "enabled": true,
-        "width": 320,
-        "height": 240,
+        "width": 640,
+        "height": 480,
         "presentation": "stretch",
         "filter": "nearest"
     },

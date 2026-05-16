@@ -1,0 +1,14 @@
+{
+    "permissions": {
+        "allow": [
+            "Read",
+            "Bash(ssh *)",
+            "Bash(rsync *)",
+            "Bash(cmake *)",
+            "Bash(git *)",
+            "Bash(grep *)",
+            "Bash(find *)"
+        ],
+        "deny": []
+    }
+}

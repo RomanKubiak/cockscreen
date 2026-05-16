@@ -17,6 +17,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <linux/videodev2.h>
+
 #include <filesystem>
 #include <iostream>
 #include <utility>
@@ -181,6 +183,36 @@ ShaderVideoWindow::ShaderVideoWindow(const ApplicationSettings &settings, SceneD
                 camera_format_label_ = QString::fromStdString(raw_video_capture_.format_label());
                 std::cout << "[raw-capture] opened " << dev_path
                           << " as " << raw_video_capture_.format_label() << '\n';
+
+                // Attempt to route frames through the bcm2835 hardware ISP so
+                // that Bayer debayering is done in silicon rather than on the CPU.
+                std::string isp_input_dev;
+                std::string isp_output_dev;
+                if (v4l2::IspPipeline::find_devices(&isp_input_dev, &isp_output_dev))
+                {
+                    std::string isp_error;
+                    if (isp_pipeline_.open(isp_input_dev, isp_output_dev,
+                                           raw_video_capture_.width(),
+                                           raw_video_capture_.height(),
+                                           V4L2_PIX_FMT_SGBRG10,
+                                           V4L2_PIX_FMT_YUYV,
+                                           &isp_error) &&
+                        isp_pipeline_.start())
+                    {
+                        use_isp_ = true;
+                        camera_format_label_ = QString::fromStdString(raw_video_capture_.format_label())
+                                               + QStringLiteral(" (ISP→YUYV)");
+                        std::cout << "[isp-pipeline] active: "
+                                  << isp_input_dev << " → " << isp_output_dev << '\n';
+                    }
+                    else
+                    {
+                        std::cerr << "[isp-pipeline] unavailable: "
+                                  << (isp_error.empty() ? isp_pipeline_.error_message() : isp_error)
+                                  << " — using CPU debayer\n";
+                        isp_pipeline_.close();
+                    }
+                }
             }
             else
             {

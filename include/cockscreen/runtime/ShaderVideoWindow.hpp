@@ -48,6 +48,7 @@
 #include "LoopbackCapture.hpp"
 #include "LoopbackPipeline.hpp"
 #include "V4l2Capture.hpp"
+#include "cockscreen/runtime/v4l2/IspPipeline.hpp"
 #endif
 #include "RuntimeHelpers.hpp"
 #include "Scene.hpp"
@@ -233,6 +234,8 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
 #ifndef _WIN32
     V4l2Capture raw_video_capture_;
     bool raw_video_capture_active_{false};
+    v4l2::IspPipeline isp_pipeline_;
+    bool use_isp_{false};
     bool raw_video_frame_received_{false};
     bool raw_video_placeholder_shown_{false};
     int raw_video_blank_frame_count_{0};
