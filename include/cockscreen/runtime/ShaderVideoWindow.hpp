@@ -152,12 +152,71 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
         std::unique_ptr<QOpenGLShaderProgram> program;
     };
 
+    // Per-playback-layer state.  Owned by ShaderVideoWindow via unique_ptr map.
+    // QObjects (player/audio_output/sink) are raw owning pointers deleted in ~PlaybackState.
+    struct PlaybackState
+    {
+        QMediaPlayer *player{nullptr};
+        QAudioOutput *audio_output{nullptr};
+        QVideoSink *sink{nullptr};
+
+        QImage latest_frame;
+        GLuint texture_id{0};
+        int texture_width{0};
+        int texture_height{0};
+        bool texture_dirty{false};
+
+        std::int64_t position_ms{0};
+        std::int64_t duration_ms{0};
+        int loops_completed{0};
+        bool transport_pending_seek{false};
+        QString error_text;
+        QString status_text;
+        std::optional<std::uintmax_t> file_size_bytes;
+        std::uint64_t artifact_frame_counter{0};
+
+#ifndef _WIN32
+        LoopbackPipeline loopback;
+        LoopbackCapture *loopback_capture{nullptr};
+        AppsinkCapture *appsink_capture{nullptr};
+#endif
+
+        PlaybackState() = default;
+        ~PlaybackState();
+        PlaybackState(const PlaybackState &) = delete;
+        PlaybackState &operator=(const PlaybackState &) = delete;
+    };
+
+    // Per-video-layer state for independent non-primary feeds.  The built-in
+    // "video" layer still uses the primary QCamera/raw/appsink path.
+    struct VideoLayerState
+    {
+        QVideoSink *sink{nullptr};
+        QImage latest_frame;
+        GLuint texture_id{0};
+        int texture_width{0};
+        int texture_height{0};
+        bool texture_dirty{false};
+        std::uint64_t artifact_frame_counter{0};
+
+#ifndef _WIN32
+        AppsinkCapture *appsink_capture{nullptr};
+#endif
+
+        VideoLayerState() = default;
+        ~VideoLayerState();
+        VideoLayerState(const VideoLayerState &) = delete;
+        VideoLayerState &operator=(const VideoLayerState &) = delete;
+    };
+
   private:
     void handle_frame(const QVideoFrame &frame);
-    void handle_playback_frame(const QVideoFrame &frame);
-    void handle_playback_position_changed(std::int64_t position_ms);
+    void handle_video_layer_frame(const std::string &layer_name, const QVideoFrame &frame);
+    void handle_playback_frame(const std::string &layer_name, const QVideoFrame &frame);
+    void handle_playback_position_changed(const std::string &layer_name, std::int64_t position_ms);
     void handle_audio_playback_position_changed(std::int64_t position_ms);
     void ensure_texture();
+    void ensure_video_layer_textures();
     void ensure_playback_texture();
     void ensure_note_label_atlas_texture();
     void ensure_icon_atlas_texture();
@@ -169,18 +228,21 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     void ensure_blank_texture();
     void ensure_background_texture();
     void upload_latest_frame();
+    void upload_latest_video_layer_frames();
     void upload_latest_playback_frame();
     static QImage build_no_signal_frame(int width, int height);
     QString load_fragment_shader_source(std::string_view shader_file, bool allow_directory_scan,
                                         std::filesystem::path *resource_dir_out = nullptr) const;
     void record_fatal_render_error(QString text);
     void build_render_stages();
-    void stop_playback_source();
-    void restart_playback_source(bool seek_to_start);
-    void configure_playback_transport(bool seek_to_start, bool reset_loop_count);
-    void apply_playback_rate_for_position(std::int64_t position_ms);
-    [[nodiscard]] std::optional<std::int64_t> playback_effective_loop_end_ms() const;
-    [[nodiscard]] bool playback_loop_enabled() const;
+    void stop_playback_source(const std::string &layer_name);
+    void restart_playback_source(const std::string &layer_name, bool seek_to_start);
+    void configure_playback_transport(const std::string &layer_name, bool seek_to_start, bool reset_loop_count);
+    void apply_playback_rate_for_position(const std::string &layer_name, std::int64_t position_ms);
+    [[nodiscard]] std::optional<std::int64_t> playback_effective_loop_end_ms(const std::string &layer_name) const;
+    [[nodiscard]] bool playback_loop_enabled(const std::string &layer_name) const;
+    [[nodiscard]] PlaybackState *primary_playback_state() noexcept;
+    [[nodiscard]] const PlaybackState *primary_playback_state() const noexcept;
     void stop_audio_playback_source();
     void restart_audio_playback_source(bool seek_to_start);
     void configure_audio_playback_transport(bool seek_to_start, bool reset_loop_count);
@@ -205,24 +267,20 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     ApplicationSettings settings_;
     SceneDefinition scene_;
     QString video_label_;
-    QString video_shader_label_;
-    QString playback_shader_label_;
-    QString screen_shader_label_;
+    // Per-layer playback instances, keyed by named_layer name.
+    std::map<std::string, std::unique_ptr<PlaybackState>> playback_states_;
+    std::map<std::string, std::unique_ptr<VideoLayerState>> video_layer_states_;
     bool show_status_overlay_{true};
     core::ControlFrame frame_;
     QCamera *camera_{nullptr};
     QMediaCaptureSession capture_session_;
     QVideoSink video_sink_;
-    QMediaPlayer playback_player_;
-    QAudioOutput playback_audio_output_;
-    QVideoSink playback_sink_;
     QMediaPlayer audio_playback_player_;
     QAudioOutput audio_playback_audio_output_;
     QAudioBufferOutput audio_playback_buffer_output_;
     QTimer render_tick_timer_;
     QTimer audio_playback_volume_timer_;
     QImage latest_frame_;
-    QImage latest_playback_frame_;
     QString camera_format_label_{QStringLiteral("unknown")};
     QString status_message_;
     QString fatal_render_error_;
@@ -249,10 +307,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     int texture_width_{0};
     int texture_height_{0};
     bool texture_dirty_{false};
-    GLuint playback_texture_id_{0};
-    int playback_texture_width_{0};
-    int playback_texture_height_{0};
-    bool playback_texture_dirty_{false};
     GLuint note_label_atlas_texture_id_{0};
     int note_label_atlas_texture_width_{0};
     int note_label_atlas_texture_height_{0};
@@ -260,12 +314,9 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     GLuint icon_atlas_texture_id_{0};
     bool icon_atlas_texture_dirty_{true};
     StatusOverlay *status_overlay_{nullptr};
-    QOpenGLFramebufferObject *video_scene_fbo_{nullptr};
-    QOpenGLFramebufferObject *video_scene_fbo_alt_{nullptr};
-    QOpenGLFramebufferObject *playback_scene_fbo_{nullptr};
-    QOpenGLFramebufferObject *playback_scene_fbo_alt_{nullptr};
-    QOpenGLFramebufferObject *screen_scene_fbo_{nullptr};
-    QOpenGLFramebufferObject *screen_scene_fbo_alt_{nullptr};
+    // Per-named-layer FBOs (ping-pong pair), keyed by layer name.
+    std::map<std::string, QOpenGLFramebufferObject *> layer_fbos_;
+    std::map<std::string, QOpenGLFramebufferObject *> layer_fbos_alt_;
     QOpenGLFramebufferObject *composite_scene_fbo_{nullptr};
     int scene_fbo_width_{0};
     int scene_fbo_height_{0};
@@ -289,13 +340,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     std::chrono::steady_clock::time_point start_time_{std::chrono::steady_clock::now()};
     std::chrono::steady_clock::time_point last_frame_time_{};
     std::chrono::steady_clock::time_point last_profile_report_{};
-    std::int64_t playback_position_ms_{0};
-    std::int64_t playback_duration_ms_{0};
-    int playback_loops_completed_{0};
-    bool playback_transport_pending_seek_{false};
-    QString playback_error_text_;
-    QString playback_status_text_;
-    std::optional<std::uintmax_t> playback_file_size_bytes_;
     std::int64_t audio_playback_position_ms_{0};
     std::int64_t audio_playback_duration_ms_{0};
     int audio_playback_loops_completed_{0};
@@ -320,17 +364,6 @@ class ShaderVideoWindow final : public QOpenGLWidget, protected QOpenGLFunctions
     double processing_fps_{0.0};
     double render_fps_{0.0};
     std::uint64_t video_artifact_frame_counter_{0};
-    std::uint64_t playback_artifact_frame_counter_{0};
-#ifndef _WIN32
-    // Playback-layer loopback (Step 2): GStreamer file-source pipeline →
-    // RTP/UDP → tc-netem → v4l2loopback → LoopbackCapture (raw V4L2 MMAP).
-    // Active only when scene_.playback_input.loopback.enabled.
-    LoopbackPipeline playback_loopback_;
-    LoopbackCapture *playback_loopback_capture_{nullptr};
-    // Alternative to v4l2loopback: in-process GStreamer appsink receiver.
-    // Active when loopback.enabled && loopback.use_appsink.
-    AppsinkCapture *playback_appsink_capture_{nullptr};
-#endif
 };
 
 } // namespace cockscreen::runtime

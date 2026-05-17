@@ -1,7 +1,11 @@
-# Pi Hardware ISP Pipeline
+# Pi Hardware ISP Pipeline — DONE (commit 0da5cb9)
 
-Replace CPU Bayer debayer with the bcm2835-isp hardware ISP: Bayer->YUYV in
-dedicated hardware, zero CPU involvement in pixel conversion.
+~~Replace CPU Bayer debayer with the bcm2835-isp hardware ISP: Bayer->YUYV in
+dedicated hardware, zero CPU involvement in pixel conversion.~~
+
+Implemented and working. Camera image confirmed on Pi display.
+
+## Remaining open questions / follow-up
 
 ## Why
 

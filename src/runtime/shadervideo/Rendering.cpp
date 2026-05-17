@@ -23,6 +23,7 @@
 #include <cmath>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <utility>
 
 namespace cockscreen::runtime
@@ -482,6 +483,7 @@ void ShaderVideoWindow::paintGL()
     glClear(GL_COLOR_BUFFER_BIT);
 
     upload_latest_frame();
+    upload_latest_video_layer_frames();
     upload_latest_playback_frame();
     ensure_scene_fbos();
     ensure_blank_texture();
@@ -499,21 +501,68 @@ void ShaderVideoWindow::paintGL()
     const int frame_index = render_frame_index_;
     const GLuint camera_texture = texture_id_ != 0 ? texture_id_ : blank_texture_id_;
     const bool camera_valid = texture_id_ != 0;
-    const bool playback_requested = scene_.playback_input.enabled && !scene_.playback_input.file.empty();
-    const GLuint playback_texture = playback_texture_id_ != 0 ? playback_texture_id_ : blank_texture_id_;
-    const bool playback_valid = playback_requested && playback_texture_id_ != 0 && !latest_playback_frame_.isNull();
     const QRectF full_rect{0.0, 0.0, static_cast<qreal>(render_size.width()), static_cast<qreal>(render_size.height())};
-    const auto video_transform = helper::evaluate_video_transform(scene_.video_input, render_size, elapsed_seconds);
-    const auto playback_transform = scene_.playback_layer.transform.configured
-                                        ? helper::evaluate_layer_transform(scene_.playback_layer.transform,
-                                                                          scene_.playback_input, render_size,
-                                                                          elapsed_seconds)
-                                        : helper::evaluate_video_transform(scene_.playback_input, render_size,
-                                                                           elapsed_seconds);
-    const auto screen_transform = scene_.screen_layer.transform.configured
-                                      ? helper::evaluate_layer_transform(scene_.screen_layer.transform, render_size,
-                                                                        elapsed_seconds)
-                                      : helper::VideoTransform{full_rect, 0.0F};
+    const GLuint screen_base_texture =
+        background_image_texture_id_ != 0 ? background_image_texture_id_ : background_texture_id_;
+    const bool screen_base_valid = screen_base_texture != 0;
+
+    auto get_layer_source = [&](const std::string &name) -> std::pair<GLuint, bool> {
+        const auto nl_it = scene_.named_layers.find(name);
+        if (nl_it == scene_.named_layers.end())
+        {
+            return {blank_texture_id_, false};
+        }
+        switch (nl_it->second.type)
+        {
+        case SceneLayerType::Video: {
+            const auto vs_it = video_layer_states_.find(name);
+            if (vs_it != video_layer_states_.end() && vs_it->second)
+            {
+                const auto &vs = *vs_it->second;
+                const bool requested = nl_it->second.input.enabled && !nl_it->second.input.device.empty();
+                const bool valid = requested && vs.texture_id != 0 && !vs.latest_frame.isNull();
+                return {vs.texture_id != 0 ? vs.texture_id : blank_texture_id_, valid};
+            }
+            return {camera_texture, camera_valid};
+        }
+        case SceneLayerType::Playback: {
+            const auto ps_it = playback_states_.find(name);
+            if (ps_it == playback_states_.end() || !ps_it->second)
+            {
+                return {blank_texture_id_, false};
+            }
+            const auto &ps = *ps_it->second;
+            const bool requested = nl_it->second.input.enabled && !nl_it->second.input.file.empty();
+            const bool valid = requested && ps.texture_id != 0 && !ps.latest_frame.isNull();
+            return {ps.texture_id != 0 ? ps.texture_id : blank_texture_id_, valid};
+        }
+        case SceneLayerType::Screen:
+            return {screen_base_texture, screen_base_valid};
+        }
+        return {blank_texture_id_, false};
+    };
+
+    auto layer_transform = [&](const QString &layer_name) -> helper::VideoTransform {
+        const auto it = scene_.named_layers.find(layer_name.toStdString());
+        if (it == scene_.named_layers.end())
+        {
+            return helper::VideoTransform{full_rect, 0.0F};
+        }
+        const auto &nl = it->second;
+        if (nl.layer.transform.configured)
+        {
+            if (nl.type != SceneLayerType::Screen)
+            {
+                return helper::evaluate_layer_transform(nl.layer.transform, nl.input, render_size, elapsed_seconds);
+            }
+            return helper::evaluate_layer_transform(nl.layer.transform, render_size, elapsed_seconds);
+        }
+        if (nl.type != SceneLayerType::Screen)
+        {
+            return helper::evaluate_video_transform(nl.input, render_size, elapsed_seconds);
+        }
+        return helper::VideoTransform{full_rect, 0.0F};
+    };
 
     auto draw_textured_quad = [&](GLuint texture, const QRectF &rect, const QRectF &uv_rect, GLfloat opacity,
                                   bool blend_with_source_alpha, const QSize &viewport_size,
@@ -659,25 +708,11 @@ void ShaderVideoWindow::paintGL()
     }
 
     auto render_layer_chain = [&](const QString &layer_name, GLuint source_texture, bool source_valid) -> GLuint {
-        const SceneLayer *layer = nullptr;
-        if (layer_name == QStringLiteral("video"))
-        {
-            layer = &scene_.video_layer;
-        }
-        else if (layer_name == QStringLiteral("playback"))
-        {
-            layer = &scene_.playback_layer;
-        }
-        else if (layer_name == QStringLiteral("screen"))
-        {
-            layer = &scene_.screen_layer;
-        }
-
-        if (layer == nullptr || !layer->enabled)
+        const auto it = scene_.named_layers.find(layer_name.toStdString());
+        if (it == scene_.named_layers.end() || !it->second.layer.enabled)
         {
             return 0;
         }
-
         GLuint current_texture = source_texture;
         bool current_valid = source_valid;
         render_stage_index_ = 0;
@@ -709,56 +744,31 @@ void ShaderVideoWindow::paintGL()
     };
 
     auto layer_opacity = [&](const QString &layer_name) -> GLfloat {
-        const SceneLayer *layer = nullptr;
-        if (layer_name == QStringLiteral("video"))
+        const auto it = scene_.named_layers.find(layer_name.toStdString());
+        if (it == scene_.named_layers.end())
         {
-            layer = &scene_.video_layer;
+            return 1.0F;
         }
-        else if (layer_name == QStringLiteral("playback"))
-        {
-            layer = &scene_.playback_layer;
-        }
-        else if (layer_name == QStringLiteral("screen"))
-        {
-            layer = &scene_.screen_layer;
-        }
-
-        return layer != nullptr ? static_cast<GLfloat>(std::clamp(layer->opacity, 0.0F, 1.0F)) : 1.0F;
+        return static_cast<GLfloat>(std::clamp(it->second.layer.opacity, 0.0F, 1.0F));
     };
 
     const auto layer_order = effective_layer_order(scene_);
-    const auto uses_layer = [&](const QString &name) {
-        return std::find(layer_order.begin(), layer_order.end(), name) != layer_order.end();
-    };
-    const GLuint video_output = uses_layer(QStringLiteral("video"))
-                                    ? render_layer_chain(QStringLiteral("video"), camera_texture, camera_valid)
-                                    : 0;
-    const GLuint playback_output =
-        uses_layer(QStringLiteral("playback"))
-            ? render_layer_chain(QStringLiteral("playback"), playback_texture, playback_valid)
-            : 0;
-    const GLuint screen_base_texture =
-        background_image_texture_id_ != 0 ? background_image_texture_id_ : background_texture_id_;
-    const bool screen_base_valid = screen_base_texture != 0;
-    const GLuint screen_output =
-        uses_layer(QStringLiteral("screen"))
-            ? render_layer_chain(QStringLiteral("screen"), screen_base_texture, screen_base_valid)
-            : 0;
+
+    // Pre-render each layer that appears in layer_order (deduplicated).
+    std::map<QString, GLuint> layer_outputs;
+    for (const auto &layer_name : layer_order)
+    {
+        if (layer_outputs.count(layer_name) != 0)
+        {
+            continue;
+        }
+        const auto [src_tex, src_valid] = get_layer_source(layer_name.toStdString());
+        layer_outputs[layer_name] = render_layer_chain(layer_name, src_tex, src_valid);
+    }
 
     const auto layer_is_enabled = [&](const QString &layer_name) {
-        if (layer_name == QStringLiteral("video"))
-        {
-            return scene_.video_layer.enabled;
-        }
-        if (layer_name == QStringLiteral("playback"))
-        {
-            return scene_.playback_layer.enabled;
-        }
-        if (layer_name == QStringLiteral("screen"))
-        {
-            return scene_.screen_layer.enabled;
-        }
-        return false;
+        const auto it = scene_.named_layers.find(layer_name.toStdString());
+        return it != scene_.named_layers.end() && it->second.layer.enabled;
     };
     const bool has_enabled_ordered_layer = std::any_of(layer_order.begin(), layer_order.end(), layer_is_enabled);
     if (!has_enabled_ordered_layer)
@@ -783,42 +793,19 @@ void ShaderVideoWindow::paintGL()
 
     for (const auto &layer_name : layer_order)
     {
-        if (layer_name == QStringLiteral("video"))
+        const auto out_it = layer_outputs.find(layer_name);
+        if (out_it == layer_outputs.end())
         {
-            if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
-            {
-                draw_textured_quad(stage->background_image_texture_id, video_transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
-                                   layer_opacity(layer_name), true, render_size, video_transform.rotation_degrees);
-            }
-            draw_textured_quad(video_output, video_transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
-                               layer_opacity(layer_name), true, render_size, video_transform.rotation_degrees);
             continue;
         }
-
-        if (layer_name == QStringLiteral("playback"))
+        const auto transform = layer_transform(layer_name);
+        if (const auto *bg_stage = layer_background_stage(layer_name); bg_stage != nullptr)
         {
-            if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
-            {
-                draw_textured_quad(stage->background_image_texture_id, playback_transform.rect,
-                                   QRectF{0.0, 0.0, 1.0, 1.0}, layer_opacity(layer_name), true, render_size,
-                                   playback_transform.rotation_degrees);
-            }
-            draw_textured_quad(playback_output, playback_transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
-                               layer_opacity(layer_name), true, render_size, playback_transform.rotation_degrees);
-            continue;
+            draw_textured_quad(bg_stage->background_image_texture_id, transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
+                               layer_opacity(layer_name), true, render_size, transform.rotation_degrees);
         }
-
-        if (layer_name == QStringLiteral("screen"))
-        {
-            if (const auto *stage = layer_background_stage(layer_name); stage != nullptr)
-            {
-                draw_textured_quad(stage->background_image_texture_id, screen_transform.rect,
-                                   QRectF{0.0, 0.0, 1.0, 1.0}, layer_opacity(layer_name), true, render_size,
-                                   screen_transform.rotation_degrees);
-            }
-            draw_textured_quad(screen_output, screen_transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
-                               layer_opacity(layer_name), true, render_size, screen_transform.rotation_degrees);
-        }
+        draw_textured_quad(out_it->second, transform.rect, QRectF{0.0, 0.0, 1.0, 1.0},
+                           layer_opacity(layer_name), true, render_size, transform.rotation_degrees);
     }
 
     if (scene_.render_target.enabled && composite_scene_fbo_ != nullptr)
@@ -846,10 +833,14 @@ void ShaderVideoWindow::paintGL()
         status_overlay_->raise();
     }
 
-    if (scene_.timecode && scene_.playback_input.enabled && !scene_.playback_input.file.empty())
+    if (scene_.timecode)
     {
-        QPainter painter{this};
-        draw_timecode_overlay(&painter, rect(), playback_position_ms_);
+        const auto *tc_ps = primary_playback_state();
+        if (tc_ps != nullptr)
+        {
+            QPainter painter{this};
+            draw_timecode_overlay(&painter, rect(), tc_ps->position_ms);
+        }
     }
 
     if (last_frame_time_ != std::chrono::steady_clock::time_point{})
@@ -1163,7 +1154,6 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
                           frame_index);
 
     ensure_blank_texture();
-    const QColor clear_color = helper::scene_clear_color(scene_.background_color);
 
     static constexpr GLfloat kVertices[] = {
         0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 1.0F, 0.0F, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F,
@@ -1174,20 +1164,14 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     if (!output_to_screen)
     {
         ensure_scene_fbos();
-        const bool is_video_stage = stage->layer_name == QStringLiteral("video");
-        const bool is_playback_stage = stage->layer_name == QStringLiteral("playback");
-        if (is_video_stage)
+        const std::string fbo_layer_name = stage->layer_name.toStdString();
+        const auto fbo_a_it = layer_fbos_.find(fbo_layer_name);
+        const auto fbo_b_it = layer_fbos_alt_.find(fbo_layer_name);
+        if (fbo_a_it == layer_fbos_.end() || fbo_b_it == layer_fbos_alt_.end())
         {
-            target_fbo = (render_stage_index_ % 2 == 0) ? video_scene_fbo_ : video_scene_fbo_alt_;
+            return output_texture;
         }
-        else if (is_playback_stage)
-        {
-            target_fbo = (render_stage_index_ % 2 == 0) ? playback_scene_fbo_ : playback_scene_fbo_alt_;
-        }
-        else
-        {
-            target_fbo = (render_stage_index_ % 2 == 0) ? screen_scene_fbo_ : screen_scene_fbo_alt_;
-        }
+        target_fbo = (render_stage_index_ % 2 == 0) ? fbo_a_it->second : fbo_b_it->second;
         if (target_fbo == nullptr)
         {
             return output_texture;
@@ -1195,7 +1179,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
 
         target_fbo->bind();
         glViewport(0, 0, target_fbo->width(), target_fbo->height());
-        const QColor layer_clear_color = (is_video_stage || is_playback_stage) ? QColor{0, 0, 0, 0} : clear_color;
+        const QColor layer_clear_color = QColor{0, 0, 0, 0};
         glClearColor(layer_clear_color.redF(), layer_clear_color.greenF(), layer_clear_color.blueF(),
                      layer_clear_color.alphaF());
         glClear(GL_COLOR_BUFFER_BIT);
@@ -1223,9 +1207,28 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     const int render_width = std::max(scene_fbo_width_, 1);
     const int render_height = std::max(scene_fbo_height_, 1);
     const QVector2D viewport_size{static_cast<float>(render_width), static_cast<float>(render_height)};
-    const QVector2D video_size{
-        static_cast<float>(main_channel0 == texture_id_ && texture_width_ > 0 ? texture_width_ : render_width),
-        static_cast<float>(main_channel0 == texture_id_ && texture_height_ > 0 ? texture_height_ : render_height)};
+    auto texture_size = [&](GLuint texture) -> QVector2D {
+        if (texture == texture_id_ && texture_width_ > 0 && texture_height_ > 0)
+        {
+            return QVector2D{static_cast<float>(texture_width_), static_cast<float>(texture_height_)};
+        }
+        for (const auto &[name, vs] : video_layer_states_)
+        {
+            if (vs && texture == vs->texture_id && vs->texture_width > 0 && vs->texture_height > 0)
+            {
+                return QVector2D{static_cast<float>(vs->texture_width), static_cast<float>(vs->texture_height)};
+            }
+        }
+        for (const auto &[name, ps] : playback_states_)
+        {
+            if (ps && texture == ps->texture_id && ps->texture_width > 0 && ps->texture_height > 0)
+            {
+                return QVector2D{static_cast<float>(ps->texture_width), static_cast<float>(ps->texture_height)};
+            }
+        }
+        return QVector2D{static_cast<float>(render_width), static_cast<float>(render_height)};
+    };
+    const QVector2D video_size = texture_size(main_channel0);
 
     stage->program->bind();
     stage->program->setUniformValue("u_viewport_size", viewport_size);
@@ -1281,6 +1284,7 @@ GLuint ShaderVideoWindow::render_stage(RenderStage *stage, GLuint input_texture,
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, ch3);
     glActiveTexture(GL_TEXTURE0);
+    glDisable(GL_BLEND);
     quad_vertex_buffer_.bind();
     quad_vertex_buffer_.allocate(kVertices, static_cast<int>(sizeof(kVertices)));
     stage->program->enableAttributeArray("a_position");
@@ -1350,9 +1354,6 @@ void ShaderVideoWindow::build_render_stages()
         }
     }
     render_stages_.clear();
-    video_shader_label_.clear();
-    playback_shader_label_.clear();
-    screen_shader_label_.clear();
 
     const auto add_layer = [&](const SceneLayer &layer, const QString &layer_name, QString *summary) {
         if (!layer.enabled)
@@ -1624,15 +1625,10 @@ void ShaderVideoWindow::build_render_stages()
         *summary = labels.isEmpty() ? QStringLiteral("<none>") : labels.join(QStringLiteral(" > "));
     };
 
-    add_layer(scene_.video_layer, QStringLiteral("video"), &video_shader_label_);
-    add_layer(scene_.playback_layer, QStringLiteral("playback"), &playback_shader_label_);
-    add_layer(scene_.screen_layer, QStringLiteral("screen"), &screen_shader_label_);
-
-    if (render_stages_.empty())
+    for (const auto &[name, nl] : scene_.named_layers)
     {
-        video_shader_label_ = QStringLiteral("<none>");
-        playback_shader_label_ = QStringLiteral("<none>");
-        screen_shader_label_ = QStringLiteral("<none>");
+        QString summary;
+        add_layer(nl.layer, QString::fromStdString(name), &summary);
     }
 }
 
@@ -1683,9 +1679,22 @@ void ShaderVideoWindow::render_shader_buffers(RenderStage &stage, GLuint video_t
     const int render_width = std::max(scene_fbo_width_, 1);
     const int render_height = std::max(scene_fbo_height_, 1);
     const QVector2D viewport_size{static_cast<float>(render_width), static_cast<float>(render_height)};
-    const QVector2D video_size{
-        static_cast<float>(video_texture == texture_id_ && texture_width_ > 0 ? texture_width_ : render_width),
-        static_cast<float>(video_texture == texture_id_ && texture_height_ > 0 ? texture_height_ : render_height)};
+    QVector2D video_size{static_cast<float>(render_width), static_cast<float>(render_height)};
+    if (video_texture == texture_id_ && texture_width_ > 0 && texture_height_ > 0)
+    {
+        video_size = QVector2D{static_cast<float>(texture_width_), static_cast<float>(texture_height_)};
+    }
+    else
+    {
+        for (const auto &[name, vs] : video_layer_states_)
+        {
+            if (vs && video_texture == vs->texture_id && vs->texture_width > 0 && vs->texture_height > 0)
+            {
+                video_size = QVector2D{static_cast<float>(vs->texture_width), static_cast<float>(vs->texture_height)};
+                break;
+            }
+        }
+    }
 
     for (auto &buf : stage.shader_buffers)
     {

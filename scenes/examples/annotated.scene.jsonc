@@ -9,6 +9,11 @@
     "shader_directory": "../../shaders/",
     /* Valid runtime values: qt, qt-shader, v4l2-dmabuf-egl. */
     "render_path": "qt-shader",
+    /*
+     * Optional DRM/KMS device path override.  Defaults to the first available
+     * DRM device when omitted.  Typically /dev/fb0 on Pi eglfs builds.
+     */
+    "render_device": "/dev/fb0",
     /* geometry.width and geometry.height are clamped to a minimum of 1. */
     "geometry": {
         "width": 1024,
@@ -31,14 +36,19 @@
         "filter": "linear"
     },
     /*
-     * Optional Pi-only secondary framebuffer display.
+     * Optional Pi-only secondary display.
      *
-     * This is intended for small SPI framebuffer panels such as:
+     * This supports small SPI framebuffer panels such as:
      * https://www.waveshare.com/1.3inch-lcd-hat.htm
+     * and direct I2C/SPI SSD1309 OLEDs such as SparkFun's transparent OLED:
+     * https://learn.sparkfun.com/tutorials/transparent-graphical-oled-breakout-hookup-guide/all
      *
-     * The runtime writes compact pages to device, normally /dev/fb1, when
-     * running on a Raspberry Pi target. It is not an independent OpenGL render
-     * path, so it supports video/status pages rather than custom GLSL shaders.
+     * For framebuffer panels the runtime writes compact pages to /dev/fb1. For
+     * SSD1309 I2C panels set interface to "i2c" and device to a Linux I2C bus
+     * such as /dev/i2c-1. For SSD1309 SPI panels set interface to "spidev" and
+     * device to a Linux spidev node such as /dev/spidev0.0. It is not an
+     * independent OpenGL render path, so it supports video/status pages rather
+     * than custom GLSL shaders.
      *
      * Pages currently understood by default_page and control mappings:
      * - mode
@@ -48,21 +58,39 @@
      * - linux_os_stats
      *
      * render_target has the same shape as the main render_target above.
-     * For the Waveshare 1.3inch LCD HAT, keep it at 240x240 and use nearest
-     * filtering to avoid spending CPU smoothing tiny status frames.
+     * For SparkFun's transparent SSD1309 OLED use 128x64. The runtime switches
+     * the existing pages to compact monochrome layouts for this size. SparkFun
+     * notes that 128x56 pixels are transparent inside the 128x64 controller
+     * frame, so keep important text away from the very bottom if your mounting
+     * hides that non-transparent strip.
      */
     "secondary_display": {
         "enabled": true,
-        "device": "/dev/fb1",
-        "model": "waveshare-1.3inch-lcd-hat",
-        "width": 240,
-        "height": 240,
+        "device": "/dev/i2c-1",
+        "model": "sparkfun-transparent-ssd1309",
+        "interface": "i2c",
+        "width": 128,
+        "height": 64,
+        /*
+         * SSD1309 I2C options. SparkFun's default SA0-low address is 0x3c
+         * (decimal 60); the parser accepts either 60 or the string "0x3c".
+         * gpio_reset is optional; set it when reset is wired to a BCM GPIO.
+         * The SparkFun board is 3.3V only; do not drive it with 5V logic.
+         *
+         * For 4-wire SPI instead, use:
+         *   "device": "/dev/spidev0.0",
+         *   "interface": "spidev",
+         *   "spi_speed_hz": 8000000,
+         *   "gpio_dc": 25
+         */
+        "i2c_address": "0x3c",
+        "gpio_reset": -1,
         /*
          * Clockwise degrees applied before writing the framebuffer.
          * Accepted numerically by runtime; common values are 0, 90, 180, 270.
          * "rotation" is accepted as an alias for "rotation_degrees".
          */
-        "rotation_degrees": 90,
+        "rotation_degrees": 0,
         /* The parser also accepts "background" as an alias. */
         "background_color": {
             "r": 0.0,
@@ -72,8 +100,8 @@
         },
         "render_target": {
             "enabled": true,
-            "width": 240,
-            "height": 240,
+            "width": 128,
+            "height": 64,
             "presentation": "fit",
             "filter": "nearest"
         },
@@ -106,7 +134,12 @@
          * - action: set_page, cycle_page, next_page, previous_page.
          * - page: target page for set_page, or label shown on the mode page.
          *
-         * Waveshare 1.3inch LCD HAT defaults:
+         * SparkFun's transparent OLED does not provide built-in buttons, so
+         * the example leaves controls empty. If you wire external controls,
+         * use the same mapping shape below.
+         *
+         * Waveshare 1.3inch LCD HAT defaults, if you switch back to the
+         * framebuffer model:
          * KEY1 21, KEY2 20, KEY3 16, UP 6, DOWN 19, LEFT 5, RIGHT 26,
          * joystick press 13.
          *
@@ -115,56 +148,7 @@
          * Any mapping can target linux_os_stats directly, or it can be reached
          * through cycle_page/next_page.
          */
-        "controls": {
-            "key1": {
-                "gpio": 21,
-                "active_low": true,
-                "action": "cycle_page",
-                "page": "mode"
-            },
-            "key2": {
-                "gpio": 20,
-                "active_low": true,
-                "action": "set_page",
-                "page": "video_input"
-            },
-            "key3": {
-                "gpio": 16,
-                "active_low": true,
-                "action": "set_page",
-                "page": "system_performance_overview"
-            },
-            "joystick_press": {
-                "gpio": 13,
-                "active_low": true,
-                "action": "set_page",
-                "page": "app_status_modulation"
-            },
-            "joystick_up": {
-                "gpio": 6,
-                "active_low": true,
-                "action": "previous_page",
-                "page": "mode"
-            },
-            "joystick_down": {
-                "gpio": 19,
-                "active_low": true,
-                "action": "next_page",
-                "page": "mode"
-            },
-            "joystick_left": {
-                "gpio": 5,
-                "active_low": true,
-                "action": "previous_page",
-                "page": "mode"
-            },
-            "joystick_right": {
-                "gpio": 26,
-                "active_low": true,
-                "action": "next_page",
-                "page": "mode"
-            }
-        }
+        "controls": {}
     },
     /*
      * Top-level background_color is a fallback when inputs.background_color is omitted.
@@ -192,6 +176,22 @@
     "inputs": {
         "video": {
             "enabled": true,
+            /*
+             * device can be a local V4L2 node (/dev/videoN) or a network camera URL.
+             *
+             * Network sources (Linux only, via GStreamer appsink):
+             *   "rtsp://user:pass@192.168.1.10/stream"  — H.264 RTSP (most IP cameras)
+             *   "http://192.168.1.10/video.mjpg"        — HTTP MJPEG (multipart stream)
+             *   "https://..."                           — same, with TLS
+             *
+             * For RTSP the pipeline is:
+             *   rtspsrc → rtph264depay → h264parse → avdec_h264 → videoconvert → BGRx → appsink
+             * For HTTP MJPEG:
+             *   souphttpsrc → multipartdemux → jpegdec → videoconvert → BGRx → appsink
+             *
+             * Requires gst-plugins-good (rtspsrc, souphttpsrc) and gst-libav (avdec_h264, jpegdec).
+             * QCamera is bypassed entirely; transport controls (start_ms, loop_*) are ignored.
+             */
             "device": "/dev/video1",
             /*
              * Named capture resolution shortcuts: qvga (320x240), vga (640x480),
@@ -269,6 +269,15 @@
         },
         "playback": {
             "enabled": true,
+            /*
+             * file can be a local path (relative to resources_directory or absolute)
+             * or a network URL routed through Qt's GStreamer backend:
+             *   "rtsp://192.168.1.10/stream"    — RTSP (H.264 or whatever codec the camera advertises)
+             *   "http://192.168.1.10/video.mjpg" — HTTP MJPEG
+             *   "https://..."
+             * Transport controls (start_ms, loop_*, playback_rate) are ignored for
+             * network URLs; the stream plays live and cannot be seeked.
+             */
             "file": "../../resources/videos/example.mp4",
             "scale": 0.4,
             "position": {
@@ -423,6 +432,14 @@
     },
     "screen": {
         "enabled": true,
+        /*
+         * transform accepts scale/position/rotation/animation OR a rect block.
+         * rect is an absolute normalized viewport rectangle [0,1] and overrides
+         * scale and position entirely when present.  It can also be written
+         * directly on the layer object (outside "transform").
+         *
+         * scale+position form (relative):
+         */
         "transform": {
             "scale": 0.9,
             "position": {
@@ -435,20 +452,98 @@
                 "preset": "rotate",
                 "speed": 0.02,
                 "amount": 1.0,
-                "phase": 0.0
+                "phase": 0.0,
+                /*
+                 * axis is an optional hint string passed to the animation
+                 * implementation (e.g. "x", "y", "z").  Accepted by the
+                 * parser; effect depends on the animation preset.
+                 */
+                "axis": ""
             }
         },
+        /*
+         * rect form (absolute, alternative to scale+position — uncomment to use):
+         * "rect": {
+         *     "x": 0.0,   // left edge, normalized 0–1 (clamped)
+         *     "y": 0.0,   // top edge, normalized 0–1 (clamped)
+         *     "w": 1.0,   // width, normalized 0–1 (clamped)
+         *     "h": 1.0    // height, normalized 0–1 (clamped)
+         * },
+         */
         "shaders": [
             "wireframe_sphere.glsl",
             "crt_noise.glsl"
         ]
     },
     /*
-     * Must contain video, playback, and screen exactly once.
-     * The parser treats the list as back-to-front compositing order.
+     * Named layers (new-style, optional).
+     *
+     * The "layers" dict lets you define any number of named layers beyond the
+     * three built-in keys (video / playback / screen).  Each entry is a layer
+     * object plus two extra fields:
+     *
+     *   "type"  — "video", "playback", or "screen" (default "screen").
+     *             Determines which input pipeline feeds the layer.
+     *   "input" — inline SceneInput object (same fields as inputs.video /
+     *             inputs.playback).  Required for type "video" and "playback".
+     *
+     * Built-in video / playback / screen keys are still parsed for backward
+     * compatibility; named_layers always wins in rendering.
+     * Refer to the layer by its dict key in midi_cc_mappings, osc_mappings,
+     * shader_uniforms, and layer_order.
+     */
+    "layers": {
+        /* A second live-camera feed on a different device. */
+        "camera2": {
+            "type": "video",
+            "enabled": true,
+            "opacity": 1.0,
+            "shaders": ["pink_key.glsl"],
+            /* rect pins this layer to the bottom-right quarter of the screen. */
+            "rect": {
+                "x": 0.5,
+                "y": 0.5,
+                "w": 0.5,
+                "h": 0.5
+            },
+            "input": {
+                "enabled": true,
+                "device": "/dev/video2",
+                "format": "qvga",
+                "scale": 1.0,
+                "position": { "x": 0.0, "y": 0.0 }
+            }
+        },
+        /* A second playback clip running independently. */
+        "clip2": {
+            "type": "playback",
+            "enabled": false,
+            "opacity": 0.8,
+            "shaders": [],
+            "transform": {
+                "scale": 0.3,
+                "position": { "x": 0.1, "y": 0.9 }
+            },
+            "input": {
+                "enabled": true,
+                "file": "../../resources/videos/overlay.mp4",
+                "scale": 1.0,
+                "loop_repeat": 0,
+                "playback_rate": 1.0
+            }
+        }
+    },
+    /*
+     * layer_order controls the back-to-front compositing order.
+     * List any combination of named layer keys — built-in (video, playback,
+     * screen) and user-defined (e.g. camera2, clip2).
+     * Duplicate and unknown entries are silently ignored.
+     * Omitting this field uses runtime-default ordering.
      */
     "layer_order": [
         "screen",
+        "clip2",
+        "camera2",
         "playback",
         "video"
     ],
@@ -484,13 +579,74 @@
             "exponent": 1.0
         }
     ],
-    /* OSC mappings behave like MIDI mappings but identify the source by OSC address. */
+    /*
+     * OSC mappings identify the source by OSC address.
+     * Fields are the same as MIDI mappings minus channel/cc/note.
+     *
+     * Analog CV input (Pi aarch64 only — Waveshare ADS1256 high-precision board):
+     *   The runtime publishes each AD channel as a normalized [0, 1] OSC value at
+     *   /analog/ad0 … /analog/ad7 on every ADC scan cycle.
+     *
+     *   Reference voltage is set with --ads-vref VOLTS (CLI) or the env var
+     *   COCKSCREEN_ADS1256_VREF_VOLTS (default 3.3 V).
+     *
+     *   Additional env vars:
+     *     COCKSCREEN_ADS1256_CHANNEL      — single channel to read when mux is off (0–7, default 0)
+     *     COCKSCREEN_ADS1256_MUX_CHANNELS — enable CD74HC4067 mux; set >1 for multi-channel scan
+     *                                       (1–16, default 1 = mux disabled)
+     *     COCKSCREEN_ADS1256_PERIOD_MS    — sampling interval in ms; 0 = continuous polling
+     *                                       (default 0, i.e. back-to-back DRDY-paced scans)
+     *     COCKSCREEN_ADS1256_GATE_POLL_MS — digital gate input poll interval (0–10000, default 20 ms)
+     *     COCKSCREEN_ADS1256_VREF_VOLTS   — same as --ads-vref (double)
+     *
+     *   GPIO wiring (BCM numbering):
+     *     CS=22  RESET=18  PWDN=27  DRDY=17
+     *     CD74HC4067 mux select: S0=BCM5  S1=BCM6  S2=BCM13  S3=BCM26
+     *     Digital gate inputs:   G0=BCM16  G1=BCM19  G2=BCM20
+     *
+     *   Use osc_mappings with the /analog/adN addresses to route pots or CV signals
+     *   to any shader uniform — no extra glue code required.
+     */
     "osc_mappings": [
         {
             "address": "/cockscreen/key/hue",
             "layer": "video",
             "shader": "pink_key.glsl",
             "uniform": "u_key_h",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.0
+        },
+        /*
+         * Analog AD channel examples (Pi aarch64 / ADS1256 board).
+         * AD0 pot → wireframe line density.
+         * exponent > 1 gives a logarithmic feel (fine control at low end).
+         */
+        {
+            "address": "/analog/ad0",
+            "layer": "screen",
+            "shader": "wireframe_plane.glsl",
+            "uniform": "u_plane_base_speed",
+            "min": 0.0,
+            "max": 1.0,
+            "exponent": 1.5
+        },
+        /* AD1 pot → pink key hue range width. */
+        {
+            "address": "/analog/ad1",
+            "layer": "video",
+            "shader": "pink_key.glsl",
+            "uniform": "u_key_hrange",
+            "min": 0.0,
+            "max": 0.5,
+            "exponent": 1.0
+        },
+        /* AD7 pot → custom shader parameter (common last-channel wiring). */
+        {
+            "address": "/analog/ad7",
+            "layer": "screen",
+            "shader": "wireframe_sphere.glsl",
+            "uniform": "u_wire_density",
             "min": 0.0,
             "max": 1.0,
             "exponent": 1.0

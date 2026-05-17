@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -127,6 +128,14 @@ struct SceneBackgroundImage
     BackgroundImagePlacement placement{BackgroundImagePlacement::Center};
 };
 
+struct SceneLayerRect
+{
+    float x{0.0F};
+    float y{0.0F};
+    float w{1.0F};
+    float h{1.0F};
+};
+
 struct SceneLayerTransform
 {
     bool configured{false};
@@ -135,6 +144,8 @@ struct SceneLayerTransform
     std::optional<float> position_y;
     std::optional<float> rotation;
     TransformAnimation animation;
+    // When set, overrides scale/position: absolute normalized rect [0,1] on screen.
+    std::optional<SceneLayerRect> rect;
 };
 
 struct SceneGeometry
@@ -250,14 +261,34 @@ struct SceneSecondaryDisplay
     bool enabled{true};
     std::string device{"/dev/fb1"};
     std::string model{"waveshare-1.3inch-lcd-hat"};
+    std::string interface{"framebuffer"};
     int width{240};
     int height{240};
     int rotation_degrees{90};
+    int i2c_address{0x3c};
+    int spi_speed_hz{8000000};
+    int gpio_dc{-1};
+    int gpio_reset{-1};
     SceneColor background_color;
     SceneRenderTarget render_target;
     SecondaryDisplayPage default_page{SecondaryDisplayPage::VideoInput};
     SceneLayer video_layer;
     std::vector<SecondaryDisplayControlMapping> controls;
+};
+
+enum class SceneLayerType
+{
+    Screen,
+    Video,
+    Playback,
+};
+
+// A fully named layer combining display properties and (for Video/Playback) input config.
+struct SceneNamedLayer
+{
+    SceneLayerType type{SceneLayerType::Screen};
+    SceneLayer layer;
+    SceneInput input; // meaningful for Video and Playback types
 };
 
 struct SceneDefinition
@@ -289,6 +320,10 @@ struct SceneDefinition
     std::vector<OscMapping> osc_mappings;
     std::vector<SceneShaderUniform> shader_uniforms;
     SceneSecondaryDisplay secondary_display;
+    // Named layers: populated from old-style video/playback/screen keys and from
+    // the new "layers" dict. All rendering uses this map; old fields are kept for
+    // backward compatibility with non-rendering code (web server, etc.).
+    std::map<std::string, SceneNamedLayer> named_layers;
 };
 
 std::string peek_scene_render_device(const std::filesystem::path &path);

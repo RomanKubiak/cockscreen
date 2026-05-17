@@ -16,7 +16,7 @@ class WaveshareAds1256Monitor final
     WaveshareAds1256Monitor(const WaveshareAds1256Monitor &) = delete;
     WaveshareAds1256Monitor &operator=(const WaveshareAds1256Monitor &) = delete;
 
-    bool start(bool verbose_debug = false);
+    bool start(bool verbose_debug = false, double vref_volts = 0.0);
     void stop();
 
     // Raw voltage in volts for channel 0–7.  Returns <= -9.0 before the first reading.

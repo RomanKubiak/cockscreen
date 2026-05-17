@@ -239,6 +239,17 @@ CommandLine parse_arguments(int argc, char *argv[], runtime::ApplicationSettings
         {
             result.settings.web_server_bind_url = std::string(next_value(index, argc, argv));
         }
+        else if (argument == "--ads-vref")
+        {
+            const auto text = next_value(index, argc, argv);
+            if (!text.empty())
+            {
+                char *end = nullptr;
+                const double v = std::strtod(text.data(), &end);
+                if (end != text.data() && v > 0.0)
+                    result.settings.ads1256_vref_volts = v;
+            }
+        }
         else if (argument == "-v" || argument == "--verbose" || argument == "-d" || argument == "--debug")
         {
             result.settings.verbose_debug = true;
@@ -259,6 +270,7 @@ void print_help()
               << "  --list-devices\n"
               << "  --scene-file FILE\n"
               << "  --enable-web-server URL\n"
+              << "  --ads-vref VOLTS  ADS1256 reference voltage (default 3.3; env COCKSCREEN_ADS1256_VREF_VOLTS)\n"
               << "  -v, --verbose   Enable verbose debug output (sets GST_DEBUG=2, Qt debug logging)\n"
               << "  -d, --debug     Alias for --verbose\n"
               << "  --help\n";
@@ -330,18 +342,28 @@ void print_device_list()
             std::cout << "\n";
             if (cam.requires_media_controller)
             {
-                std::cout << "      NOTE: Media Controller device — pipeline configured automatically\n"
-                          << "      in v4l2-dmabuf-egl mode. Not usable in qt-shader mode.\n";
-            }
-            if (cam.modes.empty())
-            {
-                std::cout << "      <no modes enumerated>\n";
+                std::cout << "      NOTE: uses hardware ISP (bcm2835-isp) via Media Controller\n"
+                          << "      Supported scene formats (\"format\" field in scene inputs.video):\n";
+                if (cam.modes.empty())
+                {
+                    std::cout << "        <sensor modes not enumerable — try media-ctl --print-topology>\n";
+                }
+                else
+                {
+                    for (const auto &mode : cam.modes)
+                        std::cout << "        " << humanize_rpi_mode(mode) << "\n";
+                }
             }
             else
             {
-                for (const auto &mode : cam.modes)
+                if (cam.modes.empty())
                 {
-                    std::cout << "      " << humanize_rpi_mode(mode) << "\n";
+                    std::cout << "      <no modes enumerated>\n";
+                }
+                else
+                {
+                    for (const auto &mode : cam.modes)
+                        std::cout << "      " << humanize_rpi_mode(mode) << "\n";
                 }
             }
         }

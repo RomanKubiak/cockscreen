@@ -35,6 +35,22 @@ int json_int(const QJsonObject &object, const char *key, int fallback)
     return value.isDouble() ? value.toInt(fallback) : fallback;
 }
 
+int json_int_or_string(const QJsonObject &object, const char *key, int fallback)
+{
+    const auto value = object.value(QString::fromUtf8(key));
+    if (value.isDouble())
+    {
+        return value.toInt(fallback);
+    }
+    if (value.isString())
+    {
+        bool ok{false};
+        const int parsed = value.toString().toInt(&ok, 0);
+        return ok ? parsed : fallback;
+    }
+    return fallback;
+}
+
 float json_float(const QJsonObject &object, const char *key, float fallback)
 {
     const auto value = object.value(QString::fromUtf8(key));
@@ -219,9 +235,16 @@ SceneSecondaryDisplay parse_secondary_display(const QJsonValue &value)
     display.enabled = json_bool(object, "enabled", display.enabled);
     display.device = json_string(object, "device", display.device);
     display.model = json_string(object, "model", display.model);
+    display.interface = json_string(object, "interface", display.interface);
     display.width = std::max(1, json_int(object, "width", display.width));
     display.height = std::max(1, json_int(object, "height", display.height));
     display.rotation_degrees = json_int(object, "rotation_degrees", json_int(object, "rotation", display.rotation_degrees));
+    display.i2c_address = std::clamp(json_int_or_string(object, "i2c_address",
+                                                        json_int_or_string(object, "address", display.i2c_address)),
+                                     0x03, 0x77);
+    display.spi_speed_hz = std::max(1, json_int(object, "spi_speed_hz", display.spi_speed_hz));
+    display.gpio_dc = json_int(object, "gpio_dc", json_int(object, "dc_gpio", display.gpio_dc));
+    display.gpio_reset = json_int(object, "gpio_reset", json_int(object, "reset_gpio", display.gpio_reset));
     if (const auto background = object.value(QStringLiteral("background_color")); background.isObject())
     {
         display.background_color = parse_color(background);
@@ -429,6 +452,17 @@ SceneLayerTransform parse_layer_transform(const QJsonObject &object)
                 transform.configured = true;
             }
         }
+        if (const auto rect = source.value(QStringLiteral("rect")); rect.isObject())
+        {
+            const auto ro = rect.toObject();
+            SceneLayerRect r;
+            r.x = std::clamp(json_float(ro, "x", 0.0F), 0.0F, 1.0F);
+            r.y = std::clamp(json_float(ro, "y", 0.0F), 0.0F, 1.0F);
+            r.w = std::clamp(json_float(ro, "w", 1.0F), 0.0F, 1.0F);
+            r.h = std::clamp(json_float(ro, "h", 1.0F), 0.0F, 1.0F);
+            transform.rect = r;
+            transform.configured = true;
+        }
     };
 
     parse_fields(object);
@@ -555,7 +589,7 @@ std::vector<std::string> parse_layer_order(const QJsonValue &value)
     }
 
     std::vector<std::string> layer_order;
-    layer_order.reserve(3);
+    layer_order.reserve(4);
     for (const auto &entry : value.toArray())
     {
         if (!entry.isString())
@@ -563,14 +597,12 @@ std::vector<std::string> parse_layer_order(const QJsonValue &value)
             continue;
         }
 
-        const QString normalized = entry.toString().trimmed().toLower();
-        if (normalized != QStringLiteral("video") && normalized != QStringLiteral("playback") &&
-            normalized != QStringLiteral("screen"))
+        const std::string layer_name = entry.toString().trimmed().toStdString();
+        if (layer_name.empty())
         {
             continue;
         }
 
-        const std::string layer_name = normalized.toStdString();
         if (std::find(layer_order.begin(), layer_order.end(), layer_name) == layer_order.end())
         {
             layer_order.push_back(layer_name);
@@ -578,6 +610,64 @@ std::vector<std::string> parse_layer_order(const QJsonValue &value)
     }
 
     return layer_order;
+}
+
+void promote_ordered_video_layer_to_primary(SceneDefinition *scene)
+{
+    if (scene == nullptr || !scene->video_input.device.empty() || !scene->video_input.file.empty())
+    {
+        return;
+    }
+
+    const auto promote_if_usable = [scene](const std::string &layer_name) {
+        if (layer_name == "video")
+        {
+            return false;
+        }
+
+        const auto it = scene->named_layers.find(layer_name);
+        if (it == scene->named_layers.end() || it->second.type != SceneLayerType::Video ||
+            !it->second.input.enabled || it->second.input.device.empty())
+        {
+            return false;
+        }
+
+        scene->video_input = it->second.input;
+        scene->video_layer = it->second.layer;
+        scene->named_layers["video"].input = scene->video_input;
+        scene->named_layers["video"].layer = scene->video_layer;
+        return true;
+    };
+
+    for (const auto &layer_name : scene->layer_order)
+    {
+        if (promote_if_usable(layer_name))
+        {
+            return;
+        }
+    }
+
+    for (const auto &[layer_name, named_layer] : scene->named_layers)
+    {
+        (void)named_layer;
+        if (promote_if_usable(layer_name))
+        {
+            return;
+        }
+    }
+}
+
+SceneLayerType parse_layer_type(const std::string &type_str)
+{
+    if (type_str == "video")
+    {
+        return SceneLayerType::Video;
+    }
+    if (type_str == "playback")
+    {
+        return SceneLayerType::Playback;
+    }
+    return SceneLayerType::Screen;
 }
 
 std::filesystem::path resolve_shader_path(const std::filesystem::path &base_dir, const std::string &shader_file)
@@ -740,7 +830,39 @@ SceneDefinition parse_scene_definition(const QJsonObject &root, const std::files
     scene.video_layer = parse_layer(root.value(QStringLiteral("video")));
     scene.playback_layer = parse_layer(root.value(QStringLiteral("playback")));
     scene.screen_layer = parse_layer(root.value(QStringLiteral("screen")));
+
+    // Populate named_layers from old-style keys so all rendering uses named_layers.
+    scene.named_layers["video"] = SceneNamedLayer{SceneLayerType::Video, scene.video_layer, scene.video_input};
+    scene.named_layers["playback"] = SceneNamedLayer{SceneLayerType::Playback, scene.playback_layer, scene.playback_input};
+    scene.named_layers["screen"] = SceneNamedLayer{SceneLayerType::Screen, scene.screen_layer, {}};
+
+    // Parse user-defined layers from the new "layers" dict.
+    // Each entry: { "type": "video"|"playback"|"screen", plus SceneLayer fields,
+    //              plus optional "input": { SceneInput fields } }
+    if (const auto layers_value = root.value(QStringLiteral("layers")); layers_value.isObject())
+    {
+        const auto layers_object = layers_value.toObject();
+        for (auto it = layers_object.begin(); it != layers_object.end(); ++it)
+        {
+            const std::string name = it.key().toStdString();
+            if (name.empty() || !it.value().isObject())
+            {
+                continue;
+            }
+            const auto layer_obj = it.value().toObject();
+            SceneNamedLayer named;
+            named.type = parse_layer_type(json_string(layer_obj, "type", "screen"));
+            named.layer = parse_layer(it.value());
+            if (const auto input_value = layer_obj.value(QStringLiteral("input")); input_value.isObject())
+            {
+                named.input = parse_input(input_value.toObject());
+            }
+            scene.named_layers[name] = std::move(named);
+        }
+    }
+
     scene.layer_order = parse_layer_order(root.value(QStringLiteral("layer_order")));
+    promote_ordered_video_layer_to_primary(&scene);
 
     if (const auto mappings = root.value(QStringLiteral("midi_cc_mappings")); mappings.isArray())
     {

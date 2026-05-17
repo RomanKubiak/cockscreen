@@ -138,6 +138,22 @@ V4l2PixelFormat mbus_code_to_pixel_format(std::uint32_t mbus_code)
     }
 }
 
+std::uint32_t pixel_format_to_fourcc(V4l2PixelFormat fmt)
+{
+    switch (fmt)
+    {
+    case V4l2PixelFormat::bayer_bggr8:  return V4L2_PIX_FMT_SBGGR8;
+    case V4l2PixelFormat::bayer_gbrg8:  return V4L2_PIX_FMT_SGBRG8;
+    case V4l2PixelFormat::bayer_grbg8:  return V4L2_PIX_FMT_SGRBG8;
+    case V4l2PixelFormat::bayer_rggb8:  return V4L2_PIX_FMT_SRGGB8;
+    case V4l2PixelFormat::bayer_bggr10: return V4L2_PIX_FMT_SBGGR10;
+    case V4l2PixelFormat::bayer_gbrg10: return V4L2_PIX_FMT_SGBRG10;
+    case V4l2PixelFormat::bayer_grbg10: return V4L2_PIX_FMT_SGRBG10;
+    case V4l2PixelFormat::bayer_rggb10: return V4L2_PIX_FMT_SRGGB10;
+    default: return 0;
+    }
+}
+
 std::uint32_t mbus_code_to_v4l2_pixelformat(std::uint32_t mbus_code)
 {
     switch (mbus_code)

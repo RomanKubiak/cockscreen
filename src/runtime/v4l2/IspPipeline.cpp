@@ -150,6 +150,7 @@ bool IspPipeline::open(const std::string &input_dev, const std::string &output_d
 
     output_width_  = static_cast<int>(out_fmt.fmt.pix.width);
     output_height_ = static_cast<int>(out_fmt.fmt.pix.height);
+    output_stride_ = static_cast<int>(out_fmt.fmt.pix.bytesperline);
     output_pixel_format_ = to_pixel_format(out_fmt.fmt.pix.pixelformat);
     if (output_pixel_format_ == V4l2PixelFormat::unsupported)
         return fail("ISP output pixel format not recognised");
@@ -300,9 +301,7 @@ std::optional<V4l2FrameView> IspPipeline::dequeue_output()
         input_buffer_free_[in_buf.index] = true;
 
     const auto &b = output_buffers_[active_output_index_];
-    const int stride = output_width_ *
-        (output_pixel_format_ == V4l2PixelFormat::yuyv ||
-         output_pixel_format_ == V4l2PixelFormat::uyvy ? 2 : 3);
+    const int stride = output_stride_;
 
     return V4l2FrameView{
         static_cast<const std::uint8_t *>(b.data),

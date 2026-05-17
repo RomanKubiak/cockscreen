@@ -34,6 +34,7 @@ The only supported CLI options are:
 - `--list-devices`
 - `--scene-file <path>`
 - `--enable-web-server <url>`
+- `--ads-vref <volts>` — ADS1256 reference voltage in volts (default `3.3`; also `COCKSCREEN_ADS1256_VREF_VOLTS`)
 
 ### Web control
 
@@ -85,6 +86,7 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
 | Field | Type | Description |
 |---|---|---|
 | `render_path` | string | Render backend. Current runtime choices are `qt`, `qt-shader`, and `v4l2-dmabuf-egl`. Parser default: `qt-shader`. |
+| `render_device` | string | Optional DRM/KMS device path override (e.g. `"/dev/fb0"`). Defaults to the first available DRM device when omitted. Typically set on Pi eglfs builds. |
 | `geometry` | object | Window size object. Parser default: `{ "width": 1024, "height": 600 }`. |
 | `render_target` | object | Optional offscreen render size for `qt-shader`, presented to the window after final compositing. |
 | `width` / `height` | integer | Legacy top-level geometry fallback used only when `geometry` is omitted. Values are clamped to minimum `1`. |
@@ -99,11 +101,13 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
 | `background_image` | object or string | Background image configuration. Object form is preferred. String form is accepted as a direct file path. |
 | `background_image_file` | string | Legacy fallback used only when `background_image.file` is absent. |
 | `background_image_placement` | string | Legacy fallback used only when `background_image.placement` is absent. |
+| `secondary_display` | object | Optional Pi-only compact display output. Supports framebuffer panels and direct SPI SSD1309 OLEDs. |
 | `inputs` | object | Container for `video`, `playback`, `audio`, `midi`, and optional nested `background_color` or `background`. |
-| `video` | object | Shader layer configuration for the video layer. |
-| `playback` | object | Shader layer configuration for the playback layer. |
-| `screen` | object | Shader layer configuration for the screen layer. |
-| `layer_order` | array | Optional explicit compositing order for `screen`, `video`, and `playback`, listed from back to front. |
+| `video` | object | Shader layer for the built-in video layer (backward-compatible shorthand for `"layers": { "video": { "type": "video", ... } }`). |
+| `playback` | object | Shader layer for the built-in playback layer. |
+| `screen` | object | Shader layer for the built-in screen layer. |
+| `layers` | object | Dictionary of named layers. Keys are the layer names used in `layer_order` and all mapping `layer` fields. See [Named layers](#named-layers) below. |
+| `layer_order` | array | Back-to-front compositing order. Any named layer key is accepted — built-in (`video`, `playback`, `screen`) and user-defined. Duplicates and unknown names are silently ignored. |
 | `midi_cc_mappings` | array | MIDI CC to shader uniform mappings. |
 | `midi_note_mappings` | array | MIDI note to shader uniform mappings. |
 | `osc_mappings` | array | OSC address to shader uniform mappings. |
@@ -135,7 +139,7 @@ This section documents the current parser behavior in [src/runtime/scene/Parse.c
 | `render_target.presentation` | `stretch`, `fit`, `fill`, `center`, `integer-scale` | Controls how the offscreen texture is presented to the real window. Unknown values fall back to `fit`. |
 | `render_target.filter` | `linear`, `nearest` | Texture filtering for the final upscale. `nearest` is useful for pixel-art or hard-edged low-res looks. |
 | `inputs.*.animation.preset` | `rotate`, `resize`, `move-x`, `move-y`, `orbit`, `wobble`, `bounce` | Unknown values disable the animation block. Presets are evaluated by `qt-shader`; `v4l2-dmabuf-egl` applies them to the video quad. |
-| `layer_order[*]` | `video`, `playback`, `screen` | Entries are case-insensitive. Invalid or duplicate entries are ignored. The whole field is accepted only if all three unique layer names are present. |
+| `layer_order[*]` | any named layer key | Any non-empty string matching a built-in (`video`, `playback`, `screen`) or user-defined (`layers` dict) layer name. Duplicates and unknown names are silently ignored. |
 | `pink_key.audio_algorithm` | `0`, `1`, `2`, `3`, `4`, `5` | `0` bass focus, `1` low-mid, `2` high-mid, `3` high, `4` spectral centroid, `5` full-spectrum average. |
 
 ### `geometry`
@@ -160,6 +164,31 @@ Use `render_target` when the physical display should stay at its native mode but
 ```
 
 `geometry` remains the actual app/window size. `render_target` is the internal shader/composite size. This is useful on small HDMI panels that do not scale lower HDMI modes cleanly.
+
+### `secondary_display`
+
+```json
+"secondary_display": {
+    "enabled": true,
+    "device": "/dev/i2c-1",
+    "model": "sparkfun-transparent-ssd1309",
+    "interface": "i2c",
+    "width": 128,
+    "height": 64,
+    "rotation_degrees": 0,
+    "i2c_address": "0x3c",
+    "gpio_reset": -1,
+    "render_target": { "enabled": true, "width": 128, "height": 64, "filter": "nearest" },
+    "default_page": "linux_os_stats",
+    "controls": {}
+}
+```
+
+For SparkFun’s transparent graphical OLED on Qwiic/I2C, use the SSD1309 `i2c` profile above. The default address is `0x3c` (decimal `60`), and `gpio_reset` is optional when wired. The parser accepts either numeric addresses or strings like `"0x3c"`.
+
+For 4-wire SPI, use `"interface": "spidev"`, `"device": "/dev/spidev0.0"`, `"spi_speed_hz": 8000000`, and a required `"gpio_dc"` BCM GPIO. The board is 128x64, monochrome, 3.3V-only, and SparkFun documents that 128x56 pixels are transparent. Existing secondary pages automatically switch to compact 128x64 monochrome layouts.
+
+The older framebuffer path still works by using `"interface": "framebuffer"` or omitting `interface`, with `"device": "/dev/fb1"` and a framebuffer model such as `"waveshare-1.3inch-lcd-hat"`.
 
 ### `background_image`
 
@@ -267,6 +296,7 @@ Parser defaults for every `inputs.*` object use the same `SceneInput` defaults:
 | `animation.speed` | float | `1.0` | Cycles per second for oscillating presets; rotations use full turns per second. |
 | `animation.amount` | float | `0.0` | Preset intensity. `resize` is multiplicative; movement presets offset normalized position. |
 | `animation.phase` | float | `0.0` | Starting phase, in cycles. |
+| `animation.axis` | string | `""` | Optional hint string passed to the animation implementation (e.g. `"x"`, `"y"`, `"z"`). Effect depends on the preset. |
 | `transform.animation` | object | omitted | Accepted alias shape for nesting animation under a `transform` block. |
 | `start_ms` | integer | `0` | Parsed for all inputs, but meaningful for playback. |
 | `loop_start_ms` | integer | `0` | Parsed for all inputs, but meaningful for playback. |
@@ -324,9 +354,83 @@ filesrc → decodebin → videoconvert → videoscale (320×180) → videorate
   → videoconvert → BGRx → appsink (pull thread) → QVideoSink → GL
 ```
 
+### Named layers
+
+The `layers` dictionary lets you define any number of named compositing layers beyond the three built-in keys (`video`, `playback`, `screen`). Each entry is referenced by its key name everywhere a `layer` field is accepted — `layer_order`, `midi_cc_mappings`, `osc_mappings`, `shader_uniforms`.
+
+```jsonc
+"layers": {
+    "camera2": {
+        "type": "video",        // "video" | "playback" | "screen"  (default "screen")
+        "enabled": true,
+        "opacity": 1.0,
+        "shaders": ["pink_key.glsl"],
+        "rect": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 },
+        "input": {              // inline SceneInput — same fields as inputs.video / inputs.playback
+            "enabled": true,
+            "device": "/dev/video2",
+            "format": "qvga"
+        }
+    },
+    "clip2": {
+        "type": "playback",
+        "enabled": false,
+        "opacity": 0.8,
+        "shaders": [],
+        "transform": {
+            "scale": 0.3,
+            "position": { "x": 0.1, "y": 0.9 }
+        },
+        "input": {
+            "file": "videos/overlay.mp4",
+            "loop_repeat": 0
+        }
+    }
+}
+```
+
+Extra fields on each named layer entry:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `type` | string | `"screen"` | Input pipeline type. `"video"` opens a V4L2 camera; `"playback"` opens a media file; `"screen"` has no input. |
+| `input` | object | omitted | Inline `SceneInput` for `video` and `playback` types. Accepts all the same fields as `inputs.video` / `inputs.playback`. |
+
+The built-in `video`, `playback`, and `screen` top-level keys are still parsed for backward compatibility. The `layers` dict entries override them in rendering when the same name is used.
+
+### Layer transform — `rect` (absolute positioning)
+
+Every layer (`video`, `playback`, `screen`, and named layers) accepts a `rect` block as an alternative to `scale` + `position`. When `rect` is present it defines an absolute normalized viewport rectangle and overrides `scale` and `position` entirely.
+
+```jsonc
+// Inside a layer or inside a "transform" block — both are accepted.
+"rect": {
+    "x": 0.0,   // left edge, 0–1 (clamped)
+    "y": 0.0,   // top edge,  0–1 (clamped)
+    "w": 1.0,   // width,     0–1 (clamped)
+    "h": 1.0    // height,    0–1 (clamped)
+}
+```
+
+The coordinates are normalized: `(0, 0)` is the top-left of the viewport and `(1, 1)` is the bottom-right. `"rect"` can sit directly on the layer object or nested under a `"transform"` key — both are equivalent. When absent, the usual `scale` / `position` / `rotation` transform applies.
+
+### `layer_order`
+
+Lists named layer keys from back to front. Any combination of built-in and user-defined names is accepted. Duplicate or unknown names are silently ignored. Omitting `layer_order` falls back to runtime-default ordering.
+
+```jsonc
+"layer_order": [
+    "screen",    // drawn first (furthest back)
+    "clip2",
+    "camera2",
+    "playback",
+    "video"      // drawn last (on top)
+]
+```
+
 ### Shader layers
 
-Three composited layers: `video`, `playback`, and `screen`. Each has an ordered list of GLSL shaders applied as a chain — the output of one becomes `u_texture` for the next.
+Three built-in composited layers: `video`, `playback`, and `screen`. Each has an ordered list of GLSL shaders applied as a chain — the output of one becomes `u_texture` for the next.
 
 ```json
 "video":    { "enabled": true,  "shaders": ["pink_key.glsl", "video_sphere.glsl"] },
@@ -334,21 +438,23 @@ Three composited layers: `video`, `playback`, and `screen`. Each has an ordered 
 "screen":   { "enabled": true,  "shaders": ["wireframe_sphere.glsl"] }
 ```
 
-Use `layer_order` to explicitly control the final screen compositing order. The array is interpreted from back to front, so the last item is drawn on top.
+Use `layer_order` to control compositing order. See [Named layers](#named-layers) above for the full `layer_order` reference, including user-defined names.
 
-```json
-"layer_order": ["screen", "video", "playback"]
-```
-
-`layer_order` is the only compositing-order control. Omit disabled layers from the array; invalid or duplicate entries are ignored.
-
-Each layer object accepts only these fields during parsing:
+Each layer object accepts these fields during parsing:
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `enabled` | bool | `true` | |
 | `opacity` | float | `1.0` | Final layer opacity, clamped to `[0, 1]`. |
 | `shaders` | array of strings | `[]` | Non-string entries are ignored. |
+| `background_color` / `background` | object | black | Per-layer clear colour before shader chain. |
+| `background_image` | object or string | omitted | Per-layer background image, same shape as top-level `background_image`. |
+| `transform` | object | omitted | Nested block for `scale`, `position`, `rotation`, `animation`, `rect`. All fields are also accepted directly on the layer object. |
+| `rect` | object | omitted | Absolute normalized viewport rect `{x, y, w, h}`. Overrides `scale` + `position` when present. See [Layer transform — rect](#layer-transform--rect-absolute-positioning). |
+| `scale` | float | input default | Layer scale. Clamped to minimum `0.01`. |
+| `position` | object `{x, y}` | input default | Normalized position. Also accepted as `position_x` / `position_y`. |
+| `rotation` | float | `0.0` | Degrees, applied around the layer centre. |
+| `animation` | object | omitted | Time-based transform animation. Same fields as `inputs.*.animation`. |
 
 ### `shader_uniforms`
 
@@ -547,11 +653,81 @@ Across [scenes/x86_64-linux.scene.jsonc](/home/atom/devel/cockscreen/scenes/x86_
 - `osc_mappings[].max`
 - `osc_mappings[].exponent`
 
+Analog OSC addresses published by the ADS1256 monitor (Pi only):
+
+- `/analog/ad0` … `/analog/ad7` — normalized [0, 1] value for each ADC channel
+
 ### Analog front end
 
 The Pi AARCH64 analog wiring, mux pinout, gate inputs, power distribution, and precision CV output stage now live in [docs/ANALOG.md](docs/ANALOG.md).
 The split schematics are [docs/cv-power-input-stage.svg](docs/cv-power-input-stage.svg) and [docs/cv-output-stage.svg](docs/cv-output-stage.svg).
 The matching hardware bill of materials is in [docs/BOM.md](docs/BOM.md).
+
+### ADS1256 analog CV input (Pi aarch64 only)
+
+The runtime includes a background driver for the **Waveshare High-Precision AD/DA board** (ADS1256). It continuously reads up to 8 ADC channels and publishes each one as a normalized [0, 1] OSC value at `/analog/ad0` … `/analog/ad7`. Those addresses are then routed to any shader uniform via `osc_mappings` in the scene file — no extra glue code is needed.
+
+#### CLI argument
+
+| Argument | Description |
+|---|---|
+| `--ads-vref VOLTS` | Reference voltage in volts. Overrides `COCKSCREEN_ADS1256_VREF_VOLTS`. Default: `3.3`. |
+
+#### Environment variables
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `COCKSCREEN_ADS1256_VREF_VOLTS` | float | `3.3` | Reference voltage. Set to match your board's VREF (e.g. `2.5` for the on-board precision reference, `3.3` for VCC-referenced wiring). Also settable with `--ads-vref`. |
+| `COCKSCREEN_ADS1256_PERIOD_MS` | integer | `0` | Sampling interval in milliseconds. `0` = continuous back-to-back DRDY-paced scans (~80 ms round-trip for all 8 channels at 100 SPS). Set to e.g. `200` for a timed interval instead. |
+| `COCKSCREEN_ADS1256_CHANNEL` | integer 0–7 | `0` | Which single ADC channel to read when the CD74HC4067 mux is not active. Ignored when `COCKSCREEN_ADS1256_MUX_CHANNELS > 1`. |
+| `COCKSCREEN_ADS1256_MUX_CHANNELS` | integer 1–16 | `1` | Set to `> 1` to activate the CD74HC4067 16-channel mux on BCM5/6/13/26. Channels 0…N-1 are scanned in order on each pass. |
+| `COCKSCREEN_ADS1256_GATE_POLL_MS` | integer 0–10000 | `20` | How often (ms) the three digital gate inputs (BCM16/19/20) are polled. |
+
+#### GPIO wiring (BCM numbering)
+
+| Signal | BCM pin |
+|---|---|
+| CS (chip select) | 22 |
+| RESET | 18 |
+| PWDN (power-down) | 27 |
+| DRDY (data ready) | 17 |
+| CD74HC4067 S0 | 5 |
+| CD74HC4067 S1 | 6 |
+| CD74HC4067 S2 | 13 |
+| CD74HC4067 S3 | 26 |
+| Gate input G0 | 16 |
+| Gate input G1 | 19 |
+| Gate input G2 | 20 |
+
+#### Routing analog values to shaders
+
+Analog readings arrive as OSC messages internally, so they use the standard `osc_mappings` block in the scene file:
+
+```jsonc
+"osc_mappings": [
+    {
+        /* AD0 potentiometer → wireframe grid speed */
+        "address": "/analog/ad0",
+        "layer": "screen",
+        "shader": "wireframe_plane.glsl",
+        "uniform": "u_plane_base_speed",
+        "min": 0.0,
+        "max": 1.0,
+        "exponent": 1.5   // >1 = logarithmic feel (fine control at low end)
+    },
+    {
+        /* AD7 potentiometer → custom uniform */
+        "address": "/analog/ad7",
+        "layer": "screen",
+        "shader": "psychotherapy.glsl",
+        "uniform": "u_max_red",
+        "min": 0.0,
+        "max": 0.95
+    }
+]
+```
+
+The value arriving on a mapped address is clamped to `[0, 1]`, exponent-mapped, then scaled to `[min, max]` before being applied to the uniform — identical to any other OSC mapping.
 
 ---
 

@@ -68,6 +68,7 @@ private:
 
     int output_width_  = 0;
     int output_height_ = 0;
+    int output_stride_ = 0;
     V4l2PixelFormat output_pixel_format_ = V4l2PixelFormat::unsupported;
 
     std::vector<IspBuffer> input_buffers_;

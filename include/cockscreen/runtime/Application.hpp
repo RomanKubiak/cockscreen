@@ -26,6 +26,7 @@ struct ApplicationSettings
     int height{600};
     int frame_rate{30};
     bool verbose_debug{false};
+    double ads1256_vref_volts{0.0};
 };
 
 class Application

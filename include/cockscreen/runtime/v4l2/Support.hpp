@@ -14,5 +14,6 @@ bool mc_setup_pipeline(std::string_view video_path, int width, int height, std::
                        int *out_width = nullptr, int *out_height = nullptr);
 V4l2PixelFormat mbus_code_to_pixel_format(std::uint32_t mbus_code);
 std::uint32_t mbus_code_to_v4l2_pixelformat(std::uint32_t mbus_code);
+std::uint32_t pixel_format_to_fourcc(V4l2PixelFormat fmt);
 
 } // namespace cockscreen::runtime::v4l2

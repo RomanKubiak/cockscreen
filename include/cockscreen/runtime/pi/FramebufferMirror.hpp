@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,14 @@ class FramebufferMirror
                                      const QStringList &system_lines, const QStringList &app_lines) const;
     [[nodiscard]] QImage orient_for_framebuffer(const QImage &image) const;
     bool write_canvas(const QImage &canvas);
+    bool initialize_spidev();
+    bool initialize_i2c();
+    bool write_spidev_canvas(const QImage &canvas);
+    bool write_spidev_command(std::initializer_list<std::uint8_t> bytes);
+    bool write_spidev_data(const std::vector<std::uint8_t> &bytes);
+    bool write_i2c_canvas(const QImage &canvas);
+    bool write_i2c_command(std::initializer_list<std::uint8_t> bytes);
+    bool write_i2c_data(const std::vector<std::uint8_t> &bytes);
     std::uint32_t pack_pixel(std::uint8_t red, std::uint8_t green, std::uint8_t blue) const;
 
     std::string device_path_;
@@ -69,6 +78,8 @@ class FramebufferMirror
     std::vector<GpioControl> controls_;
     mutable SystemMetricsSampler system_metrics_;
     bool verbose_debug_{false};
+    bool spidev_backend_{false};
+    bool i2c_backend_{false};
     int fd_{-1};
     void *mapped_{nullptr};
     std::size_t mapped_size_{0};

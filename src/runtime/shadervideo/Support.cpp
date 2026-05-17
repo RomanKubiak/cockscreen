@@ -480,6 +480,16 @@ VideoTransform evaluate_video_transform(const SceneInput &video_input, const QSi
 VideoTransform evaluate_layer_transform(const SceneLayerTransform &transform, const SceneInput &fallback,
                                         const QSize &viewport_size, float elapsed_seconds)
 {
+    if (transform.rect.has_value())
+    {
+        const auto &r = *transform.rect;
+        const float x = r.x * static_cast<float>(viewport_size.width());
+        const float y = r.y * static_cast<float>(viewport_size.height());
+        const float w = r.w * static_cast<float>(viewport_size.width());
+        const float h = r.h * static_cast<float>(viewport_size.height());
+        return VideoTransform{QRectF{x, y, std::max(1.0F, w), std::max(1.0F, h)}, 0.0F};
+    }
+
     SceneInput effective = fallback;
     if (transform.scale.has_value())
     {

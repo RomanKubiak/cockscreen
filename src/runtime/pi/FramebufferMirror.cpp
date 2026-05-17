@@ -3,15 +3,19 @@
 #ifndef _WIN32
 
 #include <algorithm>
+#include <chrono>
 #include <cerrno>
+#include <cstddef>
 #include <cstring>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <iostream>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -25,6 +29,8 @@
 
 #include <fcntl.h>
 #include <linux/fb.h>
+#include <linux/i2c-dev.h>
+#include <linux/spi/spidev.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -74,6 +80,34 @@ QString page_label(SecondaryDisplayPage page)
     return QStringLiteral("video input");
 }
 
+QString normalized_token(const std::string &value)
+{
+    return QString::fromStdString(value).trimmed().toLower().replace(QChar{'_'}, QChar{'-'});
+}
+
+bool uses_ssd1309_i2c(const SceneSecondaryDisplay &display)
+{
+    const QString interface = normalized_token(display.interface);
+    const QString model = normalized_token(display.model);
+    const QString device = QString::fromStdString(display.device).trimmed().toLower();
+    return interface == QStringLiteral("i2c") ||
+           (device.startsWith(QStringLiteral("/dev/i2c")) && model.contains(QStringLiteral("ssd1309")));
+}
+
+bool uses_ssd1309_spidev(const SceneSecondaryDisplay &display)
+{
+    const QString interface = normalized_token(display.interface);
+    const QString model = normalized_token(display.model);
+    const QString device = QString::fromStdString(display.device).trimmed().toLower();
+    return interface == QStringLiteral("spidev") ||
+           (device.startsWith(QStringLiteral("/dev/spidev")) && model.contains(QStringLiteral("ssd1309")));
+}
+
+bool uses_ssd1309_direct(const SceneSecondaryDisplay &display)
+{
+    return uses_ssd1309_i2c(display) || uses_ssd1309_spidev(display);
+}
+
 void draw_text_page(QPainter &painter, const QRect &bounds, const QString &title, const QStringList &lines)
 {
     painter.setRenderHint(QPainter::TextAntialiasing, true);
@@ -103,6 +137,36 @@ void draw_text_page(QPainter &painter, const QRect &bounds, const QString &title
         painter.drawText(QRect{bounds.left() + 8, y, bounds.width() - 16, metrics.height()}, Qt::AlignLeft | Qt::AlignVCenter,
                          elided);
         y += metrics.height() + 2;
+    }
+}
+
+void draw_compact_text_page(QPainter &painter, const QRect &bounds, const QString &title, const QStringList &lines)
+{
+    painter.setRenderHint(QPainter::TextAntialiasing, false);
+    QFont title_font = painter.font();
+    title_font.setPixelSize(8);
+    title_font.setBold(true);
+    painter.setFont(title_font);
+    painter.setPen(QColor{255, 255, 255});
+    painter.drawText(QRect{bounds.left() + 2, bounds.top(), bounds.width() - 4, 10}, Qt::AlignLeft | Qt::AlignVCenter,
+                     title.toUpper());
+
+    QFont body_font = painter.font();
+    body_font.setPixelSize(7);
+    body_font.setBold(false);
+    painter.setFont(body_font);
+
+    const QFontMetrics metrics{body_font};
+    int y = bounds.top() + 12;
+    for (const QString &line : lines)
+    {
+        if (y + metrics.height() > bounds.bottom())
+        {
+            break;
+        }
+        painter.drawText(QRect{bounds.left() + 2, y, bounds.width() - 4, metrics.height()}, Qt::AlignLeft | Qt::AlignVCenter,
+                         metrics.elidedText(line, Qt::ElideRight, bounds.width() - 4));
+        y += metrics.height();
     }
 }
 
@@ -169,6 +233,45 @@ void draw_meter(QPainter &painter, const QRect &rect, const QString &label, floa
     fill.setWidth(static_cast<int>(static_cast<float>(fill.width()) * clamped));
     painter.setBrush(accent);
     painter.drawRoundedRect(fill, 3, 3);
+}
+
+void draw_compact_meter(QPainter &painter, const QRect &rect, const QString &label, float value)
+{
+    const float clamped = clamp01(value);
+    QFont font = painter.font();
+    font.setPixelSize(7);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.setPen(QColor{255, 255, 255});
+    painter.drawText(QRect{rect.left(), rect.top(), 28, rect.height()}, Qt::AlignLeft | Qt::AlignVCenter,
+                     label.toUpper());
+
+    const QRect track{rect.left() + 30, rect.top() + 2, std::max(1, rect.width() - 30), std::max(1, rect.height() - 4)};
+    painter.setPen(QColor{255, 255, 255});
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(track);
+    QRect fill = track.adjusted(1, 1, -1, -1);
+    fill.setWidth(static_cast<int>(static_cast<float>(fill.width()) * clamped));
+    painter.fillRect(fill, QColor{255, 255, 255});
+}
+
+void draw_compact_kv(QPainter &painter, const QRect &rect, const QString &label, const QString &value)
+{
+    painter.setPen(QColor{255, 255, 255});
+    painter.drawRect(rect);
+
+    QFont label_font = painter.font();
+    label_font.setPixelSize(7);
+    label_font.setBold(false);
+    painter.setFont(label_font);
+    painter.drawText(rect.adjusted(2, 1, -2, -rect.height() / 2), Qt::AlignLeft | Qt::AlignTop, label.toUpper());
+
+    QFont value_font = painter.font();
+    value_font.setPixelSize(11);
+    value_font.setBold(true);
+    painter.setFont(value_font);
+    painter.drawText(rect.adjusted(2, 10, -2, -1), Qt::AlignLeft | Qt::AlignVCenter,
+                     QFontMetrics{value_font}.elidedText(value, Qt::ElideRight, rect.width() - 4));
 }
 
 std::optional<double> read_linux_temperature_c()
@@ -384,6 +487,56 @@ void draw_linux_os_page(QPainter &painter, const QRect &bounds, const SystemMetr
     painter.drawText(QRect{8, 219, 224, 15}, Qt::AlignLeft | Qt::AlignVCenter, mmc_text);
 }
 
+void draw_compact_performance_page(QPainter &painter, const QRect &bounds, const core::ControlFrame &frame,
+                                   const QStringList &system_lines)
+{
+    const QString fps_line = system_lines.isEmpty() ? QString{} : system_lines.front();
+    QString process_fps = first_metric_value(fps_line, QStringLiteral("FPS process "));
+    if (process_fps == QStringLiteral("--"))
+    {
+        process_fps = first_metric_value(fps_line, QStringLiteral("FPS capture "));
+    }
+    const QString render_fps = first_metric_value(fps_line, QStringLiteral("render "));
+
+    draw_compact_kv(painter, QRect{2, 1, 40, 25}, QStringLiteral("proc"), process_fps);
+    draw_compact_kv(painter, QRect{44, 1, 40, 25}, QStringLiteral("rend"), render_fps);
+    draw_compact_kv(painter, QRect{86, 1, 40, 25}, QStringLiteral("gain"), QString::number(frame.gain, 'f', 1));
+    draw_compact_meter(painter, QRect{2, 31, bounds.width() - 4, 12}, QStringLiteral("rms"), frame.audio_rms);
+    draw_compact_meter(painter, QRect{2, 46, bounds.width() - 4, 12}, QStringLiteral("peak"), frame.audio_peak);
+}
+
+void draw_compact_modulation_page(QPainter &painter, const QRect &bounds, const core::ControlFrame &frame)
+{
+    draw_compact_meter(painter, QRect{2, 3, bounds.width() - 4, 12}, QStringLiteral("aud"), frame.audio_level);
+    draw_compact_meter(painter, QRect{2, 18, bounds.width() - 4, 12}, QStringLiteral("mid1"), frame.midi_primary);
+    draw_compact_meter(painter, QRect{2, 33, bounds.width() - 4, 12}, QStringLiteral("mid2"), frame.midi_secondary);
+    draw_compact_kv(painter, QRect{2, 48, 61, 15}, QStringLiteral("oscx"), QString::number(frame.osc_x, 'f', 2));
+    draw_compact_kv(painter, QRect{65, 48, 61, 15}, QStringLiteral("oscy"), QString::number(frame.osc_y, 'f', 2));
+}
+
+void draw_compact_linux_os_page(QPainter &painter, const QRect &bounds, const SystemMetricsSnapshot &metrics,
+                                const QStringList &system_lines)
+{
+    const QString fps_line = system_lines.isEmpty() ? QString{} : system_lines.front();
+    const QString render_fps = first_metric_value(fps_line, QStringLiteral("render "));
+    const auto temp_c = read_linux_temperature_c();
+    const StorageStats root = read_storage_stats("/");
+
+    draw_compact_kv(painter, QRect{2, 1, 40, 25}, QStringLiteral("cpu"),
+                    metrics.available ? QString::number(metrics.cpu_percent, 'f', 0) + QStringLiteral("%")
+                                      : QStringLiteral("--"));
+    draw_compact_kv(painter, QRect{44, 1, 40, 25}, QStringLiteral("mem"),
+                    metrics.available ? QString::number(metrics.memory_percent, 'f', 0) + QStringLiteral("%")
+                                      : QStringLiteral("--"));
+    draw_compact_kv(painter, QRect{86, 1, 40, 25}, QStringLiteral("temp"),
+                    temp_c.has_value() ? QString::number(*temp_c, 'f', 0) + QStringLiteral("C") : QStringLiteral("--"));
+    draw_compact_meter(painter, QRect{2, 31, bounds.width() - 4, 12}, QStringLiteral("root"),
+                       root.available ? static_cast<float>(root.used_percent / 100.0) : 0.0F);
+    draw_compact_kv(painter, QRect{2, 47, 61, 16}, QStringLiteral("rend"), render_fps);
+    draw_compact_kv(painter, QRect{65, 47, 61, 16}, QStringLiteral("disk"),
+                    root.available ? QString::number(root.total_gb, 'f', 1) + QStringLiteral("G") : QStringLiteral("--"));
+}
+
 std::filesystem::path gpio_path(int gpio, const char *entry)
 {
     return std::filesystem::path{"/sys/class/gpio"} / ("gpio" + std::to_string(gpio)) / entry;
@@ -497,6 +650,31 @@ void configure_input_pullups(const std::vector<SecondaryDisplayControlMapping> &
     }
 }
 
+bool configure_output_gpio(int bcm_gpio, bool high)
+{
+    if (bcm_gpio < 0)
+    {
+        return true;
+    }
+    const int sysfs_gpio = resolve_sysfs_gpio(bcm_gpio);
+    const auto value_path = gpio_path(sysfs_gpio, "value");
+    if (!std::filesystem::exists(value_path))
+    {
+        write_text_file("/sys/class/gpio/export", std::to_string(sysfs_gpio));
+    }
+    write_text_file(gpio_path(sysfs_gpio, "direction"), "out");
+    return write_text_file(value_path, high ? "1" : "0");
+}
+
+bool set_output_gpio(int bcm_gpio, bool high)
+{
+    if (bcm_gpio < 0)
+    {
+        return true;
+    }
+    return write_text_file(gpio_path(resolve_sysfs_gpio(bcm_gpio), "value"), high ? "1" : "0");
+}
+
 } // namespace
 
 FramebufferMirror::FramebufferMirror(std::string device_path)
@@ -516,7 +694,33 @@ FramebufferMirror::FramebufferMirror(std::string device_path, SceneSecondaryDisp
     device_present_ = (::access(device_path_.c_str(), F_OK) == 0);
     if (!device_present_)
     {
-        status_message_ = "secondary framebuffer not present";
+        status_message_ = uses_ssd1309_direct(display_) ? "secondary SSD1309 device not present"
+                                                        : "secondary framebuffer not present";
+        return;
+    }
+
+    if (uses_ssd1309_direct(display_))
+    {
+        spidev_backend_ = uses_ssd1309_spidev(display_);
+        i2c_backend_ = uses_ssd1309_i2c(display_);
+        fd_ = ::open(device_path_.c_str(), O_RDWR | O_CLOEXEC);
+        if (fd_ < 0)
+        {
+            status_message_ = std::string{"open failed: "} + std::strerror(errno);
+            return;
+        }
+        width_ = std::max(1, display_.width);
+        height_ = std::max(1, display_.height);
+        bits_per_pixel_ = 1;
+        line_length_ = (width_ + 7) / 8;
+        const bool initialized = spidev_backend_ ? initialize_spidev() : initialize_i2c();
+        if (!initialized)
+        {
+            close_device();
+            return;
+        }
+        status_message_ = "ready";
+        initialize_controls();
         return;
     }
 
@@ -575,6 +779,10 @@ FramebufferMirror::~FramebufferMirror()
 
 bool FramebufferMirror::ready() const
 {
+    if (spidev_backend_ || i2c_backend_)
+    {
+        return fd_ >= 0;
+    }
     return mapped_ != nullptr && fd_ >= 0;
 }
 
@@ -627,7 +835,13 @@ bool FramebufferMirror::present_frame(const QImage &source, const core::ControlF
 
 void FramebufferMirror::clear()
 {
-    if (ready())
+    if (ready() && (spidev_backend_ || i2c_backend_))
+    {
+        QImage canvas{std::max(width_, 1), std::max(height_, 1), QImage::Format_RGB32};
+        canvas.fill(Qt::black);
+        write_canvas(canvas);
+    }
+    else if (ready())
     {
         std::memset(mapped_, 0, mapped_size_);
     }
@@ -765,24 +979,42 @@ QImage FramebufferMirror::render_page(const QImage &source, const core::ControlF
             painter.drawImage(target_rect, scaled);
             painter.setOpacity(1.0);
         }
-        draw_text_page(painter, bounds, QStringLiteral("video input"), {});
+        if (logical_width > 160 && logical_height > 80)
+        {
+            draw_text_page(painter, bounds, QStringLiteral("video input"), {});
+        }
         return page;
     }
 
     if (current_page_ == SecondaryDisplayPage::SystemPerformance)
     {
+        if (logical_width <= 160 || logical_height <= 80)
+        {
+            draw_compact_performance_page(painter, bounds, frame, system_lines);
+            return page;
+        }
         draw_performance_page(painter, bounds, frame, system_lines);
         return page;
     }
 
     if (current_page_ == SecondaryDisplayPage::AppStatusModulation)
     {
+        if (logical_width <= 160 || logical_height <= 80)
+        {
+            draw_compact_modulation_page(painter, bounds, frame);
+            return page;
+        }
         draw_modulation_page(painter, bounds, frame, app_lines);
         return page;
     }
 
     if (current_page_ == SecondaryDisplayPage::LinuxOsStats)
     {
+        if (logical_width <= 160 || logical_height <= 80)
+        {
+            draw_compact_linux_os_page(painter, bounds, system_metrics_.sample(), system_lines);
+            return page;
+        }
         draw_linux_os_page(painter, bounds, system_metrics_.sample(), system_lines);
         return page;
     }
@@ -798,7 +1030,14 @@ QImage FramebufferMirror::render_page(const QImage &source, const core::ControlF
                           .arg(action)
                           .arg(page_label(control.page));
     }
-    draw_text_page(painter, bounds, QStringLiteral("mode"), mode_lines);
+    if (logical_width <= 160 || logical_height <= 80)
+    {
+        draw_compact_text_page(painter, bounds, QStringLiteral("mode"), mode_lines);
+    }
+    else
+    {
+        draw_text_page(painter, bounds, QStringLiteral("mode"), mode_lines);
+    }
     return page;
 }
 
@@ -849,6 +1088,15 @@ QImage FramebufferMirror::orient_for_framebuffer(const QImage &image) const
 
 bool FramebufferMirror::write_canvas(const QImage &canvas)
 {
+    if (spidev_backend_)
+    {
+        return write_spidev_canvas(canvas);
+    }
+    if (i2c_backend_)
+    {
+        return write_i2c_canvas(canvas);
+    }
+
     auto *dst_bytes = static_cast<std::uint8_t *>(mapped_);
     for (int y = 0; y < canvas.height(); ++y)
     {
@@ -890,6 +1138,236 @@ bool FramebufferMirror::write_canvas(const QImage &canvas)
     }
 
     return true;
+}
+
+bool FramebufferMirror::initialize_spidev()
+{
+    std::uint8_t mode = SPI_MODE_3;
+    std::uint8_t bits_per_word = 8;
+    std::uint32_t speed = static_cast<std::uint32_t>(std::max(1, display_.spi_speed_hz));
+    if (::ioctl(fd_, SPI_IOC_WR_MODE, &mode) != 0 ||
+        ::ioctl(fd_, SPI_IOC_WR_BITS_PER_WORD, &bits_per_word) != 0 ||
+        ::ioctl(fd_, SPI_IOC_WR_MAX_SPEED_HZ, &speed) != 0)
+    {
+        status_message_ = std::string{"SPI setup failed: "} + std::strerror(errno);
+        return false;
+    }
+
+    if (display_.gpio_dc < 0)
+    {
+        status_message_ = "SSD1309 SPI requires gpio_dc";
+        return false;
+    }
+    if (!configure_output_gpio(display_.gpio_dc, true) || !configure_output_gpio(display_.gpio_reset, true))
+    {
+        status_message_ = "SSD1309 GPIO setup failed";
+        return false;
+    }
+
+    if (display_.gpio_reset >= 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds{20});
+        set_output_gpio(display_.gpio_reset, false);
+        std::this_thread::sleep_for(std::chrono::milliseconds{5});
+        set_output_gpio(display_.gpio_reset, true);
+        std::this_thread::sleep_for(std::chrono::milliseconds{200});
+    }
+
+    QImage blank{std::max(width_, 1), std::max(height_, 1), QImage::Format_RGB32};
+    blank.fill(Qt::black);
+
+    // SparkFun UG2856KLBAG01 transparent OLED / SSD1309 recommended setup.
+    return write_spidev_command({0xFD, 0x12}) && // command lock off
+           write_spidev_command({0xAE}) &&       // display off
+           write_spidev_command({0xD5, 0xA0}) &&
+           write_spidev_command({0xA8, 0x3F}) &&
+           write_spidev_command({0xD3, 0x00}) &&
+           write_spidev_command({0x40}) &&
+           write_spidev_command({0x20, 0x00}) && // horizontal addressing
+           write_spidev_command({0xA1}) &&
+           write_spidev_command({0xC8}) &&
+           write_spidev_command({0xDA, 0x12}) &&
+           write_spidev_command({0x81, 0x8F}) &&
+           write_spidev_command({0xD9, 0x25}) &&
+           write_spidev_command({0xDB, 0x34}) &&
+           write_spidev_command({0xA4}) &&
+           write_spidev_command({0xA6}) &&
+           write_spidev_canvas(blank) &&
+           write_spidev_command({0xAF});
+}
+
+bool FramebufferMirror::initialize_i2c()
+{
+    if (::ioctl(fd_, I2C_SLAVE, display_.i2c_address) != 0)
+    {
+        status_message_ = std::string{"I2C address setup failed: "} + std::strerror(errno);
+        return false;
+    }
+
+    if (!configure_output_gpio(display_.gpio_reset, true))
+    {
+        status_message_ = "SSD1309 reset GPIO setup failed";
+        return false;
+    }
+
+    if (display_.gpio_reset >= 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds{20});
+        set_output_gpio(display_.gpio_reset, false);
+        std::this_thread::sleep_for(std::chrono::milliseconds{5});
+        set_output_gpio(display_.gpio_reset, true);
+        std::this_thread::sleep_for(std::chrono::milliseconds{200});
+    }
+
+    QImage blank{std::max(width_, 1), std::max(height_, 1), QImage::Format_RGB32};
+    blank.fill(Qt::black);
+
+    // SparkFun UG2856KLBAG01 transparent OLED / SSD1309 recommended setup.
+    return write_i2c_command({0xFD, 0x12}) && // command lock off
+           write_i2c_command({0xAE}) &&       // display off
+           write_i2c_command({0xD5, 0xA0}) &&
+           write_i2c_command({0xA8, 0x3F}) &&
+           write_i2c_command({0xD3, 0x00}) &&
+           write_i2c_command({0x40}) &&
+           write_i2c_command({0x20, 0x00}) && // horizontal addressing
+           write_i2c_command({0xA1}) &&
+           write_i2c_command({0xC8}) &&
+           write_i2c_command({0xDA, 0x12}) &&
+           write_i2c_command({0x81, 0x8F}) &&
+           write_i2c_command({0xD9, 0x25}) &&
+           write_i2c_command({0xDB, 0x34}) &&
+           write_i2c_command({0xA4}) &&
+           write_i2c_command({0xA6}) &&
+           write_i2c_canvas(blank) &&
+           write_i2c_command({0xAF});
+}
+
+bool FramebufferMirror::write_spidev_command(std::initializer_list<std::uint8_t> bytes)
+{
+    std::vector<std::uint8_t> buffer{bytes};
+    set_output_gpio(display_.gpio_dc, false);
+    spi_ioc_transfer transfer{};
+    transfer.tx_buf = reinterpret_cast<unsigned long>(buffer.data());
+    transfer.len = static_cast<__u32>(buffer.size());
+    transfer.speed_hz = static_cast<__u32>(std::max(1, display_.spi_speed_hz));
+    transfer.bits_per_word = 8;
+    if (::ioctl(fd_, SPI_IOC_MESSAGE(1), &transfer) < 0)
+    {
+        status_message_ = std::string{"SPI command failed: "} + std::strerror(errno);
+        return false;
+    }
+    return true;
+}
+
+bool FramebufferMirror::write_spidev_data(const std::vector<std::uint8_t> &bytes)
+{
+    if (bytes.empty())
+    {
+        return true;
+    }
+    set_output_gpio(display_.gpio_dc, true);
+    spi_ioc_transfer transfer{};
+    transfer.tx_buf = reinterpret_cast<unsigned long>(bytes.data());
+    transfer.len = static_cast<__u32>(bytes.size());
+    transfer.speed_hz = static_cast<__u32>(std::max(1, display_.spi_speed_hz));
+    transfer.bits_per_word = 8;
+    if (::ioctl(fd_, SPI_IOC_MESSAGE(1), &transfer) < 0)
+    {
+        status_message_ = std::string{"SPI data failed: "} + std::strerror(errno);
+        return false;
+    }
+    return true;
+}
+
+bool FramebufferMirror::write_spidev_canvas(const QImage &canvas)
+{
+    if (canvas.isNull())
+    {
+        return false;
+    }
+
+    const QImage source = canvas.convertToFormat(QImage::Format_RGB32).scaled(QSize{width_, height_}, Qt::IgnoreAspectRatio,
+                                                                              Qt::FastTransformation);
+    std::vector<std::uint8_t> pages(static_cast<std::size_t>(width_) * static_cast<std::size_t>((height_ + 7) / 8), 0);
+    for (int y = 0; y < height_; ++y)
+    {
+        const QRgb *line = reinterpret_cast<const QRgb *>(source.constScanLine(y));
+        for (int x = 0; x < width_; ++x)
+        {
+            const int luma = (qRed(line[x]) * 299 + qGreen(line[x]) * 587 + qBlue(line[x]) * 114) / 1000;
+            if (luma >= 96)
+            {
+                pages[static_cast<std::size_t>((y / 8) * width_ + x)] |= static_cast<std::uint8_t>(1U << (y % 8));
+            }
+        }
+    }
+
+    return write_spidev_command({0x21, 0x00, static_cast<std::uint8_t>(std::max(0, width_ - 1))}) &&
+           write_spidev_command({0x22, 0x00, static_cast<std::uint8_t>(std::max(0, ((height_ + 7) / 8) - 1))}) &&
+           write_spidev_data(pages);
+}
+
+bool FramebufferMirror::write_i2c_command(std::initializer_list<std::uint8_t> bytes)
+{
+    std::vector<std::uint8_t> buffer;
+    buffer.reserve(bytes.size() + 1);
+    buffer.push_back(0x00);
+    buffer.insert(buffer.end(), bytes.begin(), bytes.end());
+    if (::write(fd_, buffer.data(), buffer.size()) != static_cast<ssize_t>(buffer.size()))
+    {
+        status_message_ = std::string{"I2C command failed: "} + std::strerror(errno);
+        return false;
+    }
+    return true;
+}
+
+bool FramebufferMirror::write_i2c_data(const std::vector<std::uint8_t> &bytes)
+{
+    constexpr std::size_t kChunkBytes = 16;
+    std::vector<std::uint8_t> buffer;
+    buffer.reserve(kChunkBytes + 1);
+    for (std::size_t offset = 0; offset < bytes.size(); offset += kChunkBytes)
+    {
+        const std::size_t count = std::min(kChunkBytes, bytes.size() - offset);
+        buffer.clear();
+        buffer.push_back(0x40);
+        buffer.insert(buffer.end(), bytes.begin() + static_cast<std::ptrdiff_t>(offset),
+                      bytes.begin() + static_cast<std::ptrdiff_t>(offset + count));
+        if (::write(fd_, buffer.data(), buffer.size()) != static_cast<ssize_t>(buffer.size()))
+        {
+            status_message_ = std::string{"I2C data failed: "} + std::strerror(errno);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FramebufferMirror::write_i2c_canvas(const QImage &canvas)
+{
+    if (canvas.isNull())
+    {
+        return false;
+    }
+
+    const QImage source = canvas.convertToFormat(QImage::Format_RGB32).scaled(QSize{width_, height_}, Qt::IgnoreAspectRatio,
+                                                                              Qt::FastTransformation);
+    std::vector<std::uint8_t> pages(static_cast<std::size_t>(width_) * static_cast<std::size_t>((height_ + 7) / 8), 0);
+    for (int y = 0; y < height_; ++y)
+    {
+        const QRgb *line = reinterpret_cast<const QRgb *>(source.constScanLine(y));
+        for (int x = 0; x < width_; ++x)
+        {
+            const int luma = (qRed(line[x]) * 299 + qGreen(line[x]) * 587 + qBlue(line[x]) * 114) / 1000;
+            if (luma >= 96)
+            {
+                pages[static_cast<std::size_t>((y / 8) * width_ + x)] |= static_cast<std::uint8_t>(1U << (y % 8));
+            }
+        }
+    }
+
+    return write_i2c_command({0x21, 0x00, static_cast<std::uint8_t>(std::max(0, width_ - 1))}) &&
+           write_i2c_command({0x22, 0x00, static_cast<std::uint8_t>(std::max(0, ((height_ + 7) / 8) - 1))}) &&
+           write_i2c_data(pages);
 }
 
 void FramebufferMirror::close_device()

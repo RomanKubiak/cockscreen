@@ -127,9 +127,16 @@ std::vector<std::string> missing_scene_shaders(const SceneDefinition &scene, con
 {
     std::vector<std::string> missing_shaders;
     const auto shader_directory = effective_shader_directory(scene, settings);
-    collect_missing_layer_shaders("video", scene.video_layer, shader_directory, &missing_shaders);
-    collect_missing_layer_shaders("playback", scene.playback_layer, shader_directory, &missing_shaders);
-    collect_missing_layer_shaders("screen", scene.screen_layer, shader_directory, &missing_shaders);
+
+    // Check all named layers (covers built-ins and user-defined layers from the
+    // "layers" dict).  The three legacy fields (video_layer, playback_layer,
+    // screen_layer) are already mirrored into named_layers during parsing, so
+    // iterating named_layers is sufficient.
+    for (const auto &[name, named_layer] : scene.named_layers)
+    {
+        collect_missing_layer_shaders(name.c_str(), named_layer.layer, shader_directory, &missing_shaders);
+    }
+
     return missing_shaders;
 }
 

@@ -22,185 +22,87 @@
         "presentation": "stretch",
         "filter": "nearest"
     },
-    "inputs": {
+    "secondary_display": {
+        "enabled": true,
+        "device": "/dev/i2c-1",
+        "model": "sparkfun-transparent-ssd1309",
+        "interface": "i2c",
+        "width": 128,
+        "height": 64,
+        "rotation_degrees": 0,
+        "i2c_address": "0x3c",
+        "gpio_reset": -1,
+        "render_target": {
+            "enabled": true,
+            "width": 128,
+            "height": 64,
+            "presentation": "fit",
+            "filter": "nearest"
+        },
+        "default_page": "video_input",
         "video": {
-            "enabled": false,
-            "device": "/dev/video0",
-            "format": "320x240",
-            /*
-             * Time-based transform animation for the video quad.
-             * Presets: rotate, resize, move-x, move-y, orbit, wobble, bounce.
-             * speed is cycles per second; phase is a starting offset in cycles.
-             * amount is preset-specific normalized intensity.
-             */
-            "animation": {
-                "enabled": false,
-                "preset": "resize",
-                "speed": 0.04,
-                "amount": 0.6,
-                "phase": 2.0
-            },
-            "scale": 1,
-            /* Preferred position form. */
-            "position": {
-                "x": 0,
-                "y": 1
-            }
+            "enabled": true,
+            "opacity": 1.0
         },
-        "playback": {
-            "enabled": false,
-            "file": "/home/atom/Videos/nana5minute.mpeg",
-            "scale": 1,
-            "position": {
-                "x": 0,
-                "y": 1
-            },
-            /* Null or omitted loop_end_ms disables a custom loop end. */
-            "start_ms": 0,
-            "loop_start_ms": 0,
-            "loop_end_ms": null,
-            "loop_repeat": 0,
-            "playback_rate": 1.0,
-            "playback_rate_looping": 1.0,
-            "animation": {
+        "controls": {}
+    },
+    /*
+     * Named layers (new-style, optional).
+     *
+     * The "layers" dict lets you define any number of named layers beyond the
+     * three built-in keys (video / playback / screen).  Each entry is a layer
+     * object plus two extra fields:
+     *
+     *   "type"  — "video", "playback", or "screen" (default "screen").
+     *             Determines which input pipeline feeds the layer.
+     *   "input" — inline SceneInput object (same fields as inputs.video /
+     *             inputs.playback).  Required for type "video" and "playback".
+     *
+     * Built-in video / playback / screen keys are still parsed for backward
+     * compatibility; named_layers always wins in rendering.
+     * Refer to the layer by its dict key in midi_cc_mappings, osc_mappings,
+     * shader_uniforms, and layer_order.
+     */
+    "layers": {
+        "camera2": {
+            "type": "video",
+            "enabled": true,
+            "opacity": 1.0,
+            "shaders": [],
+            "input": {
                 "enabled": true,
-                "preset": "rotate",
-                "speed": 0.04,
-                "amount": 0.6,
-                "phase": 2.0
+                "device": "/dev/video2",
+                "scale": 1.0,
+                "format": "vga"
             }
-        },
-        "background_color": {
-            "r": 0.0,
-            "g": 0.0,
-            "b": 0.0,
-            "a": 1.0
-        },
-        "audio": {
-            "enabled": false,
-            "device": "MS210x Video Grabber [EasierCAP] Analog Stereo"
-        },
-        "midi": {
-            "enabled": false,
-            "device": "SQ-1"
         }
     },
-    "show_status_overlay": true,
-    "video": {
-        "enabled": false,
-        "opacity": 1.0,
-        "shaders": []
-    },
-    "playback": {
-        "enabled": true,
-        "opacity": 1.0,
-        "shaders": [
-            "pink_key.glsl"
-        ]
-    },
+    "show_status_overlay": false,
     "screen": {
         "enabled": true,
         "opacity": 1.0,
         "shaders": [
-            "psychotherapy.glsl",
-            "pink_key.glsl"
+            //"psychotherapy.glsl",
+            //"pink_key.glsl"
             //"fluid_flow.glsl"
-            //"wireframe_plane.glsl"
-        ]
+            "wireframe_plane.glsl"
+        ],
+        "animation": {
+            "enabled": true,
+            "preset": "rotate",
+            "speed": 0.02,
+            "amount": 1.0,
+            "phase": 0.0,
+            /*
+                 * axis is an optional hint string passed to the animation
+                 * implementation (e.g. "x", "y", "z").  Accepted by the
+                 * parser; effect depends on the animation preset.
+                 */
+            "axis": "x"
+        }
     },
     /* Compositing order from back to front. */
     "layer_order": [
-        "video",
-        "screen"
-    ],
-    /*
-     * fluid_flow.glsl startup defaults – aurora preset.
-     * Match presets/fluid_flow.glsl/aurora.json so the web UI preset loads are idempotent.
-     */
-    "osc_mappings": [
-        {
-            /* AD7 potentiometer → red saturation ceiling in psychotherapy.glsl */
-            "address": "/analog/ad7",
-            "layer": "screen",
-            "shader": "psychotherapy.glsl",
-            "uniform": "u_max_red",
-            "min": 0.0,
-            "max": 0.95
-        }
-    ],
-    "shader_uniforms": [
-        {
-            /* Default before first AD7 reading; overridden live by osc_mappings above */
-            "layer": "screen",
-            "shader": "psychotherapy.glsl",
-            "uniform": "u_max_red",
-            "value": 0.95
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_flow_speed",
-            "value": 0.3
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_flow_scale",
-            "value": 2.0
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_turbulence",
-            "value": 0.5
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_whirl_x",
-            "value": 0.5
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_whirl_y",
-            "value": 0.5
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_whirl_strength",
-            "value": 2.5
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_whirl_radius",
-            "value": 0.25
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_palette_shift",
-            "value": 0.55
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_palette_contrast",
-            "value": 0.7
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_color_speed",
-            "value": 0.08
-        },
-        {
-            "layer": "screen",
-            "shader": "fluid_flow.glsl",
-            "uniform": "u_brightness",
-            "value": 1.0
-        }
+        "camera2"
     ]
 }

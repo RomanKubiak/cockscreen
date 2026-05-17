@@ -9,8 +9,14 @@
 
 #ifndef _WIN32
 #include <fcntl.h>
+#include <linux/media.h>
+#include <linux/media-bus-format.h>
+#include <linux/v4l2-subdev.h>
 #include <linux/videodev2.h>
+#include <set>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 #endif
 
@@ -316,6 +322,154 @@ std::optional<std::string> detect_default_midi_device()
     return midi_devices.front();
 }
 
+// Enumerate the frame sizes that the CSI sensor subdev actually supports by
+// walking the media controller graph from the given video node to its sensor
+// entity and calling VIDIOC_SUBDEV_ENUM_MBUS_CODE + VIDIOC_SUBDEV_ENUM_FRAME_SIZE.
+// Returns fixed-size modes as "WxH" strings, sorted smallest-first.
+// Returns an empty vector on any failure so the caller can fall back gracefully.
+static std::vector<std::string> enumerate_mc_sensor_modes(const std::string &video_path)
+{
+    struct stat video_stat{};
+    if (::stat(video_path.c_str(), &video_stat) != 0)
+        return {};
+    const unsigned int target_major = major(video_stat.st_rdev);
+    const unsigned int target_minor = minor(video_stat.st_rdev);
+
+    int media_fd = -1;
+    __u32 capture_entity_id = 0;
+    for (int n = 0; n < 16 && media_fd < 0; ++n)
+    {
+        const std::string mpath = "/dev/media" + std::to_string(n);
+        const int fd = ::open(mpath.c_str(), O_RDWR | O_NONBLOCK);
+        if (fd < 0)
+            break;
+        media_entity_desc entity{};
+        entity.id = MEDIA_ENT_ID_FLAG_NEXT;
+        while (::ioctl(fd, MEDIA_IOC_ENUM_ENTITIES, &entity) == 0)
+        {
+            if (entity.v4l.major == target_major && entity.v4l.minor == target_minor)
+            {
+                capture_entity_id = entity.id;
+                media_fd = fd;
+                break;
+            }
+            entity.id |= MEDIA_ENT_ID_FLAG_NEXT;
+        }
+        if (media_fd < 0)
+            ::close(fd);
+    }
+    if (media_fd < 0)
+        return {};
+
+    __u32 sensor_entity_id = 0;
+    __u16 sensor_pad_index = 0;
+    {
+        media_entity_desc entity{};
+        entity.id = MEDIA_ENT_ID_FLAG_NEXT;
+        while (::ioctl(media_fd, MEDIA_IOC_ENUM_ENTITIES, &entity) == 0 && sensor_entity_id == 0)
+        {
+            const __u32 eid = entity.id;
+            if (eid != capture_entity_id && entity.links > 0)
+            {
+                std::vector<media_pad_desc> pads(entity.pads);
+                std::vector<media_link_desc> link_descs(entity.links);
+                media_links_enum links_req{};
+                links_req.entity   = eid;
+                links_req.pads     = pads.empty() ? nullptr : pads.data();
+                links_req.links    = link_descs.data();
+                if (::ioctl(media_fd, MEDIA_IOC_ENUM_LINKS, &links_req) == 0)
+                {
+                    for (const auto &link : link_descs)
+                    {
+                        if (link.sink.entity == capture_entity_id)
+                        {
+                            sensor_entity_id = link.source.entity;
+                            sensor_pad_index = link.source.index;
+                            break;
+                        }
+                    }
+                }
+            }
+            entity.id = eid | MEDIA_ENT_ID_FLAG_NEXT;
+        }
+    }
+    if (sensor_entity_id == 0)
+    {
+        ::close(media_fd);
+        return {};
+    }
+
+    media_entity_desc sensor_ent{};
+    sensor_ent.id = sensor_entity_id;
+    if (::ioctl(media_fd, MEDIA_IOC_ENUM_ENTITIES, &sensor_ent) != 0)
+    {
+        ::close(media_fd);
+        return {};
+    }
+    ::close(media_fd);
+
+    std::string subdev_path;
+    for (int n = 0; n < 16; ++n)
+    {
+        const std::string spath = "/dev/v4l-subdev" + std::to_string(n);
+        struct stat sst{};
+        if (::stat(spath.c_str(), &sst) != 0)
+            break;
+        if (major(sst.st_rdev) == sensor_ent.v4l.major &&
+            minor(sst.st_rdev) == sensor_ent.v4l.minor)
+        {
+            subdev_path = spath;
+            break;
+        }
+    }
+    if (subdev_path.empty())
+        return {};
+
+    const int subdev_fd = ::open(subdev_path.c_str(), O_RDWR | O_NONBLOCK);
+    if (subdev_fd < 0)
+        return {};
+
+    // Collect all mbus codes supported by the sensor pad.
+    std::vector<__u32> mbus_codes;
+    for (__u32 idx = 0; ; ++idx)
+    {
+        v4l2_subdev_mbus_code_enum mce{};
+        mce.pad   = sensor_pad_index;
+        mce.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+        mce.index = idx;
+        if (::ioctl(subdev_fd, VIDIOC_SUBDEV_ENUM_MBUS_CODE, &mce) != 0)
+            break;
+        mbus_codes.push_back(mce.code);
+    }
+
+    // Enumerate discrete frame sizes across all mbus codes; deduplicate by WxH.
+    std::set<std::pair<int, int>> seen;
+    for (const auto code : mbus_codes)
+    {
+        for (__u32 idx = 0; ; ++idx)
+        {
+            v4l2_subdev_frame_size_enum fse{};
+            fse.pad   = sensor_pad_index;
+            fse.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+            fse.index = idx;
+            fse.code  = code;
+            if (::ioctl(subdev_fd, VIDIOC_SUBDEV_ENUM_FRAME_SIZE, &fse) != 0)
+                break;
+            // Only take fixed (non-stepwise) sizes — stepwise would be the
+            // same misleading "any resolution" range we are trying to replace.
+            if (fse.min_width == fse.max_width && fse.min_height == fse.max_height)
+                seen.insert({static_cast<int>(fse.min_width), static_cast<int>(fse.min_height)});
+        }
+    }
+    ::close(subdev_fd);
+
+    std::vector<std::string> modes;
+    modes.reserve(seen.size());
+    for (const auto &[w, h] : seen)
+        modes.push_back(std::to_string(w) + "x" + std::to_string(h));
+    return modes;
+}
+
 std::vector<RpiCameraDevice> detect_rpi_cameras()
 {
     static constexpr std::string_view rpi_driver_keywords[] = {
@@ -378,7 +532,9 @@ std::vector<RpiCameraDevice> detect_rpi_cameras()
         dev.driver = driver;
         dev.card = card;
         dev.requires_media_controller = (cap.capabilities & V4L2_CAP_IO_MC) != 0U;
-        dev.modes = runtime::V4l2Capture::enumerate_supported_modes(path);
+        dev.modes = dev.requires_media_controller
+                        ? enumerate_mc_sensor_modes(path)
+                        : runtime::V4l2Capture::enumerate_supported_modes(path);
         result.push_back(std::move(dev));
     }
 

@@ -409,8 +409,25 @@ QString playback_static_overlay_line(const SceneDefinition &scene)
         .arg(playback.playback_rate_looping, 0, 'f', 2);
 }
 
+bool is_network_url(const std::string &s)
+{
+    return s.rfind("rtsp://", 0) == 0 || s.rfind("rtsps://", 0) == 0 ||
+           s.rfind("http://", 0) == 0 || s.rfind("https://", 0) == 0;
+}
+
 std::optional<QString> validate_playback_source(const SceneDefinition &scene)
 {
+    // Only validate the built-in playback input when "playback" is actually going
+    // to be rendered.  An empty layer_order means the runtime default includes it;
+    // when an explicit order is given and "playback" is absent, skip the check.
+    const auto &order = scene.layer_order;
+    const bool playback_in_order = order.empty() ||
+        std::find(order.begin(), order.end(), "playback") != order.end();
+    if (!playback_in_order)
+    {
+        return std::nullopt;
+    }
+
     const auto &playback = scene.playback_input;
     if (!playback.enabled)
     {
@@ -423,6 +440,18 @@ std::optional<QString> validate_playback_source(const SceneDefinition &scene)
         return QStringLiteral("Playback is enabled but no playback source is defined.");
     }
 
+    // Network URLs (rtsp://, http://, https://) are handled by GStreamer — only
+    // check that the URL parses; skip all filesystem and MIME checks.
+    if (is_network_url(playback.file))
+    {
+        const QUrl url{source_text};
+        if (!url.isValid())
+        {
+            return QStringLiteral("Playback source '%1' is not a valid URL.").arg(source_text);
+        }
+        return std::nullopt;
+    }
+
     const QUrl source_url{source_text};
     if (!source_url.scheme().isEmpty())
     {
@@ -433,7 +462,7 @@ std::optional<QString> validate_playback_source(const SceneDefinition &scene)
 
         if (!source_url.isLocalFile())
         {
-            return QStringLiteral("Playback source '%1' uses unsupported scheme '%2'. Only local files are supported.")
+            return QStringLiteral("Playback source '%1' uses unsupported scheme '%2'.")
                 .arg(source_text, source_url.scheme());
         }
 
@@ -452,8 +481,7 @@ std::optional<QString> validate_playback_source(const SceneDefinition &scene)
         if (mime.isValid() && !mime.name().startsWith(QStringLiteral("video/")) &&
             !mime.name().startsWith(QStringLiteral("audio/")) && mime.name() != QStringLiteral("application/ogg"))
         {
-            return QStringLiteral("Playback source '%1' is not a recognized audio/video media file (%2).").arg(source_text,
-                                                                                                                   mime.name());
+            return QStringLiteral("Playback source '%1' is not a recognized audio/video media file (%2).").arg(source_text, mime.name());
         }
 
         return std::nullopt;
@@ -480,8 +508,7 @@ std::optional<QString> validate_playback_source(const SceneDefinition &scene)
     if (mime.isValid() && !mime.name().startsWith(QStringLiteral("video/")) &&
         !mime.name().startsWith(QStringLiteral("audio/")) && mime.name() != QStringLiteral("application/ogg"))
     {
-        return QStringLiteral("Playback source '%1' is not a recognized audio/video media file (%2).").arg(source_text,
-                                                                                                               mime.name());
+        return QStringLiteral("Playback source '%1' is not a recognized audio/video media file (%2).").arg(source_text, mime.name());
     }
 
     return std::nullopt;
@@ -561,7 +588,7 @@ int Application::run(int argc, char *argv[])
     if (is_pi_target())
     {
         ads1256_monitor = std::make_unique<WaveshareAds1256Monitor>();
-        if (!ads1256_monitor->start(settings_.verbose_debug))
+        if (!ads1256_monitor->start(settings_.verbose_debug, settings_.ads1256_vref_volts))
         {
             std::cerr << "[ads1256] analog monitor disabled" << '\n';
             ads1256_monitor.reset();
@@ -693,22 +720,26 @@ int Application::run(int argc, char *argv[])
         QStringList lines;
         for (const auto &message : missing_shaders)
         {
+            std::cerr << "Error: " << message << '\n';
             lines.push_back(QString::fromStdString(message));
         }
-        lines.push_back(QStringLiteral("Refusing to start due to missing scene shader files."));
+        const QString summary = QStringLiteral("Refusing to start due to missing scene shader files.");
+        std::cerr << "Error: " << summary.toStdString() << '\n';
+        lines.push_back(summary);
         return show_fatal_error_window(&application, lines.join('\n'));
     }
 
     if (const auto playback_error = validate_playback_source(scene); playback_error.has_value())
     {
+        std::cerr << "Error: " << playback_error->toStdString() << '\n';
         return show_fatal_error_window(&application, *playback_error);
     }
 
     if (!validate_render_path(settings_))
     {
-        return show_fatal_error_window(
-            &application,
-            QStringLiteral("Invalid render path: %1").arg(QString::fromStdString(settings_.render_path)));
+        const auto msg = QStringLiteral("Invalid render path: %1").arg(QString::fromStdString(settings_.render_path));
+        std::cerr << "Error: " << msg.toStdString() << '\n';
+        return show_fatal_error_window(&application, msg);
     }
 
     QString web_server_error;
@@ -943,9 +974,22 @@ int Application::run(int argc, char *argv[])
         const QString video_device_path = raw_video_device_path_for(video_device, settings_);
 
 #ifndef _WIN32
-        // --- Step 2: start video-layer loopback pipeline if configured.
+        // --- Step 2a: network video source (RTSP / HTTP MJPEG via GStreamer appsink).
+        // When the device field is a network URL we bypass QCamera entirely.
+        // The appsink pipeline is connected to the shader window's video sink after
+        // window construction below.
         LoopbackPipeline qt_video_loopback;
         AppsinkCapture appsink_capture;
+        const bool video_is_network = !scene.video_input.device.empty() &&
+                                      is_network_url(scene.video_input.device);
+        if (video_is_network)
+        {
+            // Clear QCamera device — the network feed comes in through appsink.
+            video_device = std::nullopt;
+            selected_video_label = QString::fromStdString(scene.video_input.device);
+        }
+
+        // --- Step 2b: start video-layer loopback pipeline if configured.
         if (scene.video_input.loopback.enabled && video_device.has_value())
         {
             if (scene.video_input.loopback.use_appsink)
@@ -1036,7 +1080,19 @@ int Application::run(int argc, char *argv[])
             return 2;
         }
 #ifndef _WIN32
-        // Reconnect appsink frames to this window's video sink now that it exists.
+        // Connect network video appsink now that the window's QVideoSink exists.
+        if (video_is_network)
+        {
+            if (!appsink_capture.start_network(scene.video_input.device, window.video_sink_ptr(),
+                                               settings_.verbose_debug))
+            {
+                std::cerr << "Network video: " << appsink_capture.status_message().toStdString() << "\n";
+                return 2;
+            }
+            std::cout << "[appsink] network video: " << scene.video_input.device << '\n';
+        }
+
+        // Reconnect loopback appsink frames to this window's video sink now that it exists.
         if (scene.video_input.loopback.enabled && scene.video_input.loopback.use_appsink)
         {
             appsink_capture.stop();

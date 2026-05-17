@@ -130,7 +130,7 @@ double parse_double_env(const char *name, double fallback)
 
 std::chrono::milliseconds parse_period_env(const char *name, int fallback_ms)
 {
-    const auto parsed = parse_int_env(name, fallback_ms, 1, 10'000);
+    const auto parsed = parse_int_env(name, fallback_ms, 0, 10'000);
     return std::chrono::milliseconds{parsed.value_or(fallback_ms)};
 }
 
@@ -161,8 +161,8 @@ struct WaveshareAds1256Monitor::Impl
                   .value_or(1))},
           gate_poll_period_{parse_period_env("COCKSCREEN_ADS1256_GATE_POLL_MS",
                                             static_cast<int>(kGatePollPeriod.count()))},
-          vref_volts_{parse_double_env("COCKSCREEN_ADS1256_VREF_VOLTS", 5.0)},
-          sample_period_{parse_period_env("COCKSCREEN_ADS1256_PERIOD_MS", 1000)}
+          vref_volts_{parse_double_env("COCKSCREEN_ADS1256_VREF_VOLTS", 3.3)},
+          sample_period_{parse_period_env("COCKSCREEN_ADS1256_PERIOD_MS", 0)}
     {
         for (auto &v : analog_voltages_)
         {
@@ -182,9 +182,11 @@ struct WaveshareAds1256Monitor::Impl
         close_all();
     }
 
-    bool start(bool verbose_debug = false)
+    bool start(bool verbose_debug = false, double vref_override = 0.0)
     {
         verbose_debug_ = verbose_debug;
+        if (vref_override > 0.0)
+            vref_volts_ = vref_override;
         stop_requested_.store(false, std::memory_order_release);
 
         if (thread_.joinable())
@@ -216,7 +218,8 @@ struct WaveshareAds1256Monitor::Impl
 
         std::cout << "[ads1256] monitoring AD" << channel_ << " via " << spi_device_path_ << " (VREF="
                   << std::fixed << std::setprecision(2) << vref_volts_ << " V, period="
-                  << sample_period_.count() << " ms)" << '\n';
+                  << (sample_period_.count() == 0 ? "continuous" : std::to_string(sample_period_.count()) + " ms")
+                  << ")" << '\n';
         if (verbose_debug_ && mux_enabled_)
         {
             std::cout << "[ads1256] CD74HC4067 active on AD0 using BCM5/BCM6/BCM13/BCM26, scanning "
@@ -718,6 +721,7 @@ struct WaveshareAds1256Monitor::Impl
 
     void run()
     {
+        const bool continuous = (sample_period_.count() == 0);
         auto next_analog_sample = std::chrono::steady_clock::now();
         auto next_gate_poll = next_analog_sample;
 
@@ -731,7 +735,7 @@ struct WaveshareAds1256Monitor::Impl
                 next_gate_poll = now + gate_poll_period_;
             }
 
-            if (now >= next_analog_sample)
+            if (continuous || now >= next_analog_sample)
             {
                 if (!sample_once())
                 {
@@ -739,10 +743,12 @@ struct WaveshareAds1256Monitor::Impl
                     break;
                 }
 
-                next_analog_sample = now + sample_period_;
+                if (!continuous)
+                    next_analog_sample = now + sample_period_;
             }
 
-            std::this_thread::sleep_for(std::chrono::milliseconds{5});
+            if (!continuous)
+                std::this_thread::sleep_for(std::chrono::milliseconds{5});
         }
     }
 
@@ -802,7 +808,7 @@ struct WaveshareAds1256Monitor::Impl
     unsigned int mux_channel_count_{1};
     std::chrono::milliseconds gate_poll_period_{20};
     double vref_volts_{5.0};
-    std::chrono::milliseconds sample_period_{1000};
+    std::chrono::milliseconds sample_period_{0};
     bool mux_enabled_{false};
     bool have_last_gate_values_{false};
     bool verbose_debug_{false};
@@ -817,9 +823,9 @@ WaveshareAds1256Monitor::~WaveshareAds1256Monitor()
     stop();
 }
 
-bool WaveshareAds1256Monitor::start(bool verbose_debug)
+bool WaveshareAds1256Monitor::start(bool verbose_debug, double vref_volts)
 {
-    return impl_ != nullptr && impl_->start(verbose_debug);
+    return impl_ != nullptr && impl_->start(verbose_debug, vref_volts);
 }
 
 void WaveshareAds1256Monitor::stop()

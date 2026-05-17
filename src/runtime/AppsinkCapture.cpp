@@ -128,8 +128,7 @@ struct AppsinkContext
 // Plain POSIX thread function so we have no QObject/MOC dependency.
 struct ThreadArg
 {
-    int udp_port;
-    bool use_h264;
+    std::string pipeline_str;
     bool verbose_debug;
     QVideoSink *sink;
     std::atomic<bool> *running;
@@ -142,34 +141,8 @@ void *capture_thread(void *arg_ptr)
 
     gst_init(nullptr, nullptr);
 
-    std::string pipeline_str;
-    if (arg->use_h264)
-    {
-        // output-corrupt=true: render frames even when libav marks them corrupt.
-        // discard-corrupted-frames=false: pass GStreamer-flagged corrupt frames to the app.
-        // h264parse is required to extract codec_data (SPS/PPS) for avdec_h264.
-        pipeline_str =
-            "udpsrc port=" + std::to_string(arg->udp_port) +
-            " caps=\"application/x-rtp,media=video,clock-rate=90000,"
-            "encoding-name=H264,payload=96\" ! "
-            "rtph264depay ! h264parse ! "
-            "avdec_h264 output-corrupt=true discard-corrupted-frames=false max-errors=-1 ! "
-            "videoconvert ! video/x-raw,format=BGRx ! "
-            "appsink name=sink sync=false max-buffers=2 drop=true";
-    }
-    else
-    {
-        pipeline_str =
-            "udpsrc port=" + std::to_string(arg->udp_port) +
-            " caps=\"application/x-rtp,media=video,clock-rate=90000,"
-            "encoding-name=JPEG,payload=26\" ! "
-            "rtpjpegdepay ! queue max-size-buffers=4 leaky=downstream ! avdec_mjpeg ! "
-            "videoconvert ! video/x-raw,format=BGRx ! "
-            "appsink name=sink sync=false max-buffers=2 drop=true";
-    }
-
     GError *error = nullptr;
-    GstElement *pipeline = gst_parse_launch(pipeline_str.c_str(), &error);
+    GstElement *pipeline = gst_parse_launch(arg->pipeline_str.c_str(), &error);
     if (pipeline == nullptr || error != nullptr)
     {
         *arg->status_message = QStringLiteral("AppsinkCapture: gst_parse_launch failed: %1")
@@ -186,8 +159,7 @@ void *capture_thread(void *arg_ptr)
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
     std::cerr << "[appsink] pipeline set to PLAYING, starting pull loop\n";
 
-    *arg->status_message =
-        QStringLiteral("AppsinkCapture: running on UDP port %1").arg(arg->udp_port);
+    *arg->status_message = QStringLiteral("AppsinkCapture: pipeline running");
 
     std::atomic<bool> *running   = arg->running;
     QVideoSink        *sink      = arg->sink;
@@ -295,12 +267,78 @@ AppsinkCapture::~AppsinkCapture()
 
 bool AppsinkCapture::start(int udp_port, QVideoSink *sink, bool use_h264, bool verbose_debug)
 {
+    std::string pipeline_str;
+    if (use_h264)
+    {
+        // output-corrupt=true: render frames even when libav marks them corrupt.
+        // h264parse is required to extract SPS/PPS codec_data for avdec_h264.
+        pipeline_str =
+            "udpsrc port=" + std::to_string(udp_port) +
+            " caps=\"application/x-rtp,media=video,clock-rate=90000,"
+            "encoding-name=H264,payload=96\" ! "
+            "rtph264depay ! h264parse ! "
+            "avdec_h264 output-corrupt=true discard-corrupted-frames=false max-errors=-1 ! "
+            "videoconvert ! video/x-raw,format=BGRx ! "
+            "appsink name=sink sync=false max-buffers=2 drop=true";
+    }
+    else
+    {
+        pipeline_str =
+            "udpsrc port=" + std::to_string(udp_port) +
+            " caps=\"application/x-rtp,media=video,clock-rate=90000,"
+            "encoding-name=JPEG,payload=26\" ! "
+            "rtpjpegdepay ! queue max-size-buffers=4 leaky=downstream ! avdec_mjpeg ! "
+            "videoconvert ! video/x-raw,format=BGRx ! "
+            "appsink name=sink sync=false max-buffers=2 drop=true";
+    }
+    return start_pipeline(std::move(pipeline_str), sink, verbose_debug);
+}
+
+bool AppsinkCapture::start_network(const std::string &url, QVideoSink *sink, bool verbose_debug)
+{
+    std::string pipeline_str;
+
+    const bool is_rtsp = url.rfind("rtsp://", 0) == 0 || url.rfind("rtsps://", 0) == 0;
+    const bool is_http = url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0;
+
+    if (is_rtsp)
+    {
+        // H.264 over RTSP — covers the vast majority of IP cameras.
+        // latency=0: minimize buffering; increase to e.g. 200 on unreliable links.
+        pipeline_str =
+            "rtspsrc location=\"" + url + "\" latency=0 ! "
+            "rtph264depay ! h264parse ! "
+            "avdec_h264 output-corrupt=true discard-corrupted-frames=false max-errors=-1 ! "
+            "videoconvert ! video/x-raw,format=BGRx ! "
+            "appsink name=sink sync=false max-buffers=2 drop=true";
+    }
+    else if (is_http)
+    {
+        // HTTP/HTTPS MJPEG stream (multipart/x-mixed-replace).
+        // souphttpsrc requires gst-plugins-good with libsoup support.
+        pipeline_str =
+            "souphttpsrc location=\"" + url + "\" is-live=true ! "
+            "multipartdemux ! image/jpeg ! "
+            "jpegdec ! videoconvert ! video/x-raw,format=BGRx ! "
+            "appsink name=sink sync=false max-buffers=2 drop=true";
+    }
+    else
+    {
+        status_message_ = QStringLiteral("AppsinkCapture: unsupported URL scheme: %1")
+                              .arg(QString::fromStdString(url));
+        return false;
+    }
+
+    return start_pipeline(std::move(pipeline_str), sink, verbose_debug);
+}
+
+bool AppsinkCapture::start_pipeline(std::string pipeline_str, QVideoSink *sink, bool verbose_debug)
+{
     stop();
     verbose_debug_ = verbose_debug;
 
     auto *arg           = new ThreadArg;
-    arg->udp_port       = udp_port;
-    arg->use_h264       = use_h264;
+    arg->pipeline_str   = std::move(pipeline_str);
     arg->verbose_debug  = verbose_debug;
     arg->sink           = sink;
     arg->running        = &running_;

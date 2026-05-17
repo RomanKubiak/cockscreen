@@ -345,8 +345,14 @@ bool validate_scene_shader_files(const SceneDefinition &scene, const std::filesy
         return true;
     };
 
-    return validate_layer("video", scene.video_layer) && validate_layer("playback", scene.playback_layer) &&
-           validate_layer("screen", scene.screen_layer);
+    for (const auto &[name, nl] : scene.named_layers)
+    {
+        if (!validate_layer(name.c_str(), nl.layer))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 QString placement_to_string(BackgroundImagePlacement placement)

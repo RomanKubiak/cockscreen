@@ -38,10 +38,13 @@ float autonomous_drift()
     return 0.11 * sin(u_time * 0.19 + 1.0) + 0.05 * sin(u_time * 0.41 + 2.6);
 }
 
+float hash2(float a, float b)
+{
+    return fract(sin(a * 127.1 + b * 311.7) * 43758.5453);
+}
+
 void main()
 {
-    vec4 base = texture2D(u_texture, v_texcoord);
-
     float aspect = u_resolution.x / max(u_resolution.y, 1.0);
     vec2 uv = v_texcoord;
     float screen_y = 1.0 - uv.y;
@@ -50,7 +53,7 @@ void main()
 
     if (screen_y <= horizon)
     {
-        gl_FragColor = base;
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
@@ -90,7 +93,20 @@ void main()
     grid = max(grid, top_line);
 
     float motion_glow = 0.16 + 0.08 * sin(u_time * 0.27 + 0.4) + 0.05 * abs(turn_amount);
+
+    // Per-cell fill: each major-grid rectangle independently blinks on/off
+    float world_z_frag = 0.30 * perspective;
+    float row_index = floor((world_z_frag - 0.42 + travel) / 0.38);
+    float col_index = floor(shifted_world_x * 2.0);
+    float cell_period = 4.0 + 8.0 * hash2(col_index + 77.3, row_index + 31.9);
+    float cell_phase = hash2(col_index, row_index) * cell_period;
+    float cell_t = mod(u_time + cell_phase, cell_period) / cell_period;
+    float is_filled = step(0.60, cell_t) * plane_mask;
+    float fill_brightness = 0.65 + 0.15 * sin(u_time * 0.7 + hash2(col_index + 1.1, row_index) * 6.28);
+    vec3 fill_color = vec3(1.0, 0.10 + motion_glow * 0.28, 0.05) * fill_brightness * is_filled;
+
     vec3 wireframe_color = vec3(1.0, 0.10 + motion_glow * 0.28, 0.05) * grid * (1.0 + motion_glow * 0.24);
-    vec3 composed = max(base.rgb, wireframe_color);
-    gl_FragColor = vec4(composed, base.a);
+    float plane_alpha = clamp(grid + is_filled, 0.0, 1.0);
+    vec3 plane_color = clamp(wireframe_color + fill_color, 0.0, 1.0);
+    gl_FragColor = vec4(plane_color, plane_alpha);
 }

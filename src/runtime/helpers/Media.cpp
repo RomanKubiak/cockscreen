@@ -259,22 +259,6 @@ std::optional<QCameraDevice> select_video_input(const ApplicationSettings &setti
             }
         }
 
-        if (requested.startsWith(QStringLiteral("/dev/video")))
-        {
-            bool ok = false;
-            const int requested_index = requested.sliced(QStringLiteral("/dev/video").size()).toInt(&ok);
-            if (ok && requested_index >= 0 && requested_index < video_inputs.size())
-            {
-                const auto &device = video_inputs[requested_index];
-                if (selected_label != nullptr)
-                {
-                    *selected_label = device.description();
-                }
-
-                return device;
-            }
-        }
-
         // A specific device was named but Qt could not enumerate it (e.g. a
         // unicam/Media-Controller camera that Qt's V4L2 backend skips).
         // Do NOT silently open an unrelated device.

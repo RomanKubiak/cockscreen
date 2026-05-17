@@ -364,6 +364,60 @@ QImage frame_to_rgba8888(const V4l2FrameView &frame)
 
 } // namespace
 
+void ShaderVideoWindow::handle_playback_frame(const std::string &layer_name, const QVideoFrame &frame)
+{
+    auto it = playback_states_.find(layer_name);
+    if (it == playback_states_.end() || !it->second)
+    {
+        return;
+    }
+    PlaybackState &ps = *it->second;
+
+    const auto nl_it = scene_.named_layers.find(layer_name);
+    if (nl_it != scene_.named_layers.end() && nl_it->second.input.artifact.enabled)
+    {
+        QImage image = frame_to_rgba8888(frame);
+        if (!image.isNull())
+        {
+            apply_artifact(image.bits(), image.width() * 4, image.height(), image.bytesPerLine(),
+                           nl_it->second.input.artifact, ps.artifact_frame_counter++);
+            ps.latest_frame = std::move(image);
+            ps.texture_dirty = true;
+        }
+        return;
+    }
+
+    ps.latest_frame = frame_to_rgba8888(frame);
+    ps.texture_dirty = true;
+}
+
+void ShaderVideoWindow::handle_video_layer_frame(const std::string &layer_name, const QVideoFrame &frame)
+{
+    auto it = video_layer_states_.find(layer_name);
+    if (it == video_layer_states_.end() || !it->second)
+    {
+        return;
+    }
+    VideoLayerState &vs = *it->second;
+
+    const auto nl_it = scene_.named_layers.find(layer_name);
+    if (nl_it != scene_.named_layers.end() && nl_it->second.input.artifact.enabled)
+    {
+        QImage image = frame_to_rgba8888(frame);
+        if (!image.isNull())
+        {
+            apply_artifact(image.bits(), image.width() * 4, image.height(), image.bytesPerLine(),
+                           nl_it->second.input.artifact, vs.artifact_frame_counter++);
+            vs.latest_frame = std::move(image);
+            vs.texture_dirty = true;
+        }
+        return;
+    }
+
+    vs.latest_frame = frame_to_rgba8888(frame);
+    vs.texture_dirty = true;
+}
+
 QImage ShaderVideoWindow::build_no_signal_frame(int width, int height)
 {
     QImage image{width, height, QImage::Format_RGBA8888};
@@ -463,19 +517,6 @@ void ShaderVideoWindow::handle_frame(const QVideoFrame &frame)
     update();
 }
 
-void ShaderVideoWindow::handle_playback_frame(const QVideoFrame &frame)
-{
-    const QImage image = frame_to_rgba8888(frame);
-    if (image.isNull())
-    {
-        return;
-    }
-
-    latest_playback_frame_ = image;
-    playback_texture_dirty_ = true;
-    update();
-}
-
 void ShaderVideoWindow::ensure_texture()
 {
     if (texture_id_ == 0)
@@ -490,12 +531,34 @@ void ShaderVideoWindow::ensure_texture()
     }
 }
 
+void ShaderVideoWindow::ensure_video_layer_textures()
+{
+    for (auto &[name, vs] : video_layer_states_)
+    {
+        if (!vs || vs->texture_id != 0)
+        {
+            continue;
+        }
+        glGenTextures(1, &vs->texture_id);
+        glBindTexture(GL_TEXTURE_2D, vs->texture_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+}
+
 void ShaderVideoWindow::ensure_playback_texture()
 {
-    if (playback_texture_id_ == 0)
+    for (auto &[name, ps] : playback_states_)
     {
-        glGenTextures(1, &playback_texture_id_);
-        glBindTexture(GL_TEXTURE_2D, playback_texture_id_);
+        if (!ps || ps->texture_id != 0)
+        {
+            continue;
+        }
+        glGenTextures(1, &ps->texture_id);
+        glBindTexture(GL_TEXTURE_2D, ps->texture_id);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -737,26 +800,38 @@ void ShaderVideoWindow::ensure_scene_fbos()
     const QSize target_size = helper::render_target_size(scene_, QSize{width(), height()});
     const int target_width = target_size.width();
     const int target_height = target_size.height();
-    if (!scene_fbo_dirty_ && video_scene_fbo_ != nullptr && video_scene_fbo_alt_ != nullptr &&
-        playback_scene_fbo_ != nullptr && playback_scene_fbo_alt_ != nullptr && screen_scene_fbo_ != nullptr &&
-        screen_scene_fbo_alt_ != nullptr && (!scene_.render_target.enabled || composite_scene_fbo_ != nullptr) &&
-        scene_fbo_width_ == target_width && scene_fbo_height_ == target_height)
+
+    if (!scene_fbo_dirty_ && scene_fbo_width_ == target_width && scene_fbo_height_ == target_height)
     {
-        return;
+        bool all_present = !scene_.render_target.enabled || composite_scene_fbo_ != nullptr;
+        if (all_present)
+        {
+            for (const auto &[name, nl] : scene_.named_layers)
+            {
+                if (layer_fbos_.find(name) == layer_fbos_.end() ||
+                    layer_fbos_alt_.find(name) == layer_fbos_alt_.end())
+                {
+                    all_present = false;
+                    break;
+                }
+            }
+        }
+        if (all_present)
+        {
+            return;
+        }
     }
 
-    delete video_scene_fbo_;
-    video_scene_fbo_ = nullptr;
-    delete video_scene_fbo_alt_;
-    video_scene_fbo_alt_ = nullptr;
-    delete playback_scene_fbo_;
-    playback_scene_fbo_ = nullptr;
-    delete playback_scene_fbo_alt_;
-    playback_scene_fbo_alt_ = nullptr;
-    delete screen_scene_fbo_;
-    screen_scene_fbo_ = nullptr;
-    delete screen_scene_fbo_alt_;
-    screen_scene_fbo_alt_ = nullptr;
+    for (auto &[name, fbo] : layer_fbos_)
+    {
+        delete fbo;
+    }
+    layer_fbos_.clear();
+    for (auto &[name, fbo] : layer_fbos_alt_)
+    {
+        delete fbo;
+    }
+    layer_fbos_alt_.clear();
     delete composite_scene_fbo_;
     composite_scene_fbo_ = nullptr;
 
@@ -768,20 +843,30 @@ void ShaderVideoWindow::ensure_scene_fbos()
 
     QOpenGLFramebufferObjectFormat format;
     format.setAttachment(QOpenGLFramebufferObject::NoAttachment);
-    video_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
-    video_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
-    playback_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
-    playback_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
-    screen_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
-    screen_scene_fbo_alt_ = new QOpenGLFramebufferObject(target_width, target_height, format);
+
+    bool any_invalid = false;
+    for (const auto &[name, nl] : scene_.named_layers)
+    {
+        auto *fbo = new QOpenGLFramebufferObject(target_width, target_height, format);
+        auto *fbo_alt = new QOpenGLFramebufferObject(target_width, target_height, format);
+        if (!fbo->isValid() || !fbo_alt->isValid())
+        {
+            any_invalid = true;
+        }
+        layer_fbos_[name] = fbo;
+        layer_fbos_alt_[name] = fbo_alt;
+    }
+
     if (scene_.render_target.enabled)
     {
         composite_scene_fbo_ = new QOpenGLFramebufferObject(target_width, target_height, format);
+        if (!composite_scene_fbo_->isValid())
+        {
+            any_invalid = true;
+        }
     }
 
-    if (!video_scene_fbo_->isValid() || !video_scene_fbo_alt_->isValid() || !playback_scene_fbo_->isValid() ||
-        !playback_scene_fbo_alt_->isValid() || !screen_scene_fbo_->isValid() || !screen_scene_fbo_alt_->isValid() ||
-        (composite_scene_fbo_ != nullptr && !composite_scene_fbo_->isValid()))
+    if (any_invalid)
     {
         record_fatal_render_error(QStringLiteral("Scene framebuffer initialization failed for viewport %1x%2")
                                       .arg(target_width)
@@ -805,19 +890,23 @@ void ShaderVideoWindow::upload_latest_frame()
             QImage image;
             if (use_isp_)
             {
-                // Copy raw Bayer into an ISP input buffer (memcpy, ~1ms),
-                // then release the unicam buffer immediately.
-                const bool queued = isp_pipeline_.queue_input(raw_frame->data, raw_frame->size);
-                raw_video_capture_.release();
-                if (queued)
+                // Consume any ISP output that is already ready (from the previous
+                // unicam frame).  Dequeuing before submitting new input avoids the
+                // race where VIDIOC_DQBUF is called before the ISP has had time to
+                // process the frame we are about to submit — which on O_NONBLOCK
+                // returns EAGAIN every iteration, starving the input ring and
+                // producing "NO SIGNAL" even though the unicam pipeline is healthy.
+                const auto isp_frame = isp_pipeline_.dequeue_output();
+                if (isp_frame.has_value())
                 {
-                    const auto isp_frame = isp_pipeline_.dequeue_output();
-                    if (isp_frame.has_value())
-                    {
-                        image = frame_to_rgba8888(*isp_frame);
-                        isp_pipeline_.release_output();
-                    }
+                    image = frame_to_rgba8888(*isp_frame);
+                    isp_pipeline_.release_output();
                 }
+
+                // Submit the new unicam frame to the ISP for processing; the
+                // result will be consumed on the next call (one-frame latency).
+                isp_pipeline_.queue_input(raw_frame->data, raw_frame->size);
+                raw_video_capture_.release();
             }
             else
             {
@@ -826,7 +915,11 @@ void ShaderVideoWindow::upload_latest_frame()
             }
             if (!image.isNull())
             {
-                if (image_looks_blank(image))
+                // ISP frames are always real camera data; skip blank detection
+                // so a dark scene doesn't trigger "NO SIGNAL".  Blank detection
+                // is meaningful only for analog capture sources (USB grabbers etc.)
+                // where missing input genuinely produces an all-black stream.
+                if (!use_isp_ && image_looks_blank(image))
                 {
                     ++raw_video_blank_frame_count_;
                     if (raw_video_blank_frame_count_ >= 12)
@@ -917,43 +1010,66 @@ void ShaderVideoWindow::upload_latest_frame()
     texture_dirty_ = false;
 }
 
+void ShaderVideoWindow::upload_latest_video_layer_frames()
+{
+    ensure_video_layer_textures();
+    for (auto &[layer_name, vs] : video_layer_states_)
+    {
+        if (!vs || vs->latest_frame.isNull() || !vs->texture_dirty || vs->texture_id == 0)
+        {
+            continue;
+        }
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, vs->texture_id);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        const QImage image = helper::vertically_flipped_image(vs->latest_frame);
+        if (vs->texture_width != image.width() || vs->texture_height != image.height())
+        {
+            vs->texture_width = image.width();
+            vs->texture_height = image.height();
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vs->texture_width, vs->texture_height, 0, GL_RGBA,
+                         GL_UNSIGNED_BYTE, image.constBits());
+        }
+        else
+        {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, vs->texture_width, vs->texture_height, GL_RGBA,
+                            GL_UNSIGNED_BYTE, image.constBits());
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+        vs->texture_dirty = false;
+    }
+}
+
 void ShaderVideoWindow::upload_latest_playback_frame()
 {
-    if (latest_playback_frame_.isNull() || !playback_texture_dirty_)
-    {
-        return;
-    }
-
     ensure_playback_texture();
+    for (auto &[layer_name, ps] : playback_states_)
+    {
+        if (!ps || ps->latest_frame.isNull() || !ps->texture_dirty || ps->texture_id == 0)
+        {
+            continue;
+        }
 
-    // Artifact injection (Step 1) — playback layer.
-    if (scene_.playback_input.artifact.enabled)
-    {
-        latest_playback_frame_.detach();
-        const int width_bytes = latest_playback_frame_.width() * 4;
-        apply_artifact(latest_playback_frame_.bits(), width_bytes, latest_playback_frame_.height(),
-                       latest_playback_frame_.bytesPerLine(), scene_.playback_input.artifact,
-                       playback_artifact_frame_counter_++);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, ps->texture_id);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        const QImage image = helper::vertically_flipped_image(ps->latest_frame);
+        if (ps->texture_width != image.width() || ps->texture_height != image.height())
+        {
+            ps->texture_width = image.width();
+            ps->texture_height = image.height();
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ps->texture_width, ps->texture_height, 0, GL_RGBA,
+                         GL_UNSIGNED_BYTE, image.constBits());
+        }
+        else
+        {
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ps->texture_width, ps->texture_height, GL_RGBA,
+                            GL_UNSIGNED_BYTE, image.constBits());
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+        ps->texture_dirty = false;
     }
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, playback_texture_id_);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    const QImage image = helper::vertically_flipped_image(latest_playback_frame_);
-    if (playback_texture_width_ != image.width() || playback_texture_height_ != image.height())
-    {
-        playback_texture_width_ = image.width();
-        playback_texture_height_ = image.height();
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, playback_texture_width_, playback_texture_height_, 0, GL_RGBA,
-                     GL_UNSIGNED_BYTE, image.constBits());
-    }
-    else
-    {
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, playback_texture_width_, playback_texture_height_, GL_RGBA,
-                        GL_UNSIGNED_BYTE, image.constBits());
-    }
-    glBindTexture(GL_TEXTURE_2D, 0);
-    playback_texture_dirty_ = false;
 }
 
 } // namespace cockscreen::runtime
